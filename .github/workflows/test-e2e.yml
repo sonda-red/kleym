@@ -5,6 +5,8 @@ on:
     branches:
       - main
   pull_request:
+    branches:
+      - main
 
 jobs:
   test-e2e:
@@ -26,6 +28,11 @@ jobs:
 
       - name: Mark workspace as safe
         run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.25
 
       - name: Install the latest version of kind
         run: |
