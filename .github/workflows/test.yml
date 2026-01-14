@@ -9,7 +9,7 @@ jobs:
     name: Run on arc-set-nuc
     runs-on: arc-set-nuc
     container:
-      image: golang:1.23
+      image: golang:1.25
     steps:
       - name: Clone the code
         uses: actions/checkout@v4
