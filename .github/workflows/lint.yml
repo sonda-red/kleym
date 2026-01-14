@@ -10,6 +10,8 @@ jobs:
     runs-on: arc-set-nuc
     container:
       image: golang:1.25
+    env:
+      GOFLAGS: -buildvcs=false
     steps:
       - name: Clone the code
         uses: actions/checkout@v6
@@ -18,4 +20,6 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.5.0
-          
+          skip-cache: false
+          skip-pkg-cache: false
+          skip-build-cache: false
