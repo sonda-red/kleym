@@ -12,7 +12,7 @@ jobs:
       image: golang:1.23
     steps:
       - name: Clone the code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Running Tests
         run: |
