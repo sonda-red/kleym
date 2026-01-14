@@ -48,7 +48,6 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(terencesondaredv1.AddToScheme(scheme))
 	utilruntime.Must(terencesondaredv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
