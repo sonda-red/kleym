@@ -6,8 +6,8 @@ on:
 
 jobs:
   test-e2e:
-    name: Run on arc-nuc-set
-    runs-on: arc-nuc-set
+    name: Run on arc-set-nuc
+    runs-on: arc-set-nuc
     container:
       image: golang:1.23
     steps:
