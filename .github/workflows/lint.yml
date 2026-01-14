@@ -6,16 +6,13 @@ on:
 
 jobs:
   lint:
-    name: Run on Ubuntu
-    runs-on: ubuntu-latest
+    name: Run on arc-nuc-set
+    runs-on: arc-nuc-set
+    container:
+      image: golang:1.23
     steps:
       - name: Clone the code
         uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
 
       - name: Run linter
         uses: golangci/golangci-lint-action@v8
