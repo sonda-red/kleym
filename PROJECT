@@ -8,4 +8,14 @@ layout:
 - go.kubebuilder.io/v4
 projectName: terence
 repo: github.com/sonda-red/terence
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: sonda.red
+  group: terence.sonda.red
+  kind: InferenceTrustProfile
+  path: github.com/sonda-red/terence/api/v1alpha1
+  version: v1alpha1
 version: "3"

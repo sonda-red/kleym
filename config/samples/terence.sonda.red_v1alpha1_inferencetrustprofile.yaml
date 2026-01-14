@@ -1,0 +1,9 @@
+apiVersion: terence.sonda.red.sonda.red/v1alpha1
+kind: InferenceTrustProfile
+metadata:
+  labels:
+    app.kubernetes.io/name: terence
+    app.kubernetes.io/managed-by: kustomize
+  name: inferencetrustprofile-sample
+spec:
+  # TODO(user): Add fields here
