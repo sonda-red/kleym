@@ -12,12 +12,20 @@ jobs:
     runs-on: arc-set-nuc
     if: ${{ !contains(github.head_ref, 'renovate/') }}
     container:
-      image: golang:1.25
-    env:
-      GOFLAGS: -buildvcs=false
+      image: docker:29-dind
+      options: --privileged
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: read
     steps:
-      - name: Clone the code
+      - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Mark workspace as safe
+        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 
       - name: Install the latest version of kind
         run: |
