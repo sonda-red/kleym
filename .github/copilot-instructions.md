@@ -4,6 +4,54 @@
 
 A minimal Kubernetes operator that attaches SPIFFE/SPIRE workload identity and trust semantics to inference backends (vLLM, llm-d ModelService). **Not** a gateway, router, scheduler, or model serving framework—it's identity/mTLS glue for existing inference deployments.
 
+## Purpose
+
+# Copilot instructions for this repository
+
+Purpose
+Build a Kubernetes Operator in Go that deploys LLM inference services with strong identity, policy hooks, and auditable telemetry. The operator should automate a secure default deployment on Kubernetes.
+
+Primary goals
+1. Reconcile a custom resource named LLMInferenceService into a working inference Deployment or StatefulSet.
+2. Use vLLM as the default serving engine.
+3. Integrate SPIFFE and SPIRE so each inference workload gets a SPIFFE ID suitable for mTLS and audit attribution.
+4. Make policy enforcement pluggable, with a first class integration path for OPA.
+5. Produce audit friendly logs that include caller identity and model workload identity.
+
+Non goals
+1. Do not build a full multi tenant gateway product, UI, or account management system.
+2. Do not reimplement model runtimes. Prefer configuration of vLLM and existing ecosystem components.
+3. Do not implement confidential computing or hardware attestation in the initial MVP. Keep design compatible with later additions.
+
+Operator scope and conventions
+1. Use Kubebuilder and controller runtime conventions.
+2. Keep CRDs minimal and stable. Prefer explicit fields over clever inference.
+3. Prefer reconciliation that is idempotent and safe on retries.
+4. Prefer small, reviewable PR sized changes with clear tests.
+
+Identity requirements
+1. Every model workload must have a SPIFFE identity.
+2. Prefer per replica or per pod identity rather than one identity shared by all replicas.
+3. Prefer integration via SPIRE Kubernetes mechanisms when possible. If direct registration API use is needed, keep it optional and well isolated.
+
+Policy requirements
+1. Policy is optional but supported as a module.
+2. Provide an integration path for OPA that can evaluate allow or deny decisions for requests or tool calls.
+3. Policy decisions should be auditable and traceable to identities.
+
+Hardware and performance constraints
+1. Workloads may target CPU, GPU, or Intel acceleration paths. Keep configuration explicit.
+2. Prefer Kubernetes native scheduling, resource requests, and node selection. Do not invent a scheduler.
+
+Logging and observability
+1. Log request context without storing sensitive payloads by default.
+2. Include SPIFFE IDs and workload identifiers in logs and events.
+3. Prefer metrics that help operators understand throughput, errors, and scheduling.
+
+When implementing
+1. Do not add features outside the MVP without an explicit issue or task.
+2. If requirements are unclear, propose a minimal implementation and list the assumptions inside the PR description or a design note.
+
 ## Architecture
 
 - **CRD**: `InferenceTrustProfile` in [api/v1alpha1/](../api/v1alpha1/) - currently scaffolded with placeholder `Foo` field
