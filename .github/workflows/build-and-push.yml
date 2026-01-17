@@ -82,7 +82,7 @@ jobs:
           tags: |
             type=raw,value=${{ steps.version.outputs.tag }}
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
-            type=ref,event=pr,prefix=pr-
+            type=raw,value=dev,enable=${{ github.event_name == 'pull_request' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -118,15 +118,14 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Registry**: GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
           echo "**Image**: ghcr.io/${{ github.repository_owner }}/terence" >> $GITHUB_STEP_SUMMARY
-          echo "**PR Tag**: pr-${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit Tag**: ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags**: dev, ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit**: ${{ steps.version.outputs.short_sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Pull commands:" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "# By PR number:" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/${{ github.repository_owner }}/terence:pr-${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "# Latest dev build:" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/terence:dev" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# By commit SHA:" >> $GITHUB_STEP_SUMMARY
+          echo "# Specific commit SHA:" >> $GITHUB_STEP_SUMMARY
           echo "docker pull ghcr.io/${{ github.repository_owner }}/terence:${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
