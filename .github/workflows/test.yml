@@ -16,24 +16,32 @@ jobs:
       image: golang:1.25
     env:
       GOFLAGS: -buildvcs=false
-      # GOMODCACHE: /go/pkg/mod
-      # GOCACHE: /root/.cache/go-build
     steps:
       - name: Clone the code
         uses: actions/checkout@v6
 
-      # - name: Cache Go build, modules, tools, and envtest
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: |
-      #       /go/pkg/mod
-      #       /root/.cache/go-build
-      #       bin
-      #     key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-tools-${{ hashFiles('Makefile') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
-      #       ${{ runner.os }}-go-
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Cache envtest binaries
+        uses: actions/cache@v4
+        with:
+          path: bin/k8s
+          key: ${{ runner.os }}-envtest-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-envtest-
+
+      - name: Install envtest
+        run: |
+          CR_VERSION=$(go list -m -f '{{.Version}}' sigs.k8s.io/controller-runtime)
+          ENVTEST_VERSION=$(printf '%s' "$CR_VERSION" | sed -E 's/^v?([0-9]+)\.([0-9]+).*/release-\1.\2/')
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$ENVTEST_VERSION
 
       - name: Running Tests
         run: |
-          make test
+          K8S_VERSION=$(go list -m -f '{{.Version}}' k8s.io/api | sed -E 's/^v?([0-9]+)\.([0-9]+).*/1.\2/')
+          KUBEBUILDER_ASSETS="$(setup-envtest use "$K8S_VERSION" --bin-dir "$PWD/bin" -p path)" \
+            go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
