@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: ghcr.io/sonda-red/terence
-  newTag: pr-dd6c2f0
+  newTag: pr-20
