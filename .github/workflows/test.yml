@@ -36,5 +36,4 @@ jobs:
 
       - name: Running Tests
         run: |
-          go mod download
-          make test
+          make test-ci
