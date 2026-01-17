@@ -14,7 +14,7 @@ resources:
     namespaced: true
   controller: true
   domain: sonda.red
-  group: terence.sonda.red
+  group: terence
   kind: InferenceTrustProfile
   path: github.com/sonda-red/terence/api/v1alpha1
   version: v1alpha1

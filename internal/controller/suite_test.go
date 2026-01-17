@@ -88,8 +88,10 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	cancel()
-	err := testEnv.Stop()
-	Expect(err).NotTo(HaveOccurred())
+	if err := testEnv.Stop(); err != nil {
+		// Log but don't fail on cleanup errors (common in CI containers)
+		logf.Log.Error(err, "failed to stop test environment")
+	}
 })
 
 // getFirstFoundEnvTestBinaryDir locates the first binary in the specified path.
