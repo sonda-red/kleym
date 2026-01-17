@@ -1,4 +1,4 @@
-apiVersion: terence.sonda.red.sonda.red/v1alpha1
+apiVersion: terence.sonda.red/v1alpha1
 kind: InferenceTrustProfile
 metadata:
   labels:

@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.19.0
-  name: inferencetrustprofiles.terence.sonda.red.sonda.red
+  name: inferencetrustprofiles.terence.sonda.red
 spec:
-  group: terence.sonda.red.sonda.red
+  group: terence.sonda.red
   names:
     kind: InferenceTrustProfile
     listKind: InferenceTrustProfileList

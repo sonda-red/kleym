@@ -9,7 +9,7 @@ A minimal Kubernetes operator that attaches SPIFFE/SPIRE workload identity and t
 - **CRD**: `InferenceTrustProfile` in [api/v1alpha1/](../api/v1alpha1/) - currently scaffolded with placeholder `Foo` field
 - **Controller**: [internal/controller/inferencetrustprofile_controller.go](../internal/controller/inferencetrustprofile_controller.go) - empty reconciler loop (TODO implementation)
 - **Built with**: Kubebuilder v4.10.1, controller-runtime v0.22.4, Go 1.25
-- **Domain**: `terence.sonda.red.sonda.red` (note: double `.sonda.red` - check [PROJECT](../PROJECT) file)
+- **Domain**: `terence.sonda.red`
 
 ## Critical Development Workflow
 

@@ -33,9 +33,9 @@ type InferenceTrustProfileReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=terence.sonda.red.sonda.red,resources=inferencetrustprofiles,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=terence.sonda.red.sonda.red,resources=inferencetrustprofiles/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=terence.sonda.red.sonda.red,resources=inferencetrustprofiles/finalizers,verbs=update
+// +kubebuilder:rbac:groups=terence.sonda.red,resources=inferencetrustprofiles,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=terence.sonda.red,resources=inferencetrustprofiles/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=terence.sonda.red,resources=inferencetrustprofiles/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
