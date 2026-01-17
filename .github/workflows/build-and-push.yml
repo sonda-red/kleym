@@ -82,13 +82,14 @@ jobs:
           tags: |
             type=raw,value=${{ steps.version.outputs.tag }}
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=ref,event=pr,prefix=pr-
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          push: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' }}
+          push: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -110,12 +111,22 @@ jobs:
           echo "docker pull ghcr.io/${{ github.repository_owner }}/terence:${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      - name: Output PR build info
+      - name: Output PR image info
         if: github.event_name == 'pull_request'
         run: |
-          echo "## Docker Image Built (Not Pushed) 🔨" >> $GITHUB_STEP_SUMMARY
+          echo "## Docker Image Published 🚀" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Image would be tagged as**: ghcr.io/${{ github.repository_owner }}/terence:${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry**: GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
+          echo "**Image**: ghcr.io/${{ github.repository_owner }}/terence" >> $GITHUB_STEP_SUMMARY
+          echo "**PR Tag**: pr-${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit Tag**: ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit**: ${{ steps.version.outputs.short_sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "This PR build validates the Dockerfile but does not push to the registry." >> $GITHUB_STEP_SUMMARY
+          echo "### Pull commands:" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "# By PR number:" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/terence:pr-${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# By commit SHA:" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/terence:${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
