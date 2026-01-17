@@ -127,7 +127,7 @@ Intel acceleration support is a configuration concern, not an architectural one.
 
 ## Incremental milestones
 Milestone 1, MVP
-1. `LLMInferenceService` CRD
+1. `InferenceTrustProfile` CRD
 2. Reconcile to Deployment plus Service
 3. vLLM container with basic config
 4. SPIRE integration via pod annotations and selectors
