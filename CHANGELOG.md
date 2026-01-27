@@ -1,3 +1,9 @@
+## [1.0.2](https://github.com/sonda-red/terence/compare/v1.0.1...v1.0.2) (2026-01-27)
+
+### Bug Fixes
+
+* **deps:** update module sigs.k8s.io/controller-runtime to v0.23.1 ([#23](https://github.com/sonda-red/terence/issues/23)) ([4011135](https://github.com/sonda-red/terence/commit/401113575192460131bed0d0289c25551e4296d1))
+
 ## [1.0.1](https://github.com/sonda-red/terence/compare/v1.0.0...v1.0.1) (2026-01-19)
 
 ### Bug Fixes
