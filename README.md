@@ -1,6 +1,6 @@
-# Terence
+# terence
 
-Terence (trust inference) is a small Kubernetes add-on that attaches workload identity and trust semantics to inference backends.
+terence (trust inference) is a small Kubernetes add-on that attaches workload identity and trust semantics to inference backends.
 
 ## What it is
 A controller that binds inference workloads to SPIFFE/SPIRE identity primitives and optional trust signals (mTLS posture, basic attribution logging). It is designed to attach to existing model deployments, including llm-d ModelService and plain Deployments.
@@ -13,10 +13,10 @@ A controller that binds inference workloads to SPIFFE/SPIRE identity primitives 
 - Not a replacement for llm-d, vLLM, KServe, or any inference engine
 
 ## Relationship to SPIFFE/SPIRE
-Terence does not reimplement SPIRE. It relies on SPIFFE/SPIRE for workload identity (SVID issuance, rotation) and uses Kubernetes-native SPIRE integration patterns (for example via SPIRE Controller Manager) to keep identities aligned with pods.
+terence does not reimplement SPIRE. It relies on SPIFFE/SPIRE for workload identity (SVID issuance, rotation) and uses Kubernetes-native SPIRE integration patterns (for example via SPIRE Controller Manager) to keep identities aligned with pods.
 
 ## Relationship to llm-d ModelService
-llm-d ModelService owns inference deployment patterns and performance-oriented topology (disaggregation, routing integration, etc.). Terence treats ModelService as a target and attaches identity/trust semantics to the workloads it produces. Terence does not own llm-d routing, scheduling, or model runtime choices.
+llm-d ModelService owns inference deployment patterns and performance-oriented topology (disaggregation, routing integration, etc.). terence treats ModelService as a target and attaches identity/trust semantics to the workloads it produces. terence does not own llm-d routing, scheduling, or model runtime choices.
 
 ## MVP constraints
 The MVP is intentionally minimal:

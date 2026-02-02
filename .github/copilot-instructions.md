@@ -1,4 +1,4 @@
-# Terence - AI Coding Guidelines
+# terence - AI Coding Guidelines
 
 ## What This Project Is
 
