@@ -78,7 +78,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/terence
+          images: ghcr.io/${{ github.repository_owner }}/kleym
           tags: |
             type=raw,value=${{ steps.version.outputs.tag }}
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
@@ -102,13 +102,13 @@ jobs:
           echo "## Docker Image Published 🚀" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Registry**: GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
-          echo "**Image**: ghcr.io/${{ github.repository_owner }}/terence" >> $GITHUB_STEP_SUMMARY
+          echo "**Image**: ghcr.io/${{ github.repository_owner }}/kleym" >> $GITHUB_STEP_SUMMARY
           echo "**Version Tag**: ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit**: ${{ steps.version.outputs.short_sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Pull command:" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/${{ github.repository_owner }}/terence:${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/kleym:${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Output PR image info
@@ -117,15 +117,15 @@ jobs:
           echo "## Docker Image Published 🚀" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Registry**: GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
-          echo "**Image**: ghcr.io/${{ github.repository_owner }}/terence" >> $GITHUB_STEP_SUMMARY
+          echo "**Image**: ghcr.io/${{ github.repository_owner }}/kleym" >> $GITHUB_STEP_SUMMARY
           echo "**Tags**: dev, ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit**: ${{ steps.version.outputs.short_sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Pull commands:" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
           echo "# Latest dev build:" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/${{ github.repository_owner }}/terence:dev" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/kleym:dev" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# Specific commit SHA:" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/${{ github.repository_owner }}/terence:${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/kleym:${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

@@ -27,10 +27,10 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	terencesondaredv1alpha1 "github.com/sonda-red/terence/api/v1alpha1"
+	kleymsondaredv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
-var _ = Describe("InferenceTrustProfile Controller", func() {
+var _ = Describe("InferenceTrustBinding Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -40,13 +40,13 @@ var _ = Describe("InferenceTrustProfile Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		inferencetrustprofile := &terencesondaredv1alpha1.InferenceTrustProfile{}
+		inferencetrustbinding := &kleymsondaredv1alpha1.InferenceTrustBinding{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind InferenceTrustProfile")
-			err := k8sClient.Get(ctx, typeNamespacedName, inferencetrustprofile)
+			By("creating the custom resource for the Kind InferenceTrustBinding")
+			err := k8sClient.Get(ctx, typeNamespacedName, inferencetrustbinding)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &terencesondaredv1alpha1.InferenceTrustProfile{
+				resource := &kleymsondaredv1alpha1.InferenceTrustBinding{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,16 +59,16 @@ var _ = Describe("InferenceTrustProfile Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &terencesondaredv1alpha1.InferenceTrustProfile{}
+			resource := &kleymsondaredv1alpha1.InferenceTrustBinding{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance InferenceTrustProfile")
+			By("Cleanup the specific resource instance InferenceTrustBinding")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &InferenceTrustProfileReconciler{
+			controllerReconciler := &InferenceTrustBindingReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}

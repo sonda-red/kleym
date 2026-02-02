@@ -1,4 +1,4 @@
-module github.com/sonda-red/terence
+module github.com/sonda-red/kleym
 
 go 1.25.0
 

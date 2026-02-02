@@ -1,6 +1,6 @@
 # Getting Started with Reconcile Logic
 
-This guide walks you through implementing the reconcile loop for the InferenceTrustProfile controller, from first steps to a working MVP.
+This guide walks you through implementing the reconcile loop for the InferenceTrustBinding controller, from first steps to a working MVP.
 
 ## Understanding the Reconcile Pattern
 
@@ -17,10 +17,10 @@ Your job: Make the actual cluster state match the desired state in the CR (Custo
 
 #### 1. Define Your Spec Fields
 
-First, replace the placeholder `Foo` field in [api/v1alpha1/inferencetrustprofile_types.go](../api/v1alpha1/inferencetrustprofile_types.go) with actual fields. Based on the project goals, you need:
+First, replace the placeholder `Foo` field in [api/v1alpha1/inferencetrustbinding_types.go](../api/v1alpha1/inferencetrustbinding_types.go) with actual fields. Based on the project goals, you need:
 
 ```go
-type InferenceTrustProfileSpec struct {
+type InferenceTrustBindingSpec struct {
     // TargetRef references the workload to attach identity to
     // This could be a Deployment, StatefulSet, or llm-d ModelService
     TargetRef WorkloadReference `json:"targetRef"`
@@ -64,7 +64,7 @@ make manifests generate
 Update the Status struct to track reconciliation state:
 
 ```go
-type InferenceTrustProfileStatus struct {
+type InferenceTrustBindingStatus struct {
     // conditions represent the current state
     // +listType=map
     // +listMapKey=type
@@ -92,18 +92,18 @@ Run `make manifests generate` again.
 #### 3. Implement Fetch-and-Validate Pattern
 
 ```go
-func (r *InferenceTrustProfileReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *InferenceTrustBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
     log := logf.FromContext(ctx)
     
-    // 1. Fetch the InferenceTrustProfile instance
-    var profile terencesondaredv1alpha1.InferenceTrustProfile
+    // 1. Fetch the InferenceTrustBinding instance
+    var profile kleymsondaredv1alpha1.InferenceTrustBinding
     if err := r.Get(ctx, req.NamespacedName, &profile); err != nil {
         if apierrors.IsNotFound(err) {
             // Resource deleted, nothing to do
-            log.Info("InferenceTrustProfile not found, likely deleted")
+            log.Info("InferenceTrustBinding not found, likely deleted")
             return ctrl.Result{}, nil
         }
-        log.Error(err, "Failed to get InferenceTrustProfile")
+        log.Error(err, "Failed to get InferenceTrustBinding")
         return ctrl.Result{}, err
     }
     
@@ -140,7 +140,7 @@ func (r *InferenceTrustProfileReconciler) Reconcile(ctx context.Context, req ctr
 Create helper functions to keep your reconcile clean:
 
 ```go
-func (r *InferenceTrustProfileReconciler) validateSpec(profile *terencesondaredv1alpha1.InferenceTrustProfile) error {
+func (r *InferenceTrustBindingReconciler) validateSpec(profile *kleymsondaredv1alpha1.InferenceTrustBinding) error {
     if profile.Spec.TargetRef.Name == "" {
         return fmt.Errorf("targetRef.name is required")
     }
@@ -150,9 +150,9 @@ func (r *InferenceTrustProfileReconciler) validateSpec(profile *terencesondaredv
     return nil
 }
 
-func (r *InferenceTrustProfileReconciler) updateStatusCondition(
+func (r *InferenceTrustBindingReconciler) updateStatusCondition(
     ctx context.Context,
-    profile *terencesondaredv1alpha1.InferenceTrustProfile,
+    profile *kleymsondaredv1alpha1.InferenceTrustBinding,
     conditionType string,
     status metav1.ConditionStatus,
     reason, message string,
@@ -173,9 +173,9 @@ func (r *InferenceTrustProfileReconciler) updateStatusCondition(
 This is where you'll attach SPIFFE identity. Start simple:
 
 ```go
-func (r *InferenceTrustProfileReconciler) reconcileIdentity(
+func (r *InferenceTrustBindingReconciler) reconcileIdentity(
     ctx context.Context,
-    profile *terencesondaredv1alpha1.InferenceTrustProfile,
+    profile *kleymsondaredv1alpha1.InferenceTrustBinding,
 ) error {
     log := logf.FromContext(ctx)
     
@@ -205,11 +205,11 @@ func (r *InferenceTrustProfileReconciler) reconcileIdentity(
 #### 6. Update SetupWithManager to Watch Workloads
 
 ```go
-func (r *InferenceTrustProfileReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *InferenceTrustBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
     return ctrl.NewControllerManagedBy(mgr).
-        For(&terencesondaredv1alpha1.InferenceTrustProfile{}).
+        For(&kleymsondaredv1alpha1.InferenceTrustBinding{}).
         Owns(&appsv1.Deployment{}).  // Watch Deployments we manage
-        Named("inferencetrustprofile").
+        Named("inferencetrustbinding").
         Complete(r)
 }
 ```
@@ -230,10 +230,10 @@ And add RBAC markers:
 
 #### 7. Write Unit Tests
 
-In [internal/controller/inferencetrustprofile_controller_test.go](../internal/controller/inferencetrustprofile_controller_test.go):
+In [internal/controller/inferencetrustbinding_controller_test.go](../internal/controller/inferencetrustbinding_controller_test.go):
 
 ```go
-var _ = Describe("InferenceTrustProfile Controller", func() {
+var _ = Describe("InferenceTrustBinding Controller", func() {
     Context("When reconciling a resource", func() {
         const resourceName = "test-profile"
         
@@ -245,14 +245,14 @@ var _ = Describe("InferenceTrustProfile Controller", func() {
         }
         
         BeforeEach(func() {
-            By("creating the custom resource for the Kind InferenceTrustProfile")
-            profile := &terencesondaredv1alpha1.InferenceTrustProfile{
+            By("creating the custom resource for the Kind InferenceTrustBinding")
+            profile := &kleymsondaredv1alpha1.InferenceTrustBinding{
                 ObjectMeta: metav1.ObjectMeta{
                     Name:      resourceName,
                     Namespace: "default",
                 },
-                Spec: terencesondaredv1alpha1.InferenceTrustProfileSpec{
-                    TargetRef: terencesondaredv1alpha1.WorkloadReference{
+                Spec: kleymsondaredv1alpha1.InferenceTrustBindingSpec{
+                    TargetRef: kleymsondaredv1alpha1.WorkloadReference{
                         Kind: "Deployment",
                         Name: "test-deployment",
                     },
@@ -263,7 +263,7 @@ var _ = Describe("InferenceTrustProfile Controller", func() {
         })
         
         AfterEach(func() {
-            resource := &terencesondaredv1alpha1.InferenceTrustProfile{}
+            resource := &kleymsondaredv1alpha1.InferenceTrustBinding{}
             err := k8sClient.Get(ctx, typeNamespacedName, resource)
             Expect(err).NotTo(HaveOccurred())
             
@@ -273,7 +273,7 @@ var _ = Describe("InferenceTrustProfile Controller", func() {
         
         It("should successfully reconcile the resource", func() {
             By("Reconciling the created resource")
-            controllerReconciler := &InferenceTrustProfileReconciler{
+            controllerReconciler := &InferenceTrustBindingReconciler{
                 Client: k8sClient,
                 Scheme: k8sClient.Scheme(),
             }

@@ -65,12 +65,12 @@ The adapter exists only to place identity, model immutability, and DRA governanc
 
 ### Rules
 
-1. **terence does not implement:**
+1. **kleym does not implement:**
    - Routing
    - Endpoint picking
    - Scheduling
 
-2. **terence may generate or patch llm-d resources only to apply:**
+2. **kleym may generate or patch llm-d resources only to apply:**
    - ServiceAccount and identity wiring
    - ResourceClaims and device constraints
    - Labels and annotations containing `modelDigest`, `tenant`, `spiffeId`
@@ -81,15 +81,15 @@ The adapter exists only to place identity, model immutability, and DRA governanc
 InferenceWorkload (llmdAdapter: true)
          │
          ▼
-   terence controller
+   kleym controller
          │
          ├── Creates ServiceAccount with SPIFFE annotations
          ├── Creates ResourceClaimTemplate from DeviceProfile
          └── Patches llm-d resources with:
-               • terence.sonda.red/model-digest
-               • terence.sonda.red/spiffe-id
-               • terence.sonda.red/tenant
+               • kleym.sonda.red/model-digest
+               • kleym.sonda.red/spiffe-id
+               • kleym.sonda.red/tenant
                • resourceClaims reference
 ```
 
-terence does not own llm-d routing, scheduling, or model runtime choices.
+kleym does not own llm-d routing, scheduling, or model runtime choices.

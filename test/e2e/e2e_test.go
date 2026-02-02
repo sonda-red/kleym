@@ -30,20 +30,20 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/sonda-red/terence/test/utils"
+	"github.com/sonda-red/kleym/test/utils"
 )
 
 // namespace where the project is deployed in
-const namespace = "terence-system"
+const namespace = "kleym-system"
 
 // serviceAccountName created for the project
-const serviceAccountName = "terence-controller-manager"
+const serviceAccountName = "kleym-controller-manager"
 
 // metricsServiceName is the name of the metrics service of the project
-const metricsServiceName = "terence-controller-manager-metrics-service"
+const metricsServiceName = "kleym-controller-manager-metrics-service"
 
 // metricsRoleBindingName is the name of the RBAC that will be created to allow get the metrics data
-const metricsRoleBindingName = "terence-metrics-binding"
+const metricsRoleBindingName = "kleym-metrics-binding"
 
 var _ = Describe("Manager", Ordered, func() {
 	var controllerPodName string
@@ -176,7 +176,7 @@ var _ = Describe("Manager", Ordered, func() {
 		It("should ensure the metrics endpoint is serving metrics", func() {
 			By("creating a ClusterRoleBinding for the service account to allow access to metrics")
 			cmd := exec.Command("kubectl", "create", "clusterrolebinding", metricsRoleBindingName,
-				"--clusterrole=terence-metrics-reader",
+				"--clusterrole=kleym-metrics-reader",
 				fmt.Sprintf("--serviceaccount=%s:%s", namespace, serviceAccountName),
 			)
 			_, err := utils.Run(cmd)

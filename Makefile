@@ -72,7 +72,7 @@ test-ci: setup-envtest ## Run tests without codegen, fmt, or vet (CI-optimized).
 # The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
 # CertManager is installed by default; skip with:
 # - CERT_MANAGER_INSTALL_SKIP=true
-KIND_CLUSTER ?= terence-test-e2e
+KIND_CLUSTER ?= kleym-test-e2e
 
 .PHONY: setup-test-e2e
 setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
@@ -141,10 +141,10 @@ PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 docker-buildx: ## Build and push docker image for the manager for cross-platform support
 	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
-	- $(CONTAINER_TOOL) buildx create --name terence-builder
-	$(CONTAINER_TOOL) buildx use terence-builder
+	- $(CONTAINER_TOOL) buildx create --name kleym-builder
+	$(CONTAINER_TOOL) buildx use kleym-builder
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
-	- $(CONTAINER_TOOL) buildx rm terence-builder
+	- $(CONTAINER_TOOL) buildx rm kleym-builder
 	rm Dockerfile.cross
 
 .PHONY: build-installer

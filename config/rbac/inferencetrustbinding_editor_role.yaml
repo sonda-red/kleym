@@ -1,7 +1,7 @@
-# This rule is not used by the project terence itself.
+# This rule is not used by the project kleym itself.
 # It is provided to allow the cluster admin to help manage permissions for users.
 #
-# Grants permissions to create, update, and delete resources within the terence.sonda.red.
+# Grants permissions to create, update, and delete resources within the kleym.sonda.red.
 # This role is intended for users who need to manage these resources
 # but should not control RBAC or manage permissions for others.
 
@@ -9,14 +9,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: terence
+    app.kubernetes.io/name: kleym
     app.kubernetes.io/managed-by: kustomize
-  name: inferencetrustprofile-editor-role
+  name: inferencetrustbinding-editor-role
 rules:
 - apiGroups:
-  - terence.sonda.red
+  - kleym.sonda.red
   resources:
-  - inferencetrustprofiles
+  - inferencetrustbindings
   verbs:
   - create
   - delete
@@ -26,8 +26,8 @@ rules:
   - update
   - watch
 - apiGroups:
-  - terence.sonda.red
+  - kleym.sonda.red
   resources:
-  - inferencetrustprofiles/status
+  - inferencetrustbindings/status
   verbs:
   - get

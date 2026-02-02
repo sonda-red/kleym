@@ -5,9 +5,9 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - terence.sonda.red
+  - kleym.sonda.red
   resources:
-  - inferencetrustprofiles
+  - inferencetrustbindings
   verbs:
   - create
   - delete
@@ -17,15 +17,15 @@ rules:
   - update
   - watch
 - apiGroups:
-  - terence.sonda.red
+  - kleym.sonda.red
   resources:
-  - inferencetrustprofiles/finalizers
+  - inferencetrustbindings/finalizers
   verbs:
   - update
 - apiGroups:
-  - terence.sonda.red
+  - kleym.sonda.red
   resources:
-  - inferencetrustprofiles/status
+  - inferencetrustbindings/status
   verbs:
   - get
   - patch

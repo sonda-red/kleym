@@ -24,29 +24,29 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	terencesondaredv1alpha1 "github.com/sonda-red/terence/api/v1alpha1"
+	kleymsondaredv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
-// InferenceTrustProfileReconciler reconciles a InferenceTrustProfile object
-type InferenceTrustProfileReconciler struct {
+// InferenceTrustBindingReconciler reconciles a InferenceTrustBinding object
+type InferenceTrustBindingReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=terence.sonda.red,resources=inferencetrustprofiles,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=terence.sonda.red,resources=inferencetrustprofiles/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=terence.sonda.red,resources=inferencetrustprofiles/finalizers,verbs=update
+// +kubebuilder:rbac:groups=kleym.sonda.red,resources=inferencetrustbindings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=kleym.sonda.red,resources=inferencetrustbindings/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=kleym.sonda.red,resources=inferencetrustbindings/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the InferenceTrustProfile object against the actual cluster state, and then
+// the InferenceTrustBinding object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.22.4/pkg/reconcile
-func (r *InferenceTrustProfileReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *InferenceTrustBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = logf.FromContext(ctx)
 
 	// TODO(user): your logic here
@@ -55,9 +55,9 @@ func (r *InferenceTrustProfileReconciler) Reconcile(ctx context.Context, req ctr
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *InferenceTrustProfileReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *InferenceTrustBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&terencesondaredv1alpha1.InferenceTrustProfile{}).
-		Named("inferencetrustprofile").
+		For(&kleymsondaredv1alpha1.InferenceTrustBinding{}).
+		Named("inferencetrustbinding").
 		Complete(r)
 }

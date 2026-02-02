@@ -6,10 +6,10 @@
 
 | Metric | Labels | Description |
 |--------|--------|-------------|
-| `terence_admission_denied_total` | `reason` | Admission denials by reason |
-| `terence_inferenceworkload_ready_total` | | Ready workloads |
-| `terence_dra_claims_created_total` | `deviceProfile` | DRA claims created |
-| `terence_reconcile_duration_seconds` | `controller` | Reconciliation latency |
+| `kleym_admission_denied_total` | `reason` | Admission denials by reason |
+| `kleym_inferenceworkload_ready_total` | | Ready workloads |
+| `kleym_dra_claims_created_total` | `deviceProfile` | DRA claims created |
+| `kleym_reconcile_duration_seconds` | `controller` | Reconciliation latency |
 
 ### Events
 

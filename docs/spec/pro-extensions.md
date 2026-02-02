@@ -1,10 +1,10 @@
-# terence Pro Extensions
+# kleym Pro Extensions
 
 Commercial extensions for identity depth, compliance, and multi-tenant inference governance.
 
 ## Positioning
 
-terence Pro extends OSS Core with features that platform teams buy:
+kleym Pro extends OSS Core with features that platform teams buy:
 - Per-request attribution
 - Compliance-grade audit and retention
 - Multi-model identity semantics
@@ -89,7 +89,7 @@ terence Pro extends OSS Core with features that platform teams buy:
 
 ### ModelInstanceIdentity (namespaced)
 
-Created by terence Pro, represents a model identity inside a workload.
+Created by kleym Pro, represents a model identity inside a workload.
 
 | Field | Type | Description |
 |-------|------|-------------|

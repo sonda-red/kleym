@@ -1,63 +1,78 @@
-# terence - AI Coding Guidelines
+# kleym - AI Coding Guidelines
 
 ## What This Project Is
 
-A minimal Kubernetes operator that attaches SPIFFE/SPIRE workload identity and trust semantics to inference backends (vLLM, llm-d ModelService). **Not** a gateway, router, scheduler, or model serving framework—it's identity/mTLS glue for existing inference deployments.
+A minimal Kubernetes operator that **attaches** SPIFFE/SPIRE workload identity and trust semantics to **existing** inference backends (vLLM, llm-d ModelService, plain Deployments). **Not** a gateway, router, scheduler, or model serving framework—it's identity/mTLS glue that watches inference workloads and binds them to trust primitives.
 
 ## Purpose
 
-# Copilot instructions for this repository
+kleym operates on the **governance plane**: it does not deploy, scale, or configure inference runtimes. It watches for inference workloads created by other tools (llm-d, Helm charts, GitOps, etc.) and attaches identity, mTLS enforcement, and audit-grade logging.
 
-Purpose
-Build a Kubernetes Operator in Go that deploys LLM inference services with strong identity, policy hooks, and auditable telemetry. The operator should automate a secure default deployment on Kubernetes.
+### Primary Goals
 
-Primary goals
-1. Reconcile a custom resource named LLMInferenceService into a working inference Deployment or StatefulSet.
-2. Use vLLM as the default serving engine.
-3. Integrate SPIFFE and SPIRE so each inference workload gets a SPIFFE ID suitable for mTLS and audit attribution.
-4. Make policy enforcement pluggable, with a first class integration path for OPA.
-5. Produce audit friendly logs that include caller identity and model workload identity.
+1. **Watch for inference workloads** matching label selectors defined in `InferenceTrustBinding` resources
+2. **Issue per-pod SPIFFE identities** via SPIRE or compatible integrations (SPIRE Controller Manager, Kubernetes Workload Registrar)
+3. **Configure mTLS enforcement** between clients and inference pods using SPIRE-issued SVIDs
+4. **Emit attribution logs** that include caller identity, workload SPIFFE ID, and request metadata
 
-Non goals
-1. Do not build a full multi tenant gateway product, UI, or account management system.
-2. Do not reimplement model runtimes. Prefer configuration of vLLM and existing ecosystem components.
-3. Do not implement confidential computing or hardware attestation in the initial MVP. Keep design compatible with later additions.
+### What the CRD Does
 
-Operator scope and conventions
-1. Use Kubebuilder and controller runtime conventions.
-2. Keep CRDs minimal and stable. Prefer explicit fields over clever inference.
-3. Prefer reconciliation that is idempotent and safe on retries.
-4. Prefer small, reviewable PR sized changes with clear tests.
+`InferenceTrustBinding` configures **trust behaviour**, not inference deployment:
+- `selector`: Which workloads to attach identity to
+- `spiffeIdScope`: Granularity of identity (pod, replicaSet, deployment)
+- `mtlsRequired`: Whether to enforce mTLS
+- `policyRef`: Optional reference to external policy (OPA, Gatekeeper)
+- `attributionLog`: Audit log format and content
 
-Identity requirements
-1. Every model workload must have a SPIFFE identity.
-2. Prefer per replica or per pod identity rather than one identity shared by all replicas.
-3. Prefer integration via SPIRE Kubernetes mechanisms when possible. If direct registration API use is needed, keep it optional and well isolated.
+The CRD contains **no fields** for images, replicas, resources, models, or runtime configuration—those belong to the inference deployment owned by upstream tools.
 
-Policy requirements
-1. Policy is optional but supported as a module.
-2. Provide an integration path for OPA that can evaluate allow or deny decisions for requests or tool calls.
-3. Policy decisions should be auditable and traceable to identities.
+### Explicit Non-Goals
 
-Hardware and performance constraints
-1. Workloads may target CPU, GPU, or Intel acceleration paths. Keep configuration explicit.
-2. Prefer Kubernetes native scheduling, resource requests, and node selection. Do not invent a scheduler.
+1. **Do not build** an inference gateway, request router, or API front door
+2. **Do not build** an inference scheduler or token scheduler
+3. **Do not create** Deployments, StatefulSets, or Services for inference workloads—attach to existing ones
+4. **Do not reimplement** vLLM, llm-d, KServe, or any model runtime
+5. **Do not replace** SPIRE—integrate with it
+6. **Do not implement** policy engines—reference external OPA/Gatekeeper policies
+7. **Do not add** autoscaling, multi-tenancy UI, or model registry features
 
-Logging and observability
-1. Log request context without storing sensitive payloads by default.
-2. Include SPIFFE IDs and workload identifiers in logs and events.
-3. Prefer metrics that help operators understand throughput, errors, and scheduling.
+### Future Considerations (Not MVP)
 
-When implementing
-1. Do not add features outside the MVP without an explicit issue or task.
-2. If requirements are unclear, propose a minimal implementation and list the assumptions inside the PR description or a design note.
+- Per-request / per-session identities
+- Provenance receipts or confidential computing attestation
+- Gateway API integration
+- Advanced policy engines beyond identity/mTLS
 
 ## Architecture
 
-- **CRD**: `InferenceTrustProfile` in [api/v1alpha1/](../api/v1alpha1/) - currently scaffolded with placeholder `Foo` field
-- **Controller**: [internal/controller/inferencetrustprofile_controller.go](../internal/controller/inferencetrustprofile_controller.go) - empty reconciler loop (TODO implementation)
+- **CRD**: `InferenceTrustBinding` in [api/v1alpha1/](../api/v1alpha1/) - configures identity scope, mTLS, policy refs, attribution logging
+- **Controller**: [internal/controller/inferencetrustbinding_controller.go](../internal/controller/inferencetrustbinding_controller.go) - watches workloads, issues identities, enforces mTLS
 - **Built with**: Kubebuilder v4.10.1, controller-runtime v0.22.4, Go 1.25
-- **Domain**: `terence.sonda.red`
+- **Domain**: `kleym.sonda.red`
+
+## How kleym Integrates with Upstream Projects
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Upstream Deployment Tools (NOT owned by kleym)               │
+│  llm-d ModelService │ vLLM Helm │ Plain Deployments │ KServe    │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │ creates inference Pods
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    kleym Controller                           │
+│  1. Watches Pods matching InferenceTrustBinding.selector        │
+│  2. Requests SPIFFE ID from SPIRE for each matched Pod          │
+│  3. Injects mTLS sidecar or configures native SPIFFE support    │
+│  4. Emits attribution logs with identity metadata               │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │ annotates / patches
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  SPIRE (NOT owned by kleym)                                   │
+│  Issues SVIDs, rotates certificates, provides trust bundles     │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ## Critical Development Workflow
 
@@ -71,14 +86,14 @@ Always run both after editing types in `api/v1alpha1/*_types.go`.
 ### Testing
 ```bash
 make test        # Unit tests with envtest (K8s 1.35 API server)
-make test-e2e    # Creates Kind cluster "terence-test-e2e", runs e2e, tears down
+make test-e2e    # Creates Kind cluster "kleym-test-e2e", runs e2e, tears down
 make lint        # golangci-lint v2.5.0
 ```
 
 ### Build & Deploy
 ```bash
-make docker-build IMG=your-registry/terence:tag
-make deploy IMG=your-registry/terence:tag  # Uses kustomize
+make docker-build IMG=your-registry/kleym:tag
+make deploy IMG=your-registry/kleym:tag  # Uses kustomize
 make undeploy    # Removes all resources
 ```
 
@@ -97,13 +112,22 @@ Use standard markers in Go files (see existing examples):
 - Reconcile function should be idempotent
 - Use `ctrl.Result{}` for success, `ctrl.Result{Requeue: true}` or `ctrl.Result{RequeueAfter: duration}` for retries
 - Status updates are separate from spec reconciliation (use subresource client)
+- **Never create inference workloads**—only watch, annotate, and configure identity
 
 ## MVP Scope Constraints
 
 **IN SCOPE**: SPIFFE identity attachment, mTLS enforcement, attribution logs for inference workloads  
-**OUT OF SCOPE** (per [README.md](../README.md)): Gateway API, policy engines beyond identity/mTLS, autoscaling, multi-tenancy, per-request identities, provenance/attestation
+**OUT OF SCOPE**: Gateway API, policy engines beyond identity/mTLS, autoscaling, multi-tenancy, per-request identities, provenance/attestation, deployment creation
 
-Don't add features outside MVP scope without explicit discussion.
+⚠️ **Warning**: Do not add deployment logic or runtime coupling unless there is no upstream solution. kleym attaches to workloads; it does not create them.
+
+## Policy Integration
+
+Policy is **optional and pluggable**:
+- `InferenceTrustBinding.spec.policyRef` references external policy resources
+- kleym does not evaluate policies—it passes references to OPA/Gatekeeper
+- Policy decisions should be auditable and traceable to SPIFFE identities
+- If no `policyRef` is set, kleym still provides identity and mTLS without policy enforcement
 
 ## Release Process
 
@@ -128,10 +152,11 @@ See [SEMANTIC_VERSIONING.md](../SEMANTIC_VERSIONING.md) for details.
 
 ## Common Tasks
 
-**Add new field to CRD**: Edit `api/v1alpha1/inferencetrustprofile_types.go` → `make manifests generate` → check `config/crd/bases/`
+**Add new field to CRD**: Edit `api/v1alpha1/inferencetrustbinding_types.go` → `make manifests generate` → check `config/crd/bases/`
 
 **Add RBAC permission**: Add `// +kubebuilder:rbac` marker to controller → `make manifests` → check `config/rbac/role.yaml`
 
 **Run locally**: `make install` (installs CRDs) → `make run` (runs controller out-of-cluster)
 
 **View logs**: Controller uses controller-runtime's structured logging (`logr`). Get logger with `logf.FromContext(ctx)`.
+

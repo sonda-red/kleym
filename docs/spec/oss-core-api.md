@@ -1,6 +1,6 @@
 # OSS Core API Reference
 
-terence OSS Core exposes three CRDs and one audit record CRD.
+kleym OSS Core exposes three CRDs and one audit record CRD.
 
 ## ClusterTenantProfile (cluster-scoped)
 
@@ -80,7 +80,7 @@ terence OSS Core exposes three CRDs and one audit record CRD.
 
 ## InferenceAuditRecord (cluster-scoped, append-only)
 
-**Owner:** terence controller  
+**Owner:** kleym controller  
 **Purpose:** Immutable audit trail
 
 ### Spec

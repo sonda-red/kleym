@@ -1,0 +1,34 @@
+apiVersion: kleym.sonda.red/v1alpha1
+kind: InferenceTrustBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: kleym
+    app.kubernetes.io/managed-by: kustomize
+  name: inferencetrustbinding-sample
+spec:
+  # selector identifies which inference workloads to attach identity to.
+  # This binding applies to pods with the label "app: vllm-inference".
+  selector:
+    matchLabels:
+      app: vllm-inference
+
+  # spiffeIdScope determines identity granularity:
+  # - "pod": Each pod gets a unique SPIFFE ID (best for audit trails)
+  # - "replicaSet": All pods in a ReplicaSet share one identity
+  # - "deployment": All pods in a Deployment share one identity
+  spiffeIdScope: pod
+
+  # mtlsRequired enforces mutual TLS for all traffic to matched workloads.
+  mtlsRequired: true
+
+  # policyRef is optional - reference an external OPA/Gatekeeper policy.
+  # Uncomment to enable policy integration:
+  # policyRef:
+  #   kind: ConfigMap
+  #   name: inference-access-policy
+
+  # attributionLog configures audit logging for identity attribution.
+  attributionLog:
+    enabled: true
+    format: json
+    includeRequestMetadata: false

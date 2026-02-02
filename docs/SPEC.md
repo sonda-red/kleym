@@ -1,18 +1,20 @@
-# terence Specification
+# kleym Specification
 
 Tenant-safe self-hosted inference on Kubernetes.
 
-## What terence Is
+## What kleym Is
 
-terence is a Kubernetes operator that enforces tenant safety for inference workloads by compiling tenant intent into three enforceable primitives:
+kleym is a Kubernetes operator that **attaches** SPIFFE/SPIRE workload identity and trust semantics to **existing** inference workloads. It operates on the governance plane:
 
 1. **Workload identity** — deterministic SPIFFE IDs bound to inference pods
-2. **Model immutability** — digest-pinned artifact references
-3. **Governed accelerator allocation** — DRA DeviceClass constraints with per-tenant quotas
+2. **mTLS enforcement** — mutual TLS between clients and inference endpoints
+3. **Attribution logging** — audit-grade logs with caller and workload identities
 
-## What terence Is Not
+kleym does **not** create inference deployments. It watches for workloads created by llm-d, vLLM charts, KServe, or plain Deployments and attaches identity/trust primitives.
 
-terence deliberately avoids becoming any of the following:
+## What kleym Is Not
+
+kleym deliberately avoids becoming any of the following:
 
 | Anti-pattern | Why we avoid it |
 |--------------|-----------------|
@@ -20,30 +22,36 @@ terence deliberately avoids becoming any of the following:
 | **Generic Kubernetes model-serving operator** | Rendering Deployments, Services, Routes, and PVC workflows duplicates what llm-d, GAIE, vLLM charts, KServe, and gateway providers already deliver. |
 | **Service mesh identity in a new wrapper** | Another way to provision mTLS, SPIFFE IDs, and generic authz policies is already handled by SPIRE, Istio, Solo, and others. |
 | **Parallel API surface** | Mirroring upstream objects like `InferencePool`, `HTTPRoute`, or vLLM configuration locks us into long-term compatibility debt for little unique value. |
-| **Parameter explosion** | If it can be expressed as `values.yaml` templating, it probably does not belong in terence. |
+| **Parameter explosion** | If it can be expressed as `values.yaml` templating, it probably does not belong in kleym. |
 
 ### Explicit Non-Goals
 
 1. Building an inference gateway or request router
 2. Building an inference scheduler or token scheduler
-3. Storing prompts or responses
-4. Proving output correctness
-5. Generic zero-trust for all workloads
-6. Replacing llm-d, SPIRE, or device drivers
+3. Creating Deployments, StatefulSets, or Services for inference workloads
+4. Storing prompts or responses
+5. Proving output correctness
+6. Replacing llm-d, SPIRE, KServe, or device drivers
+
+### Future Considerations (Not MVP)
+
+- Per-request / per-session identities
+- Provenance receipts or confidential computing attestation
+- Gateway API integration
+- Advanced policy engines beyond identity/mTLS
+- Tenant profiles and device governance (see [spec/oss-core-api.md](spec/oss-core-api.md) for future direction)
 
 ---
 
-## Core Guarantees
+## Core Guarantees (MVP)
 
-For every terence-managed inference deployment:
+For every kleym-managed inference workload:
 
 | Guarantee | Description |
 |-----------|-------------|
-| **Tenant binding** | Inference workloads are allowed only in namespaces bound to a platform-defined tenant profile. |
-| **Identity binding** | Each inference server runs under a deterministic SPIFFE ID encoding tenant and workload identity. |
-| **Model immutability** | Each workload is pinned to an immutable model reference (OCI digest or ModelKit digest). |
-| **Device governance** | Accelerator access is obtained only via approved DRA DeviceClasses with per-tenant quotas. |
-| **Deployment auditability** | Every create, update, delete, or deny action produces an immutable audit record. |
+| **Identity binding** | Each inference pod runs under a deterministic SPIFFE ID. |
+| **mTLS enforcement** | Mutual TLS is configured for traffic to matched workloads. |
+| **Attribution logging** | Logs include caller identity, workload SPIFFE ID, and request metadata. |
 
 ---
 
@@ -51,28 +59,52 @@ For every terence-managed inference deployment:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Platform Team                               │
-│  ClusterTenantProfile    DeviceProfile                          │
-└──────────────┬───────────────┬──────────────────────────────────┘
-               │               │
-               ▼               ▼
+│  Upstream Deployment Tools (NOT owned by kleym)               │
+│  llm-d ModelService │ vLLM Helm │ Plain Deployments │ KServe    │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │ creates inference Pods
+                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    terence Controller                           │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │ Tenant      │  │ Device      │  │ InferenceWorkload       │  │
-│  │ Reconciler  │  │ Reconciler  │  │ Reconciler              │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-│                           │                                     │
-│                    Validating Webhook                           │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
+│                    kleym Controller                           │
+│  1. Watches Pods matching InferenceTrustBinding.selector        │
+│  2. Requests SPIFFE ID from SPIRE for each matched Pod          │
+│  3. Configures mTLS (sidecar or native SPIFFE support)          │
+│  4. Emits attribution logs with identity metadata               │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │ annotates / patches
+                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Tenant Namespace                           │
-│  InferenceWorkload ──► Deployment + ServiceAccount + DRA Claims │
-│                        SPIFFE ID annotation                     │
+│  SPIRE (NOT owned by kleym)                                   │
+│  Issues SVIDs, rotates certificates, provides trust bundles     │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## MVP CRD: InferenceTrustBinding
+
+The single CRD for the MVP configures **trust behaviour**, not inference deployment:
+
+| Field | Description |
+|-------|-------------|
+| `selector` | Label selector identifying which workloads to attach identity to |
+| `spiffeIdScope` | Identity granularity: `pod`, `replicaSet`, or `deployment` |
+| `mtlsRequired` | Whether to enforce mutual TLS |
+| `policyRef` | Optional reference to external policy (OPA, Gatekeeper) |
+| `attributionLog` | Audit log format and content |
+
+The CRD contains **no fields** for images, replicas, resources, models, or runtime configuration.
+
+See [api/v1alpha1/inferencetrustbinding_types.go](../api/v1alpha1/inferencetrustbinding_types.go) for the full type definition.
+
+---
+
+## Policy Integration
+
+Policy is **optional and pluggable**:
+- `policyRef` references external policy resources (OPA ConfigMap, Gatekeeper policies)
+- kleym does not evaluate policies—it passes references to policy engines
+- If no `policyRef` is set, kleym still provides identity and mTLS without policy enforcement
 
 ---
 
@@ -80,8 +112,8 @@ For every terence-managed inference deployment:
 
 | Document | Description |
 |----------|-------------|
-| [OSS Core API Reference](spec/oss-core-api.md) | CRD specifications for `ClusterTenantProfile`, `DeviceProfile`, `InferenceWorkload`, `InferenceAuditRecord` |
-| [OSS Core Controllers](spec/oss-core-controllers.md) | Reconciliation logic, admission control, llm-d adapter contract |
+| [OSS Core API Reference](spec/oss-core-api.md) | Future CRDs for tenant profiles, device governance, audit records |
+| [OSS Core Controllers](spec/oss-core-controllers.md) | Future reconciliation logic and admission control |
 | [OSS Core Operations](spec/oss-core-operations.md) | Observability, security boundaries, acceptance criteria |
 | [Pro Extensions](spec/pro-extensions.md) | Commercial features: request-level audit, multi-model identity, policy bundles |
 
@@ -91,21 +123,19 @@ For every terence-managed inference deployment:
 
 | Dependency | Requirement |
 |------------|-------------|
-| Kubernetes | v1.35+ recommended for DRA maturity |
+| Kubernetes | v1.35+ recommended |
 | SPIRE | Optional but strongly recommended |
-| DRA driver | Required for your accelerator vendor |
 
 ### Assumptions
 
-1. A tenant maps to a Kubernetes Namespace
-2. SPIFFE identities are issued by SPIRE or equivalent — terence integrates but does not issue
-3. DRA is enabled with a device driver for your hardware
-4. terence workloads are declared explicitly using terence CRDs
+1. SPIFFE identities are issued by SPIRE or equivalent — kleym integrates but does not issue
+2. Inference workloads are created by upstream tools (llm-d, vLLM, etc.)
+3. kleym watches and attaches to workloads; it does not create them
 
 ---
 
 ## Packaging
 
-- OSS Core ships as Helm chart plus CRDs
+- Ships as Helm chart plus CRDs
 - Apache 2.0 license for code
 - Pro features live in separate binaries (see [Pro Extensions](spec/pro-extensions.md))

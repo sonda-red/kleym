@@ -35,8 +35,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	terencesondaredv1alpha1 "github.com/sonda-red/terence/api/v1alpha1"
-	"github.com/sonda-red/terence/internal/controller"
+	kleymsondaredv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	"github.com/sonda-red/kleym/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -48,7 +48,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(terencesondaredv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(kleymsondaredv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -178,11 +178,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controller.InferenceTrustProfileReconciler{
+	if err := (&controller.InferenceTrustBindingReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "InferenceTrustProfile")
+		setupLog.Error(err, "unable to create controller", "controller", "InferenceTrustBinding")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

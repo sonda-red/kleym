@@ -1,4 +1,4 @@
 ## Append samples of your project ##
 resources:
-- terence.sonda.red_v1alpha1_inferencetrustprofile.yaml
+- kleym.sonda.red_v1alpha1_inferencetrustbinding.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples
