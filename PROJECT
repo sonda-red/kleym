@@ -6,6 +6,8 @@ cliVersion: 4.10.1
 domain: sonda.red
 layout:
 - go.kubebuilder.io/v4
+plugins:
+  autoupdate.kubebuilder.io/v1-alpha: {}
 projectName: kleym
 repo: github.com/sonda-red/kleym
 resources:
