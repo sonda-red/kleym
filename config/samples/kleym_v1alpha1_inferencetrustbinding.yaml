@@ -1,0 +1,9 @@
+apiVersion: kleym.sonda.red/v1alpha1
+kind: InferenceTrustBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: kleym
+    app.kubernetes.io/managed-by: kustomize
+  name: inferencetrustbinding-sample
+spec:
+  # TODO(user): Add fields here

@@ -8,4 +8,14 @@ layout:
 - go.kubebuilder.io/v4
 projectName: kleym
 repo: github.com/sonda-red/kleym
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: sonda.red
+  group: kleym
+  kind: InferenceTrustBinding
+  path: github.com/sonda-red/kleym/api/v1alpha1
+  version: v1alpha1
 version: "3"
