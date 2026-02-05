@@ -1,0 +1,131 @@
+name: Build and Push Container Image
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'api/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'Dockerfile'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/build-and-push.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: arc-set-nuc
+    container:
+      image: docker:29-dind
+      options: --privileged
+    permissions:
+      contents: read
+      packages: write
+    env:
+      BUILD_PLATFORMS: ${{ (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Mark workspace as safe
+        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
+      - name: Get version tag
+        id: version
+        run: |
+          # For tag pushes, extract tag from ref
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+            echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+            echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+            echo "Building version: ${TAG_NAME}"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            # For PRs, use commit SHA
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            echo "tag=pr-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "Building PR version: pr-${SHORT_SHA}"
+          else
+            # Fallback for manual dispatch
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+            echo "tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
+            echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+            echo "Building version: ${LATEST_TAG}"
+          fi
+
+      - name: Set up Docker Buildx with remote BuildKit
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: remote
+          endpoint: tcp://buildkit.buildkit:1234
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/kleym
+          tags: |
+            type=raw,value=${{ steps.version.outputs.tag }}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=dev,enable=${{ github.event_name == 'pull_request' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: ${{ env.BUILD_PLATFORMS }}
+
+      - name: Output image tags
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "## Docker Image Published 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry**: GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
+          echo "**Image**: ghcr.io/${{ github.repository_owner }}/kleym" >> $GITHUB_STEP_SUMMARY
+          echo "**Version Tag**: ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ steps.version.outputs.short_sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull command:" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/kleym:${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Output PR image info
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "## Docker Image Published 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry**: GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
+          echo "**Image**: ghcr.io/${{ github.repository_owner }}/kleym" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags**: dev, ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ steps.version.outputs.short_sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull commands:" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "# Latest dev build:" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/kleym:dev" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Specific commit SHA:" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/kleym:${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,42 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    name: Run on arc-set-nuc
+    runs-on: arc-set-nuc
+    container:
+      image: golang:1.25
+    env:
+      GOFLAGS: -buildvcs=false
+      GOMODCACHE: /go/pkg/mod
+      GOCACHE: /root/.cache/go-build
+      GOLANGCI_LINT_CACHE: /root/.cache/golangci-lint
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v6
+
+      - name: Cache Go build, modules, tools, and envtest
+        uses: actions/cache@v5
+        with:
+          path: |
+            /go/pkg/mod
+            /root/.cache/go-build
+            /root/.cache/golangci-lint
+            bin
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-tools-${{ hashFiles('Makefile') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
+            ${{ runner.os }}-go-
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v9
+        with:
+          skip-cache: false
