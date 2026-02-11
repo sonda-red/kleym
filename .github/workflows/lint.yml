@@ -13,7 +13,7 @@ jobs:
     name: Run on arc-set-nuc
     runs-on: arc-set-nuc
     container:
-      image: golang:1.25
+      image: golang:1.26
     env:
       GOFLAGS: -buildvcs=false
       GOMODCACHE: /go/pkg/mod
