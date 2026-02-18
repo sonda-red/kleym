@@ -1,101 +1,100 @@
 # Purpose
 
-`kleym` is a Kubernetes operator that makes inference workloads legible to workload identity by turning inference intent into deterministic [SPIFFE](https://spiffe.io/) identities.
+`kleym` is a Kubernetes operator that makes inference workloads legible to workload identity by translating inference intent into deterministic SPIFFE identities. It compiles that intent into SPIRE Controller Manager resources, primarily [`ClusterSPIFFEID`][clusterspiffeid].
 
-It does not deploy inference. It does not route inference traffic. It does not evaluate request policy. It compiles identity intent into [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager) resources.
+Scope boundary: `kleym` is an identity registration compiler. Inference deployment, traffic routing, and policy evaluation stay in the inference stack, gateway, mesh, or external policy engines.
 
 # Core Problem
 
-Teams can deploy inference stacks, but identity registration is still manual and inconsistent. [GAIE](https://gateway-api-inference-extension.sigs.k8s.io/) introduces inference-specific objects and separation of responsibilities, but identity is not standardized at that layer. `kleym` bridges this by deriving stable identity templates and safe selectors from GAIE resources.
+Inference stacks can be deployed reliably, but identity registration remains manual, inconsistent, and hard to standardize across teams. GAIE defines inference specific objects and clearer responsibility boundaries, but it does not define identity semantics. `kleym` bridges this gap by deriving stable SPIFFE ID templates and tenant safe selectors from GAIE resources.
 
 # Core Value
 
-- Deterministic model and workload identities derived from inference metadata, not ad hoc labels.
-- A single, tenant-safe control surface for identity intent that works across heterogeneous inference stacks that share GAIE semantics.
-- Low operational risk by delegating issuance and rotation to [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager).
+1. Deterministic identities derived from GAIE metadata rather than ad hoc labels.
+2. A single namespaced control surface for identity intent that works across heterogeneous inference stacks that share GAIE semantics.
+3. Low operational risk by delegating issuance and rotation to SPIRE Controller Manager.
 
-# Non-Goals for the MVP
+# Dependencies
 
-- Building a gateway, router, scheduler, or inference runtime.
-- Creating `Deployment`, `Service`, `InferencePool` resources, or `HTTPRoute`s.
-- Storing prompts or responses.
-- Evaluating access policy inside `kleym`; external policy engines remain external.
-- Guaranteeing mTLS enforcement by itself. mTLS enforcement remains the responsibility of a gateway or mesh. `kleym` only supplies the identities and inventory needed for enforcement.
-
-# Required Dependencies
-
-- [SPIRE](https://spiffe.io/spire/) Server plus SPIRE Agent.
-- [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager) and its [`ClusterSPIFFEID`](https://github.com/spiffe/spire-controller-manager) CRD. `kleym` writes `ClusterSPIFFEID`, not SPIRE entries directly.
+1. SPIRE Server and SPIRE Agent.
+2. SPIRE Controller Manager and its [`ClusterSPIFFEID`][clusterspiffeid] CRD.
+3. `kleym` writes [`ClusterSPIFFEID`][clusterspiffeid] and does not write SPIRE entries directly.
 
 # Preferred Inference Signal
 
-- [Gateway API Inference Extension (GAIE)](https://gateway-api-inference-extension.sigs.k8s.io/). In GAIE v1, `InferenceObjective` replaces `InferenceModel`, and `InferenceObjective` references an `InferencePool` via `poolRef`.
-- `InferencePool` defines the pod pool that serves inference traffic.
+GAIE v1 objects are the primary signal.
+
+1. [`InferenceObjective`][gaie-inferenceobjective] is the primary model level object and references an [`InferencePool`][gaie-inferencepool] via `poolRef`.
+2. [`InferencePool`][gaie-inferencepool] defines the serving pod pool for inference traffic.
+3. [`InferenceModel`][gaie-inferencemodel-legacy] is treated as legacy.
 
 # Identity Model
 
-- Workload pool identity: one SPIFFE identity that represents the serving pool pods.
-- Model principal identity: one SPIFFE identity per `InferenceObjective`. This expresses "which model endpoint" at the GAIE layer even when objectives share the same serving pool.
+1. Pool identity. One SPIFFE identity representing the serving pool pods.
+2. Objective identity. One SPIFFE identity per [`InferenceObjective`][gaie-inferenceobjective], representing the model endpoint at the GAIE layer even when multiple objectives share the same pool.
 
-# Important Constraint
+# Constraint
 
-Multiple identities can apply to the same pods by creating multiple [`ClusterSPIFFEID`](https://github.com/spiffe/spire-controller-manager) resources that select the same pod set. Some workloads only reliably support one SVID at a time, so clusters may need to restrict or disable the default `ClusterSPIFFEID` where per-objective identities are required.
+Multiple [`ClusterSPIFFEID`][clusterspiffeid] resources can select the same pod set, which can result in multiple identities applying to the same pods. Some workloads only support one SVID reliably. Clusters that require per objective identities may need to restrict or disable any default identity that would collide.
 
-# MVP APIs
+# MVP API Surface
 
-## External CRDs Consumed by `kleym`
+External CRDs consumed
 
-- [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/) from GAIE.
-- [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/) from GAIE v1. `InferenceModel` is treated as legacy and is not the primary target.
+1. GAIE [`InferencePool`][gaie-inferencepool]
+2. GAIE v1 [`InferenceObjective`][gaie-inferenceobjective]
 
-## `kleym` CRD
+`kleym` CRD
 
-### `InferenceTrustBinding`
+`InferenceTrustBinding` expresses identity intent for a single [`InferenceObjective`][gaie-inferenceobjective].
 
-This CRD configures identity intent. It does not configure inference deployment.
+`InferenceTrustBinding` spec
 
-### `InferenceTrustBinding` Spec Fields
+1. `targetRef` references an [`InferenceObjective`][gaie-inferenceobjective] in the same namespace.
+2. `spiffeIDTemplate` optionally overrides the computed template. Default is deterministic and includes trust domain, namespace, and objective name.
+3. `selectorSource` is `"DerivedFromPool"`. `kleym` derives pod selection from the objective `poolRef` and validates it.
+4. `workloadSelectorTemplates` are required safety constraints for selectors, at minimum namespace and service account.
+5. `mode` is `"PoolOnly"` or `"PerObjective"`. Default is `"PerObjective"`.
 
-- `targetRef`: reference to an `InferenceObjective` in the same namespace.
-- `spiffeIDTemplate`: optional override for the computed SPIFFE ID template. Default is deterministic and includes trust domain, namespace, and objective name.
-- `selectorSource`: fixed value `"DerivedFromPool"`. `kleym` derives pod selectors from the referenced objective's `poolRef` and validates the resulting selection.
-- `workloadSelectorTemplates`: required constraints for SPIRE selectors, at minimum namespace and service account constraints.
-- `mode`: `"PoolOnly"` or `"PerObjective"`. Default is `"PerObjective"`.
+`InferenceTrustBinding` status
 
-### `InferenceTrustBinding` Status Fields
-
-- `computedSpiffeIDs`: list of identities created, including pool identity and objective identity.
-- `renderedSelectors`: the final selectors that will be applied to `ClusterSPIFFEID`.
-- `conditions`: `Ready`, `Conflict`, `InvalidRef`, `UnsafeSelector`, `RenderFailure`.
+1. `computedSpiffeIDs` lists identities created, including pool and objective identities.
+2. `renderedSelectors` shows the final selectors applied to [`ClusterSPIFFEID`][clusterspiffeid].
+3. `conditions` include `Ready`, `Conflict`, `InvalidRef`, `UnsafeSelector`, `RenderFailure`.
 
 # Controller Behavior
 
-- Watch `InferenceTrustBinding`, `InferenceObjective`, and `InferencePool`.
-- Resolve `targetRef` to `InferenceObjective`, then resolve `poolRef` to `InferencePool`.
-- Derive a pod selector from `InferencePool`, then intersect it with required workload selector templates for safety.
-- Reconcile one or more `ClusterSPIFFEID` resources in `spire.spiffe.io`, using `spiffeIDTemplate` and derived selectors.
-- Update status and emit events for conflicts, unsafe selection, and render failures.
+1. Watch `InferenceTrustBinding`, [`InferenceObjective`][gaie-inferenceobjective], and [`InferencePool`][gaie-inferencepool].
+2. Resolve `targetRef` to [`InferenceObjective`][gaie-inferenceobjective], then resolve `poolRef` to [`InferencePool`][gaie-inferencepool].
+3. Derive pod selection from [`InferencePool`][gaie-inferencepool], then intersect it with `workloadSelectorTemplates`.
+4. Reconcile one or more [`ClusterSPIFFEID`][clusterspiffeid] resources in `spire.spiffe.io` using the computed SPIFFE IDs and validated selectors.
+5. Update status and emit events for conflicts, unsafe selection, and render failures.
 
-# Multi-Tenant Safety
+# Multi Tenant Safety
 
-- `InferenceTrustBinding` is namespaced. It can only reference an `InferenceObjective` in the same namespace.
-- Derived selectors must not match pods outside the namespace. If they would, `kleym` refuses and sets `UnsafeSelector`.
-- `kleym` refuses ambiguous bindings where the derived selection cannot be proven to correspond to the referenced pool.
+1. `InferenceTrustBinding` is namespaced and only references objects in the same namespace.
+2. Derived selectors must be proven to stay within the namespace. If they can match outside, reconciliation is refused and `UnsafeSelector` is set.
+3. Ambiguous bindings where the derived selection cannot be proven to correspond to the referenced pool are refused.
 
 # Multiple Objectives to One Pod Set
 
-Yes. Multiple `InferenceObjective` resources can reference the same `InferencePool`. That is the normal GAIE pattern for serving multiple objectives on one pool, often with different priority values.
-
-In `kleym`, the principle is: pool defines "where it runs", objective defines "what it is". `kleym` can therefore produce distinct model principal identities for each objective while selectors can still target the same pods.
+GAIE commonly maps multiple objectives to one pool. In `kleym`, the pool defines where it runs and the objective defines what it is. `kleym` can produce distinct objective identities while selectors still target the same pods.
 
 # Acceptance Criteria
 
-- Given an existing GAIE setup with an `InferencePool` and one or more `InferenceObjective` resources, creating an `InferenceTrustBinding` results in the expected `ClusterSPIFFEID` resources being created and remaining stable under resync.
-- Multiple objectives referencing one pool produce distinct SPIFFE IDs without unsafe selector expansion.
-- A malicious or overly broad selection attempt is rejected with clear status conditions.
-- `kleym` never creates or modifies inference deployments, pools, routes, or gateways.
+1. In a cluster with existing GAIE [`InferencePool`][gaie-inferencepool] and [`InferenceObjective`][gaie-inferenceobjective] resources, creating an `InferenceTrustBinding` creates stable [`ClusterSPIFFEID`][clusterspiffeid] resources and remains stable under resync.
+2. Multiple objectives referencing one pool produce distinct SPIFFE IDs without unsafe selector expansion.
+3. Overly broad or malicious selector expansion is rejected with clear status conditions.
+4. `kleym` does not create or modify inference deployments, pools, routes, [`Gateway`][gateway-api-gateway], [`HTTPRoute`][gateway-api-httproute], or schedulers.
 
 # Packaging
 
-- Helm chart includes `kleym` CRDs and controller deployment.
-- License: Apache 2.0.
+1. Helm chart includes `kleym` CRDs and controller deployment.
+2. License is Apache 2.0.
+
+[clusterspiffeid]: https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md
+[gaie-inferencepool]: https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/
+[gaie-inferenceobjective]: https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/
+[gaie-inferencemodel-legacy]: https://gateway-api-inference-extension.sigs.k8s.io/guides/ga-migration/
+[gateway-api-gateway]: https://gateway-api.sigs.k8s.io/api-types/gateway/
+[gateway-api-httproute]: https://gateway-api.sigs.k8s.io/api-types/httproute/
