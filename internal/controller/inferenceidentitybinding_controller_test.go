@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,7 +39,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 
 		typeNamespacedName := types.NamespacedName{
 			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+			Namespace: "default",
 		}
 		inferenceidentitybinding := &kleymv1alpha1.InferenceIdentityBinding{}
 
@@ -51,14 +52,12 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
 		})
 
 		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
 			resource := &kleymv1alpha1.InferenceIdentityBinding{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
@@ -66,6 +65,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			By("Cleanup the specific resource instance InferenceIdentityBinding")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
+
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
 			controllerReconciler := &InferenceIdentityBindingReconciler{
@@ -73,12 +73,73 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 				Scheme: k8sClient.Scheme(),
 			}
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+			Expect(result).To(Equal(ctrl.Result{}))
+		})
+
+		It("should successfully reconcile a resource with spec fields populated", func() {
+			By("fetching the existing resource")
+			resource := &kleymv1alpha1.InferenceIdentityBinding{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, resource)).To(Succeed())
+
+			By("updating the resource with a Foo value")
+			fooValue := "bar"
+			resource.Spec.Foo = &fooValue
+			Expect(k8sClient.Update(ctx, resource)).To(Succeed())
+
+			By("reconciling the updated resource")
+			controllerReconciler := &InferenceIdentityBindingReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+
+			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(Equal(ctrl.Result{}))
+		})
+	})
+
+	Context("When reconciling a non-existent resource", func() {
+		ctx := context.Background()
+
+		It("should not return an error for a missing resource", func() {
+			By("Reconciling a resource that does not exist")
+			controllerReconciler := &InferenceIdentityBindingReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+
+			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      "non-existent-resource",
+					Namespace: "default",
+				},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(Equal(ctrl.Result{}))
+		})
+	})
+
+	Context("When setting up with a manager", func() {
+		It("should register the controller with the manager successfully", func() {
+			By("creating a manager")
+			mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+				Scheme: k8sClient.Scheme(),
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("setting up the controller with the manager")
+			controllerReconciler := &InferenceIdentityBindingReconciler{
+				Client: mgr.GetClient(),
+				Scheme: mgr.GetScheme(),
+			}
+			err = controllerReconciler.SetupWithManager(mgr)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 })
