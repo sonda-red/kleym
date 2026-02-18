@@ -84,16 +84,29 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
             type=raw,value=dev,enable=${{ github.event_name == 'pull_request' }}
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (PR, cache read-only)
+        if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          push: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=kleym-buildkit
+          platforms: ${{ env.BUILD_PLATFORMS }}
+
+      - name: Build and push Docker image (tag/manual, refresh cache)
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=kleym-buildkit
+          cache-to: type=gha,mode=min,scope=kleym-buildkit,ignore-error=true
           platforms: ${{ env.BUILD_PLATFORMS }}
 
       - name: Output image tags

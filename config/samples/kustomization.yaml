@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- kleym_v1alpha1_inferenceidentitybinding.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

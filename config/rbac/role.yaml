@@ -1,0 +1,32 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - kleym.sonda.red
+  resources:
+  - inferenceidentitybindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kleym.sonda.red
+  resources:
+  - inferenceidentitybindings/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - kleym.sonda.red
+  resources:
+  - inferenceidentitybindings/status
+  verbs:
+  - get
+  - patch
+  - update
