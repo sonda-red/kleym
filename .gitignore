@@ -26,5 +26,8 @@ go.work
 *.swo
 *~
 
+# Cache files for go moduleshe
+.cache
+
 # Kubeconfig might contain secrets
 *.kubeconfig
