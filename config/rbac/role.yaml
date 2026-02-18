@@ -7,7 +7,7 @@ rules:
 - apiGroups:
   - kleym.sonda.red
   resources:
-  - inferencetrustbindings
+  - inferenceidentitybindings
   verbs:
   - create
   - delete
@@ -19,13 +19,13 @@ rules:
 - apiGroups:
   - kleym.sonda.red
   resources:
-  - inferencetrustbindings/finalizers
+  - inferenceidentitybindings/finalizers
   verbs:
   - update
 - apiGroups:
   - kleym.sonda.red
   resources:
-  - inferencetrustbindings/status
+  - inferenceidentitybindings/status
   verbs:
   - get
   - patch

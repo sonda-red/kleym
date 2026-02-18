@@ -36,7 +36,7 @@ Follow the [Conventional Commits](https://www.conventionalcommits.org/) specific
 
 - **Minor version bump** (e.g., 1.0.0 → 1.1.0):
   - `feat:` - New features
-  - Example: `feat(api): add InferenceTrustBinding validation`
+  - Example: `feat(api): add InferenceIdentityBinding validation`
 
 - **Patch version bump** (e.g., 1.0.0 → 1.0.1):
   - `fix:` - Bug fixes
@@ -70,12 +70,12 @@ Scopes provide additional context:
 git commit -m "feat(controller): add retry logic for failed reconciliations"
 
 # Patch version bump
-git commit -m "fix(api): correct validation for InferenceTrustBinding status"
+git commit -m "fix(api): correct validation for InferenceIdentityBinding status"
 
 # Major version bump
 git commit -m "feat(api): redesign CRD structure
 
-BREAKING CHANGE: InferenceTrustBinding.spec.provider field renamed to InferenceTrustBinding.spec.providerConfig"
+BREAKING CHANGE: InferenceIdentityBinding.spec.provider field renamed to InferenceIdentityBinding.spec.providerConfig"
 
 # No version bump
 git commit -m "docs: update README with installation instructions"

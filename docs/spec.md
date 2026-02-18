@@ -46,9 +46,9 @@ External CRDs consumed
 
 `kleym` CRD
 
-`InferenceTrustBinding` expresses identity intent for a single [`InferenceObjective`][gaie-inferenceobjective].
+`InferenceIdentityBinding` expresses identity intent for a single [`InferenceObjective`][gaie-inferenceobjective].
 
-`InferenceTrustBinding` spec
+`InferenceIdentityBinding` spec
 
 1. `targetRef` references an [`InferenceObjective`][gaie-inferenceobjective] in the same namespace.
 2. `spiffeIDTemplate` optionally overrides the computed template. Default is deterministic and includes trust domain, namespace, and objective name.
@@ -56,7 +56,7 @@ External CRDs consumed
 4. `workloadSelectorTemplates` are required safety constraints for selectors, at minimum namespace and service account.
 5. `mode` is `"PoolOnly"` or `"PerObjective"`. Default is `"PerObjective"`.
 
-`InferenceTrustBinding` status
+`InferenceIdentityBinding` status
 
 1. `computedSpiffeIDs` lists identities created, including pool and objective identities.
 2. `renderedSelectors` shows the final selectors applied to [`ClusterSPIFFEID`][clusterspiffeid].
@@ -64,7 +64,7 @@ External CRDs consumed
 
 # Controller Behavior
 
-1. Watch `InferenceTrustBinding`, [`InferenceObjective`][gaie-inferenceobjective], and [`InferencePool`][gaie-inferencepool].
+1. Watch `InferenceIdentityBinding`, [`InferenceObjective`][gaie-inferenceobjective], and [`InferencePool`][gaie-inferencepool].
 2. Resolve `targetRef` to [`InferenceObjective`][gaie-inferenceobjective], then resolve `poolRef` to [`InferencePool`][gaie-inferencepool].
 3. Derive pod selection from [`InferencePool`][gaie-inferencepool], then intersect it with `workloadSelectorTemplates`.
 4. Reconcile one or more [`ClusterSPIFFEID`][clusterspiffeid] resources in `spire.spiffe.io` using the computed SPIFFE IDs and validated selectors.
@@ -72,7 +72,7 @@ External CRDs consumed
 
 # Multi Tenant Safety
 
-1. `InferenceTrustBinding` is namespaced and only references objects in the same namespace.
+1. `InferenceIdentityBinding` is namespaced and only references objects in the same namespace.
 2. Derived selectors must be proven to stay within the namespace. If they can match outside, reconciliation is refused and `UnsafeSelector` is set.
 3. Ambiguous bindings where the derived selection cannot be proven to correspond to the referenced pool are refused.
 
@@ -82,7 +82,7 @@ GAIE commonly maps multiple objectives to one pool. In `kleym`, the pool defines
 
 # Acceptance Criteria
 
-1. In a cluster with existing GAIE [`InferencePool`][gaie-inferencepool] and [`InferenceObjective`][gaie-inferenceobjective] resources, creating an `InferenceTrustBinding` creates stable [`ClusterSPIFFEID`][clusterspiffeid] resources and remains stable under resync.
+1. In a cluster with existing GAIE [`InferencePool`][gaie-inferencepool] and [`InferenceObjective`][gaie-inferenceobjective] resources, creating an `InferenceIdentityBinding` creates stable [`ClusterSPIFFEID`][clusterspiffeid] resources and remains stable under resync.
 2. Multiple objectives referencing one pool produce distinct SPIFFE IDs without unsafe selector expansion.
 3. Overly broad or malicious selector expansion is rejected with clear status conditions.
 4. `kleym` does not create or modify inference deployments, pools, routes, [`Gateway`][gateway-api-gateway], [`HTTPRoute`][gateway-api-httproute], or schedulers.

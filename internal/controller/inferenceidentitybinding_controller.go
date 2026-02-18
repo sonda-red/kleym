@@ -27,26 +27,26 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
-// InferenceTrustBindingReconciler reconciles a InferenceTrustBinding object
-type InferenceTrustBindingReconciler struct {
+// InferenceIdentityBindingReconciler reconciles a InferenceIdentityBinding object
+type InferenceIdentityBindingReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=kleym.sonda.red,resources=inferencetrustbindings,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=kleym.sonda.red,resources=inferencetrustbindings/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=kleym.sonda.red,resources=inferencetrustbindings/finalizers,verbs=update
+// +kubebuilder:rbac:groups=kleym.sonda.red,resources=inferenceidentitybindings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=kleym.sonda.red,resources=inferenceidentitybindings/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=kleym.sonda.red,resources=inferenceidentitybindings/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the InferenceTrustBinding object against the actual cluster state, and then
+// the InferenceIdentityBinding object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.22.4/pkg/reconcile
-func (r *InferenceTrustBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = logf.FromContext(ctx)
 
 	// TODO(user): your logic here
@@ -55,9 +55,9 @@ func (r *InferenceTrustBindingReconciler) Reconcile(ctx context.Context, req ctr
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *InferenceTrustBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kleymv1alpha1.InferenceTrustBinding{}).
-		Named("inferencetrustbinding").
+		For(&kleymv1alpha1.InferenceIdentityBinding{}).
+		Named("inferenceidentitybinding").
 		Complete(r)
 }

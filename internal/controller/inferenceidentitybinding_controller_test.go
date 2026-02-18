@@ -30,7 +30,7 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
-var _ = Describe("InferenceTrustBinding Controller", func() {
+var _ = Describe("InferenceIdentityBinding Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -40,13 +40,13 @@ var _ = Describe("InferenceTrustBinding Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		inferencetrustbinding := &kleymv1alpha1.InferenceTrustBinding{}
+		inferenceidentitybinding := &kleymv1alpha1.InferenceIdentityBinding{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind InferenceTrustBinding")
-			err := k8sClient.Get(ctx, typeNamespacedName, inferencetrustbinding)
+			By("creating the custom resource for the Kind InferenceIdentityBinding")
+			err := k8sClient.Get(ctx, typeNamespacedName, inferenceidentitybinding)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &kleymv1alpha1.InferenceTrustBinding{
+				resource := &kleymv1alpha1.InferenceIdentityBinding{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,16 +59,16 @@ var _ = Describe("InferenceTrustBinding Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &kleymv1alpha1.InferenceTrustBinding{}
+			resource := &kleymv1alpha1.InferenceIdentityBinding{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance InferenceTrustBinding")
+			By("Cleanup the specific resource instance InferenceIdentityBinding")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &InferenceTrustBindingReconciler{
+			controllerReconciler := &InferenceIdentityBindingReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}

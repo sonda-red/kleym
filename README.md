@@ -47,7 +47,7 @@ GAIE v1 objects are the primary signal:
   - GAIE [`InferencePool`][gaie-inferencepool]
   - GAIE [`InferenceObjective`][gaie-inferenceobjective]
 - `kleym` CRD:
-  - `InferenceTrustBinding` (`kleym.sonda.red/v1alpha1`) expresses identity intent for one `InferenceObjective`.
+  - `InferenceIdentityBinding` (`kleym.sonda.red/v1alpha1`) expresses identity intent for one `InferenceObjective`.
 - Controller behavior:
   - Resolve `targetRef` (`InferenceObjective`) and `poolRef` (`InferencePool`).
   - Derive pod selectors from pool intent and intersect with required safety templates.
@@ -61,7 +61,7 @@ See `docs/spec.md` for the complete and authoritative specification.
 This repository is in early scaffold stage.
 
 - Product direction and MVP behavior are documented in `docs/spec.md`.
-- API group and CRD scaffold exist for `InferenceTrustBinding` (`kleym.sonda.red/v1alpha1`).
+- API group and CRD scaffold exist for `InferenceIdentityBinding` (`kleym.sonda.red/v1alpha1`).
 
 ## Dependencies
 

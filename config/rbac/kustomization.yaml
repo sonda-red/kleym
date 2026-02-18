@@ -22,7 +22,7 @@ resources:
 # default, aiding admins in cluster management. Those roles are
 # not used by the kleym itself. You can comment the following lines
 # if you do not want those helpers be installed with your Project.
-- inferencetrustbinding_admin_role.yaml
-- inferencetrustbinding_editor_role.yaml
-- inferencetrustbinding_viewer_role.yaml
+- inferenceidentitybinding_admin_role.yaml
+- inferenceidentitybinding_editor_role.yaml
+- inferenceidentitybinding_viewer_role.yaml
 

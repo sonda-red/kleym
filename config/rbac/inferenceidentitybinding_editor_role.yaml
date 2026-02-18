@@ -11,12 +11,12 @@ metadata:
   labels:
     app.kubernetes.io/name: kleym
     app.kubernetes.io/managed-by: kustomize
-  name: inferencetrustbinding-editor-role
+  name: inferenceidentitybinding-editor-role
 rules:
 - apiGroups:
   - kleym.sonda.red
   resources:
-  - inferencetrustbindings
+  - inferenceidentitybindings
   verbs:
   - create
   - delete
@@ -28,6 +28,6 @@ rules:
 - apiGroups:
   - kleym.sonda.red
   resources:
-  - inferencetrustbindings/status
+  - inferenceidentitybindings/status
   verbs:
   - get

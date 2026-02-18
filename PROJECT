@@ -17,7 +17,7 @@ resources:
   controller: true
   domain: sonda.red
   group: kleym
-  kind: InferenceTrustBinding
+  kind: InferenceIdentityBinding
   path: github.com/sonda-red/kleym/api/v1alpha1
   version: v1alpha1
 version: "3"
