@@ -1,29 +1,10 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "group:all"
   ],
   "automerge": true,
   "platformAutomerge": true,
-  "automergeType": "pr",
-  "packageRules": [
-    {
-      "description": "Group Go dependencies",
-      "matchManagers": ["gomod"],
-      "groupName": "Go dependencies",
-      "automerge": true
-    },
-    {
-      "description": "Group GitHub Actions",
-      "matchManagers": ["github-actions"],
-      "groupName": "GitHub Actions",
-      "automerge": true
-    },
-    {
-      "description": "Group Docker images",
-      "matchManagers": ["dockerfile", "docker-compose"],
-      "groupName": "Docker images",
-      "automerge": true
-    }
-  ]
+  "automergeType": "pr"
 }
