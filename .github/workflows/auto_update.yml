@@ -19,7 +19,7 @@ jobs:
   auto-update:
     runs-on: arc-set-nuc
     container:
-      image: golang:1.25
+      image: golang:1.26
       options: --privileged
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
