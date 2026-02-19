@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/sonda-red/kleym/compare/v1.0.0...v1.0.1) (2026-02-19)
+
+### Bug Fixes
+
+* **deps:** update go dependencies ([#41](https://github.com/sonda-red/kleym/issues/41)) ([214be6c](https://github.com/sonda-red/kleym/commit/214be6c5d2d9e28984b9a5ef0f514d4a37e980a8))
+
 ## 1.0.0 (2026-02-18)
 
 ### Features
