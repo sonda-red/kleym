@@ -6,5 +6,24 @@
   ],
   "automerge": true,
   "platformAutomerge": true,
-  "automergeType": "pr"
+  "automergeType": "pr",
+  "packageRules": [
+    {
+      "description": "Go version comes from go.mod via setup-go",
+      "matchManagers": [
+        "github-actions",
+        "docker"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "golang"
+      ],
+      "matchFileNames": [
+        ".github/workflows/*.yml"
+      ],
+      "enabled": false
+    }
+  ]
 }
