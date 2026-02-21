@@ -1,3 +1,9 @@
+## [1.0.3](https://github.com/sonda-red/kleym/compare/v1.0.2...v1.0.3) (2026-02-21)
+
+### Bug Fixes
+
+* update GOFLAGS and GOMAXPROCS for improved linting performance ([06c3148](https://github.com/sonda-red/kleym/commit/06c3148e61843fd53a85e328a88dc98b3c6c4626))
+
 ## [1.0.2](https://github.com/sonda-red/kleym/compare/v1.0.1...v1.0.2) (2026-02-21)
 
 ### Bug Fixes
