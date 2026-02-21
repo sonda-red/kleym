@@ -19,7 +19,7 @@ jobs:
   auto-update:
     runs-on: arc-set-nuc
     container:
-      image: golang:1.26
+      image: golang:1.25
       options: --privileged
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -42,7 +42,8 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v6
       with:
-        go-version: stable
+        go-version-file: go.mod
+        cache: false
 
     # Step 4: Install Kubebuilder.
     - name: Install Kubebuilder
