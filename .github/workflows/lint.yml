@@ -15,7 +15,8 @@ jobs:
     container:
       image: golang:1.25
     env:
-      GOFLAGS: -buildvcs=false
+      GOFLAGS: -buildvcs=false -p=2
+      GOMAXPROCS: "2"
       GOMODCACHE: /go/pkg/mod
       GOCACHE: /root/.cache/go-build
       GOLANGCI_LINT_CACHE: /root/.cache/golangci-lint
