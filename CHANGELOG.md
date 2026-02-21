@@ -1,3 +1,9 @@
+## [1.0.2](https://github.com/sonda-red/kleym/compare/v1.0.1...v1.0.2) (2026-02-21)
+
+### Bug Fixes
+
+* revert Go version in lint workflow to 1.25 ([619f0de](https://github.com/sonda-red/kleym/commit/619f0de8dddaa00a6a5cc9a0f390c06aadae54ea))
+
 ## [1.0.1](https://github.com/sonda-red/kleym/compare/v1.0.0...v1.0.1) (2026-02-19)
 
 ### Bug Fixes
