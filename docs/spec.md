@@ -30,8 +30,14 @@ GAIE v1 objects are the primary signal.
 
 # Identity Model
 
-1. Pool identity. One SPIFFE identity representing the serving pool pods.
-2. Objective identity. One SPIFFE identity per [`InferenceObjective`][gaie-inferenceobjective], representing the model endpoint at the GAIE layer even when multiple objectives share the same pool.
+1. Pool identity (`PoolOnly`). One SPIFFE identity representing the serving pool pods.
+2. Objective identity (`PerObjective`). One SPIFFE identity per [`InferenceObjective`][gaie-inferenceobjective], representing the model endpoint at the GAIE layer even when multiple objectives share the same pool.
+
+`PoolOnly` and `PerObjective` are the only identity boundaries in `kleym`.
+
+## Container Level Enforcement
+
+One model per container makes model identity enforceable. SPIRE Kubernetes workload attestation supports container scoped selectors such as container name and container image, so `kleym` can bind an objective identity to a specific container inside a pod rather than the pod as a whole. This is the mechanism that gives `PerObjective` mode meaningful discrimination when multiple objectives share a pool.
 
 # Constraint
 
@@ -53,22 +59,27 @@ External CRDs consumed
 1. `targetRef` references an [`InferenceObjective`][gaie-inferenceobjective] in the same namespace.
 2. `spiffeIDTemplate` optionally overrides the computed template. Default is deterministic and includes trust domain, namespace, and objective name.
 3. `selectorSource` is `"DerivedFromPool"`. `kleym` derives pod selection from the objective `poolRef` and validates it.
-4. `workloadSelectorTemplates` are required safety constraints for selectors, at minimum namespace and service account.
+4. `workloadSelectorTemplates` are required safety constraints. Every rendered [`ClusterSPIFFEID`][clusterspiffeid] must include at minimum the k8s namespace selector (`k8s:ns:<namespace>`) and k8s service account selector (`k8s:sa:<service-account>`). These safety selectors are always present, then intersected with the derived pool selection and, in `PerObjective` mode, the container discriminator.
 5. `mode` is `"PoolOnly"` or `"PerObjective"`. Default is `"PerObjective"`.
+6. `containerDiscriminator` (required when `mode` is `"PerObjective"`).
+   - `type` is `"ContainerName"` (preferred) or `"ContainerImage"` (fallback). `ContainerName` maps to a SPIRE k8s workload selector `k8s:container-name:<value>`. `ContainerImage` maps to `k8s:container-image:<value>` and is weaker because a single image may serve multiple models.
+   - `value` is the container name or image reference to match.
+   - The container discriminator narrows the selected workload set so that each objective identity targets exactly one container within the pod.
 
 `InferenceIdentityBinding` status
 
 1. `computedSpiffeIDs` lists identities created, including pool and objective identities.
 2. `renderedSelectors` shows the final selectors applied to [`ClusterSPIFFEID`][clusterspiffeid].
-3. `conditions` include `Ready`, `Conflict`, `InvalidRef`, `UnsafeSelector`, `RenderFailure`.
+3. `conditions` include `Ready`, `Conflict`, `InvalidRef`, `UnsafeSelector`, `RenderFailure`. The `Conflict` condition uses reason `IdentityCollision` when two objectives in `PerObjective` mode resolve to the same pod set and the same container name.
 
 # Controller Behavior
 
 1. Watch `InferenceIdentityBinding`, [`InferenceObjective`][gaie-inferenceobjective], and [`InferencePool`][gaie-inferencepool].
 2. Resolve `targetRef` to [`InferenceObjective`][gaie-inferenceobjective], then resolve `poolRef` to [`InferencePool`][gaie-inferencepool].
-3. Derive pod selection from [`InferencePool`][gaie-inferencepool], then intersect it with `workloadSelectorTemplates`.
-4. Reconcile one or more [`ClusterSPIFFEID`][clusterspiffeid] resources in `spire.spiffe.io` using the computed SPIFFE IDs and validated selectors.
-5. Update status and emit events for conflicts, unsafe selection, and render failures.
+3. Derive pod selection from [`InferencePool`][gaie-inferencepool], then intersect with the mandatory safety selectors (namespace and service account) and, in `PerObjective` mode, the container discriminator.
+4. Detect identity collisions: if two `InferenceIdentityBinding` resources in `PerObjective` mode would match the same pod set and the same `container-name` value, set the `Conflict` condition with reason `IdentityCollision` on both resources and refuse to reconcile either until the collision is resolved.
+5. Reconcile one or more [`ClusterSPIFFEID`][clusterspiffeid] resources in `spire.spiffe.io` using the computed SPIFFE IDs and validated selectors.
+6. Update status and emit events for conflicts, unsafe selection, identity collisions, and render failures.
 
 # Multi Tenant Safety
 
@@ -79,6 +90,8 @@ External CRDs consumed
 # Multiple Objectives to One Pod Set
 
 GAIE commonly maps multiple objectives to one pool. In `kleym`, the pool defines where it runs and the objective defines what it is. `kleym` can produce distinct objective identities while selectors still target the same pods.
+
+When two objectives share a pool, the container discriminator is what keeps their identities distinct. Each objective must point to a different container name within the pod. If two objectives resolve to the same pod set and the same `container-name`, reconciliation is refused on both with reason `IdentityCollision` until the conflict is corrected, for example by assigning each model to its own container.
 
 # Acceptance Criteria
 
