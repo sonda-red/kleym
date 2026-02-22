@@ -48,9 +48,12 @@ spec:
                   type:
                     description: Type specifies the type of discriminator to use (e.g.,
                       ContainerName, ContainerImage).
+                    enum:
+                    - ContainerName
+                    - ContainerImage
                     type: string
                   value:
-                    description: value is the container name or image to use as a
+                    description: Value is the container name or image to use as a
                       discriminator, depending on the Type.
                     type: string
                 required:
@@ -58,9 +61,13 @@ spec:
                 - value
                 type: object
               mode:
-                enum:
-                - PoolOnly
-                - PerObjective
+                allOf:
+                - enum:
+                  - PoolOnly
+                  - PerObjective
+                - enum:
+                  - PoolOnly
+                  - PerObjective
                 default: PerObjective
                 description: mode selects the identity granularity for this binding.
                 type: string
@@ -98,17 +105,27 @@ spec:
             - targetRef
             - workloadSelectorTemplates
             type: object
+            x-kubernetes-validations:
+            - message: containerDiscriminator must be empty when mode is PoolOnly
+              rule: '!has(self.mode) || self.mode != ''PoolOnly'' || !has(self.containerDiscriminator)'
+            - message: containerDiscriminator is required when mode is PerObjective
+                (including default mode)
+              rule: has(self.containerDiscriminator) || (has(self.mode) && self.mode
+                == 'PoolOnly')
           status:
             description: status defines the observed state of InferenceIdentityBinding
             properties:
-              computedSpiffeID:
-                description: computedSpiffeID is the computed SPIFFE ID for this binding,
-                  based on the SpiffeIDTemplate and the TargetRef.
+              computedSpiffeIDs:
+                description: computedSpiffeIDs are the computed SPIFFE IDs for this
+                  binding, based on the SpiffeIDTemplate and the TargetRef.
                 items:
                   properties:
                     mode:
                       description: mode indicates the mode of SPIFFE ID generation
                         (e.g., PoolOnly, PerObjective).
+                      enum:
+                      - PoolOnly
+                      - PerObjective
                       type: string
                     spiffeID:
                       description: spiffeID is the computed SPIFFE ID for this binding
@@ -190,7 +207,7 @@ spec:
                 description: renderedSelectors shows final selectors applied to rendered
                   identities, after processing the WorkloadSelectorTemplates and SelectorSource.
                 items:
-                  description: renderedSelectorStatus describes final selectors for
+                  description: RenderedSelectorStatus describes final selectors for
                     one rendered identity, after processing the WorkloadSelectorTemplates
                     and SelectorSource.
                   properties:
