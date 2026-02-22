@@ -52,7 +52,7 @@ type ContainerDiscriminator struct {
 	// +required
 	Type ContainerDiscriminatorType `json:"type"`
 
-	// value is the container name or image to use as a discriminator, depending on the Type.
+	// Value is the container name or image to use as a discriminator, depending on the Type.
 	// +required
 	Value string `json:"value"`
 }
