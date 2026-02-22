@@ -1,3 +1,17 @@
+## [1.1.0](https://github.com/sonda-red/kleym/compare/v1.0.3...v1.1.0) (2026-02-22)
+
+### Features
+
+* enhance InferenceIdentityBinding API with container discrimination and SPIFFE ID generation ([7dbcb24](https://github.com/sonda-red/kleym/commit/7dbcb24f5ccac1bb56e64fd8816d785109753711))
+* expand InferenceIdentityBinding API with container discrimination, identity modes, and selector templates ([f127b43](https://github.com/sonda-red/kleym/commit/f127b438ccb12c05843871838d23dd966d4697b8))
+* implement DeepCopy methods for ComputedSpiffeIDStatus, ContainerDiscriminator, and RenderedSelectorStatus; update InferenceIdentityBinding YAML sample ([6b77cfc](https://github.com/sonda-red/kleym/commit/6b77cfc44373a70e237519c17b3027f2e922808c))
+* update image URL in Makefile and add deploy-dev target for development deployment ([519caea](https://github.com/sonda-red/kleym/commit/519caea53b5c6f172b47eea485dcf8276c052391))
+* update InferenceIdentityBinding controller tests with spec field population ([6816f15](https://github.com/sonda-red/kleym/commit/6816f159a6f8183773c22efda7fb3e02545e7a42))
+
+### Documentation
+
+* enhance identity model section with detailed identity boundaries and container level enforcement ([65649f2](https://github.com/sonda-red/kleym/commit/65649f289e6c859284707bfbf8f6d158ea38a9ae))
+
 ## [1.0.3](https://github.com/sonda-red/kleym/compare/v1.0.2...v1.0.3) (2026-02-21)
 
 ### Bug Fixes
