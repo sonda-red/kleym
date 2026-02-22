@@ -96,9 +96,9 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			resource := &kleymv1alpha1.InferenceIdentityBinding{}
 			Expect(k8sClient.Get(ctx, typeNamespacedName, resource)).To(Succeed())
 
-			By("updating the resource with a Foo value")
-			fooValue := "bar"
-			resource.Spec.TargetRef.Name = fooValue
+			By("updating the resource TargetRef.Name value")
+			targetRefName := "bar"
+			resource.Spec.TargetRef.Name = targetRefName
 			Expect(k8sClient.Update(ctx, resource)).To(Succeed())
 
 			By("reconciling the updated resource")
