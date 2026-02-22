@@ -87,6 +87,8 @@ type InferenceObjectiveTargetRef struct {
 }
 
 // InferenceIdentityBindingSpec defines the desired state of InferenceIdentityBinding
+// +kubebuilder:validation:XValidation:rule="!has(self.mode) || self.mode != 'PoolOnly' || !has(self.containerDiscriminator)",message="containerDiscriminator must be empty when mode is PoolOnly"
+// +kubebuilder:validation:XValidation:rule="has(self.containerDiscriminator) || (has(self.mode) && self.mode == 'PoolOnly')",message="containerDiscriminator is required when mode is PerObjective (including default mode)"
 type InferenceIdentityBindingSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 	// The following markers will use OpenAPI v3 schema to validate the value
