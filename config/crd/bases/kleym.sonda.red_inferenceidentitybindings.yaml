@@ -58,13 +58,9 @@ spec:
                 - value
                 type: object
               mode:
-                allOf:
-                - enum:
-                  - PoolOnly
-                  - PerObjective
-                - enum:
-                  - PoolOnly
-                  - PerObjective
+                enum:
+                - PoolOnly
+                - PerObjective
                 default: PerObjective
                 description: mode selects the identity granularity for this binding.
                 type: string
