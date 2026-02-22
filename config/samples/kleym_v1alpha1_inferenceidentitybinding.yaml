@@ -7,14 +7,9 @@ metadata:
   name: inferenceidentitybinding-sample
 spec:
   targetRef:
-    apiVersion: v1
-    kind: Pod
-    name: sample-pod
-    namespace: default
+    name: inferenceobjective-sample
   selectorSource: DerivedFromPool
   workloadSelectorTemplates:
-    - type: "k8s"
-      value: "app=sample"
-      
+    - k8s:ns:default
+    - k8s:sa:sample-sa
   mode: PoolOnly
-  
