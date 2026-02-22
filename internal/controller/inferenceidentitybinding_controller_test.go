@@ -52,6 +52,17 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
+					Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+						TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{
+							Name: "example-target",
+						},
+						SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
+						WorkloadSelectorTemplates: []string{
+							"k8s:ns:default",
+							"k8s:sa:inference-sa",
+						},
+						Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
@@ -87,7 +98,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 
 			By("updating the resource with a Foo value")
 			fooValue := "bar"
-			resource.Spec.Foo = &fooValue
+			resource.Spec.TargetRef.Name = fooValue
 			Expect(k8sClient.Update(ctx, resource)).To(Succeed())
 
 			By("reconciling the updated resource")
