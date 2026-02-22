@@ -144,9 +144,9 @@ type InferenceIdentityBindingStatus struct {
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
-	// computedSpiffeID is the computed SPIFFE ID for this binding, based on the SpiffeIDTemplate and the TargetRef.
+	// computedSpiffeIDs are the computed SPIFFE IDs for this binding, based on the SpiffeIDTemplate and the TargetRef.
 	// +optional
-	ComputedSpiffeID []ComputedSpiffeIDStatus `json:"computedSpiffeID,omitempty"`
+	ComputedSpiffeIDs []ComputedSpiffeIDStatus `json:"computedSpiffeIDs,omitempty"`
 
 	// renderedSelectors shows final selectors applied to rendered identities, after processing the WorkloadSelectorTemplates and SelectorSource.
 	// +optional
