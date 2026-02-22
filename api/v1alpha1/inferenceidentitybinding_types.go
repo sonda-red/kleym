@@ -50,6 +50,7 @@ const (
 type ContainerDiscriminator struct {
 	// Type specifies the type of discriminator to use (e.g., ContainerName, ContainerImage).
 	// +required
+	// +kubebuilder:validation:Enum=ContainerName;ContainerImage
 	Type ContainerDiscriminatorType `json:"type"`
 
 	// Value is the container name or image to use as a discriminator, depending on the Type.
