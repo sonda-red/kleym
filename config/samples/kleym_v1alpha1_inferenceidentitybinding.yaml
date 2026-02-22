@@ -6,4 +6,10 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: inferenceidentitybinding-sample
 spec:
-  # TODO(user): Add fields here
+  targetRef:
+    name: inferenceobjective-sample
+  selectorSource: DerivedFromPool
+  workloadSelectorTemplates:
+    - k8s:ns:default
+    - k8s:sa:sample-sa
+  mode: PoolOnly

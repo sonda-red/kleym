@@ -18,7 +18,7 @@ spec:
     schema:
       openAPIV3Schema:
         description: InferenceIdentityBinding is the Schema for the inferenceidentitybindings
-          API
+          API.
         properties:
           apiVersion:
             description: |-
@@ -38,27 +38,114 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of InferenceIdentityBinding
+            description: spec defines the desired state of InferenceIdentityBinding.
             properties:
-              foo:
-                description: foo is an example field of InferenceIdentityBinding.
-                  Edit inferenceidentitybinding_types.go to remove/update
+              containerDiscriminator:
+                description: |-
+                  containerDiscriminator specifies how to discriminate between containers when
+                  generating identities in PerObjective mode.
+                  Required when mode is PerObjective; must be empty when mode is PoolOnly.
+                properties:
+                  type:
+                    description: type specifies the kind of discriminator to use (ContainerName
+                      or ContainerImage).
+                    enum:
+                    - ContainerName
+                    - ContainerImage
+                    type: string
+                  value:
+                    description: value is the container name or image to match, depending
+                      on type.
+                    type: string
+                required:
+                - type
+                - value
+                type: object
+              mode:
+                allOf:
+                - enum:
+                  - PoolOnly
+                  - PerObjective
+                - enum:
+                  - PoolOnly
+                  - PerObjective
+                default: PerObjective
+                description: mode selects the identity granularity for this binding.
                 type: string
+              selectorSource:
+                description: selectorSource defines how the workload selectors are
+                  derived.
+                enum:
+                - DerivedFromPool
+                type: string
+              spiffeIDTemplate:
+                description: |-
+                  spiffeIDTemplate optionally overrides the SPIFFE ID template for this binding.
+                  If not specified, the default template from the controller configuration will be used.
+                type: string
+              targetRef:
+                description: targetRef specifies the reference to the InferenceObjective
+                  in the same namespace.
+                properties:
+                  name:
+                    description: name of the InferenceObjective resource to bind to.
+                    type: string
+                required:
+                - name
+                type: object
+              workloadSelectorTemplates:
+                description: |-
+                  workloadSelectorTemplates are Go-template strings that produce SPIFFE workload
+                  selectors for this binding. At least one template is required.
+                items:
+                  type: string
+                minItems: 1
+                type: array
+                x-kubernetes-list-type: set
+            required:
+            - selectorSource
+            - targetRef
+            - workloadSelectorTemplates
             type: object
+            x-kubernetes-validations:
+            - message: containerDiscriminator must be empty when mode is PoolOnly
+              rule: '!has(self.mode) || self.mode != ''PoolOnly'' || !has(self.containerDiscriminator)'
+            - message: containerDiscriminator is required when mode is PerObjective
+                (including default mode)
+              rule: has(self.containerDiscriminator) || (has(self.mode) && self.mode
+                == 'PoolOnly')
           status:
-            description: status defines the observed state of InferenceIdentityBinding
+            description: status defines the observed state of InferenceIdentityBinding.
             properties:
+              computedSpiffeIDs:
+                description: computedSpiffeIDs lists the SPIFFE IDs produced from
+                  the SpiffeIDTemplate and TargetRef.
+                items:
+                  description: ComputedSpiffeIDStatus holds a single computed SPIFFE
+                    ID and the mode that produced it.
+                  properties:
+                    mode:
+                      description: mode indicates the identity-generation mode (PoolOnly
+                        or PerObjective).
+                      enum:
+                      - PoolOnly
+                      - PerObjective
+                      type: string
+                    spiffeID:
+                      description: spiffeID is the computed SPIFFE ID for this binding.
+                      type: string
+                  required:
+                  - spiffeID
+                  type: object
+                type: array
               conditions:
                 description: |-
-                  conditions represent the current state of the InferenceIdentityBinding resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
+                  conditions represent the latest available observations of the binding's state.
 
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                  Known condition types:
+                    - "Available":   the resource is fully functional
+                    - "Progressing": the resource is being created or updated
+                    - "Degraded":    the resource failed to reach or maintain its desired state
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -117,6 +204,29 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              renderedSelectors:
+                description: renderedSelectors shows the final workload selectors
+                  for each rendered identity.
+                items:
+                  description: |-
+                    RenderedSelectorStatus describes the final selectors for one rendered identity,
+                    after processing WorkloadSelectorTemplates and SelectorSource.
+                  properties:
+                    selectors:
+                      description: selectors are the final set of workload selectors
+                        applied to this identity.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: set
+                    spiffeID:
+                      description: spiffeID is the computed SPIFFE ID for this rendered
+                        identity.
+                      type: string
+                  required:
+                  - spiffeID
+                  type: object
+                type: array
             type: object
         required:
         - spec

@@ -52,6 +52,17 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
+					Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+						TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{
+							Name: "example-target",
+						},
+						SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
+						WorkloadSelectorTemplates: []string{
+							"k8s:ns:default",
+							"k8s:sa:inference-sa",
+						},
+						Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
@@ -85,9 +96,9 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			resource := &kleymv1alpha1.InferenceIdentityBinding{}
 			Expect(k8sClient.Get(ctx, typeNamespacedName, resource)).To(Succeed())
 
-			By("updating the resource with a Foo value")
-			fooValue := "bar"
-			resource.Spec.Foo = &fooValue
+			By("updating the resource TargetRef.Name value")
+			targetRefName := "bar"
+			resource.Spec.TargetRef.Name = targetRefName
 			Expect(k8sClient.Update(ctx, resource)).To(Succeed())
 
 			By("reconciling the updated resource")
@@ -122,6 +133,91 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(Equal(ctrl.Result{}))
+		})
+	})
+
+	Context("When validating mode-specific API schema behavior", func() {
+		ctx := context.Background()
+
+		newResource := func(name string) *kleymv1alpha1.InferenceIdentityBinding {
+			return &kleymv1alpha1.InferenceIdentityBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: "default",
+				},
+				Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+					TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{
+						Name: "example-target",
+					},
+					SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
+					WorkloadSelectorTemplates: []string{
+						"k8s:ns:default",
+						"k8s:sa:inference-sa",
+					},
+				},
+			}
+		}
+
+		It("should allow PerObjective mode with a containerDiscriminator", func() {
+			resource := newResource("test-resource-perobjective")
+			resource.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePerObjective
+			resource.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
+				Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
+				Value: "main",
+			}
+
+			By("creating a valid PerObjective resource")
+			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+			DeferCleanup(func() {
+				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			})
+
+			By("reconciling the created resource")
+			controllerReconciler := &InferenceIdentityBindingReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+
+			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: resource.Name, Namespace: resource.Namespace},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(Equal(ctrl.Result{}))
+		})
+
+		It("should default omitted mode to PerObjective and allow a containerDiscriminator", func() {
+			resource := newResource("test-resource-default-perobjective")
+			resource.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
+				Type:  kleymv1alpha1.ContainerDiscriminatorTypeImage,
+				Value: "example/image:latest",
+			}
+
+			By("creating a resource without an explicit mode")
+			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+			DeferCleanup(func() {
+				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			})
+
+			By("verifying the API server defaulted mode to PerObjective")
+			fetched := &kleymv1alpha1.InferenceIdentityBinding{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: resource.Name, Namespace: resource.Namespace}, fetched)).To(Succeed())
+			Expect(fetched.Spec.Mode).To(BeEquivalentTo(kleymv1alpha1.InferenceIdentityBindingModePerObjective))
+			Expect(fetched.Spec.ContainerDiscriminator).NotTo(BeNil())
+		})
+
+		It("should reject containerDiscriminator when mode is PoolOnly", func() {
+			resource := newResource("test-resource-poolonly-invalid")
+			resource.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePoolOnly
+			resource.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
+				Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
+				Value: "main",
+			}
+
+			By("creating an invalid PoolOnly resource")
+			err := k8sClient.Create(ctx, resource)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsInvalid(err)).To(BeTrue())
+			Expect(err.Error()).To(ContainSubstring("containerDiscriminator must be empty when mode is PoolOnly"))
 		})
 	})
 
