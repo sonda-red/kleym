@@ -18,7 +18,7 @@ spec:
     schema:
       openAPIV3Schema:
         description: InferenceIdentityBinding is the Schema for the inferenceidentitybindings
-          API
+          API.
         properties:
           apiVersion:
             description: |-
@@ -38,23 +38,24 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of InferenceIdentityBinding
+            description: spec defines the desired state of InferenceIdentityBinding.
             properties:
               containerDiscriminator:
                 description: |-
-                  containerDiscriminator specifies how to discriminate between containers when generating identities in PerObjective mode.
-                  Required if mode is PerObjective, must be empty if mode is PoolOnly.
+                  containerDiscriminator specifies how to discriminate between containers when
+                  generating identities in PerObjective mode.
+                  Required when mode is PerObjective; must be empty when mode is PoolOnly.
                 properties:
                   type:
-                    description: Type specifies the type of discriminator to use (e.g.,
-                      ContainerName, ContainerImage).
+                    description: type specifies the kind of discriminator to use (ContainerName
+                      or ContainerImage).
                     enum:
                     - ContainerName
                     - ContainerImage
                     type: string
                   value:
-                    description: Value is the container name or image to use as a
-                      discriminator, depending on the Type.
+                    description: value is the container name or image to match, depending
+                      on type.
                     type: string
                 required:
                 - type
@@ -78,23 +79,24 @@ spec:
                 - DerivedFromPool
                 type: string
               spiffeIDTemplate:
-                description: spiffeIDTemplate optionally overrides the SPIFFE ID template
-                  for this binding. If not specified, the default template from the
-                  controller configuration will be used.
+                description: |-
+                  spiffeIDTemplate optionally overrides the SPIFFE ID template for this binding.
+                  If not specified, the default template from the controller configuration will be used.
                 type: string
               targetRef:
-                description: TargetRef specifies the reference to the InferenceObjective
-                  in the same namespace
+                description: targetRef specifies the reference to the InferenceObjective
+                  in the same namespace.
                 properties:
                   name:
-                    description: Name of the InferenceObjective resource to bind to.
+                    description: name of the InferenceObjective resource to bind to.
                     type: string
                 required:
                 - name
                 type: object
               workloadSelectorTemplates:
-                description: workloadSelectorTemplates are required safety templates
-                  that define how to derive workload selectors for this binding.
+                description: |-
+                  workloadSelectorTemplates are Go-template strings that produce SPIFFE workload
+                  selectors for this binding. At least one template is required.
                 items:
                   type: string
                 minItems: 1
@@ -113,22 +115,24 @@ spec:
               rule: has(self.containerDiscriminator) || (has(self.mode) && self.mode
                 == 'PoolOnly')
           status:
-            description: status defines the observed state of InferenceIdentityBinding
+            description: status defines the observed state of InferenceIdentityBinding.
             properties:
               computedSpiffeIDs:
-                description: computedSpiffeIDs are the computed SPIFFE IDs for this
-                  binding, based on the SpiffeIDTemplate and the TargetRef.
+                description: computedSpiffeIDs lists the SPIFFE IDs produced from
+                  the SpiffeIDTemplate and TargetRef.
                 items:
+                  description: ComputedSpiffeIDStatus holds a single computed SPIFFE
+                    ID and the mode that produced it.
                   properties:
                     mode:
-                      description: mode indicates the mode of SPIFFE ID generation
-                        (e.g., PoolOnly, PerObjective).
+                      description: mode indicates the identity-generation mode (PoolOnly
+                        or PerObjective).
                       enum:
                       - PoolOnly
                       - PerObjective
                       type: string
                     spiffeID:
-                      description: spiffeID is the computed SPIFFE ID for this binding
+                      description: spiffeID is the computed SPIFFE ID for this binding.
                       type: string
                   required:
                   - spiffeID
@@ -136,15 +140,12 @@ spec:
                 type: array
               conditions:
                 description: |-
-                  conditions represent the current state of the InferenceIdentityBinding resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
+                  conditions represent the latest available observations of the binding's state.
 
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                  Known condition types:
+                    - "Available":   the resource is fully functional
+                    - "Progressing": the resource is being created or updated
+                    - "Degraded":    the resource failed to reach or maintain its desired state
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -204,22 +205,23 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               renderedSelectors:
-                description: renderedSelectors shows final selectors applied to rendered
-                  identities, after processing the WorkloadSelectorTemplates and SelectorSource.
+                description: renderedSelectors shows the final workload selectors
+                  for each rendered identity.
                 items:
-                  description: RenderedSelectorStatus describes final selectors for
-                    one rendered identity, after processing the WorkloadSelectorTemplates
-                    and SelectorSource.
+                  description: |-
+                    RenderedSelectorStatus describes the final selectors for one rendered identity,
+                    after processing WorkloadSelectorTemplates and SelectorSource.
                   properties:
                     selectors:
-                      description: selectors are the final set of selectors that will
-                        be applied to workloads matching this binding.
+                      description: selectors are the final set of workload selectors
+                        applied to this identity.
                       items:
                         type: string
                       type: array
                       x-kubernetes-list-type: set
                     spiffeID:
-                      description: spiffeID is the computed SPIFFE ID for this binding
+                      description: spiffeID is the computed SPIFFE ID for this rendered
+                        identity.
                       type: string
                   required:
                   - spiffeID
