@@ -60,7 +60,7 @@ type ContainerDiscriminator struct {
 type ComputedSpiffeIDStatus struct {
 	// mode indicates the mode of SPIFFE ID generation (e.g., PoolOnly, PerObjective).
 	// +optional
-	Mode *string `json:"mode,omitempty"`
+	Mode InferenceIdentityBindingMode `json:"mode,omitempty"`
 
 	// spiffeID is the computed SPIFFE ID for this binding
 	// +required
