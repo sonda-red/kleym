@@ -40,14 +40,87 @@ spec:
           spec:
             description: spec defines the desired state of InferenceIdentityBinding
             properties:
-              foo:
-                description: foo is an example field of InferenceIdentityBinding.
-                  Edit inferenceidentitybinding_types.go to remove/update
+              containerDiscriminator:
+                description: |-
+                  containerDiscriminator specifies how to discriminate between containers when generating identities in PerObjective mode.
+                  Required if mode is PerObjective, must be empty if mode is PoolOnly.
+                properties:
+                  type:
+                    description: Type specifies the type of discriminator to use (e.g.,
+                      ContainerName, ContainerImage).
+                    type: string
+                  value:
+                    description: value is the container name or image to use as a
+                      discriminator, depending on the Type.
+                    type: string
+                required:
+                - type
+                - value
+                type: object
+              mode:
+                allOf:
+                - enum:
+                  - PoolOnly
+                  - PerObjective
+                - enum:
+                  - PoolOnly
+                  - PerObjective
+                default: PerObjective
+                description: mode selects the identity granularity for this binding.
                 type: string
+              selectorSource:
+                description: selectorSource defines how the workload selectors are
+                  derived.
+                enum:
+                - DerivedFromPool
+                type: string
+              spiffeIDTemplate:
+                description: spiffeIDTemplate optionally overrides the SPIFFE ID template
+                  for this binding. If not specified, the default template from the
+                  controller configuration will be used.
+                type: string
+              targetRef:
+                description: TargetRef specifies the reference to the InferenceObjective
+                  in the same namespace
+                properties:
+                  name:
+                    description: Name of the InferenceObjective resource to bind to.
+                    type: string
+                required:
+                - name
+                type: object
+              workloadSelectorTemplates:
+                description: workloadSelectorTemplates are required safety templates
+                  that define how to derive workload selectors for this binding.
+                items:
+                  type: string
+                minItems: 1
+                type: array
+                x-kubernetes-list-type: set
+            required:
+            - selectorSource
+            - targetRef
+            - workloadSelectorTemplates
             type: object
           status:
             description: status defines the observed state of InferenceIdentityBinding
             properties:
+              computedSpiffeID:
+                description: computedSpiffeID is the computed SPIFFE ID for this binding,
+                  based on the SpiffeIDTemplate and the TargetRef.
+                items:
+                  properties:
+                    mode:
+                      description: mode indicates the mode of SPIFFE ID generation
+                        (e.g., PoolOnly, PerObjective).
+                      type: string
+                    spiffeID:
+                      description: spiffeID is the computed SPIFFE ID for this binding
+                      type: string
+                  required:
+                  - spiffeID
+                  type: object
+                type: array
               conditions:
                 description: |-
                   conditions represent the current state of the InferenceIdentityBinding resource.
@@ -117,6 +190,28 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              renderedSelectors:
+                description: renderedSelectors shows final selectors applied to rendered
+                  identities, after processing the WorkloadSelectorTemplates and SelectorSource.
+                items:
+                  description: renderedSelectorStatus describes final selectors for
+                    one rendered identity, after processing the WorkloadSelectorTemplates
+                    and SelectorSource.
+                  properties:
+                    selectors:
+                      description: selectors are the final set of selectors that will
+                        be applied to workloads matching this binding.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: set
+                    spiffeID:
+                      description: spiffeID is the computed SPIFFE ID for this binding
+                      type: string
+                  required:
+                  - spiffeID
+                  type: object
+                type: array
             type: object
         required:
         - spec
