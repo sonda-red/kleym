@@ -27,18 +27,66 @@ const (
 	SelectorSourceDerivedFromPool SelectorSource = "DerivedFromPool"
 )
 
+// InferenceIdentityBindingMode selects identity granularity.
+// +kubebuilder:validation:Enum=PoolOnly;PerObjective
+type InferenceIdentityBindingMode string
+
+const (
+	// InferenceIdentityBindingModePoolOnly indicates that a single identity is used for all workloads in the pool.
+	InferenceIdentityBindingModePoolOnly = "PoolOnly"
+	// InferenceIdentityBindingModePerObjective indicates that a unique identity is generated for each InferenceObjective.
+	InferenceIdentityBindingModePerObjective = "PerObjective"
+)
+
+type ContainerDiscriminatorType string
+
+const (
+	// ContainerDiscriminatorTypeName indicates that the container name is used as a discriminator for identity generation.
+	ContainerDiscriminatorTypeName ContainerDiscriminatorType = "ContainerName"
+	// ContainerDiscriminatorTypeImage indicates that the container image is used as a discriminator for identity generation.
+	ContainerDiscriminatorTypeImage ContainerDiscriminatorType = "ContainerImage"
+)
+
+type ContainerDiscriminator struct {
+	// Type specifies the type of discriminator to use (e.g., ContainerName, ContainerImage).
+	// +required
+	Type ContainerDiscriminatorType `json:"type"`
+
+	// value is the container name or image to use as a discriminator, depending on the Type.
+	// +required
+	Value string `json:"value"`
+}
+
+type ComputedSpiffeIDStatus struct {
+	// mode indicates the mode of SPIFFE ID generation (e.g., PoolOnly, PerObjective).
+	// +optional
+	Mode *string `json:"mode,omitempty"`
+
+	// spiffeID is the computed SPIFFE ID for this binding
+	// +required
+	SpiffeID string `json:"spiffeID"`
+}
+
+// renderedSelectorStatus describes final selectors for one rendered identity, after processing the WorkloadSelectorTemplates and SelectorSource.
+type RenderedSelectorStatus struct {
+	// spiffeID is the computed SPIFFE ID for this binding
+	// +required
+	SpiffeID string `json:"spiffeID"`
+
+	// selectors are the final set of selectors that will be applied to workloads matching this binding.
+	// +listType=set
+	// +optional
+	Selectors []string `json:"selectors,omitempty"`
+}
+
 type InferenceObjectiveTargetRef struct {
 	// Name of the InferenceObjective resource to bind to.
 	// +required
 	Name string `json:"name"`
 }
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // InferenceIdentityBindingSpec defines the desired state of InferenceIdentityBinding
 type InferenceIdentityBindingSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	// The following markers will use OpenAPI v3 schema to validate the value
 	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
@@ -50,11 +98,32 @@ type InferenceIdentityBindingSpec struct {
 	// spiffeIDTemplate optionally overrides the SPIFFE ID template for this binding. If not specified, the default template from the controller configuration will be used.
 	// +optional
 	SpiffeIDTemplate *string `json:"spiffeIDTemplate,omitempty"`
+
+	// selectorSource defines how the workload selectors are derived.
+	// +kubebuilder:validation:Enum=DerivedFromPool
+	// +required
+	SelectorSource SelectorSource `json:"selectorSource"`
+
+	// workloadSelectorTemplates are required safety templates that define how to derive workload selectors for this binding.
+	// +listType=set
+	// +kubebuilder:validation:MinItems=1
+	// +required
+	WorkloadSelectorTemplates []string `json:"workloadSelectorTemplates"`
+
+	// mode selects the identity granularity for this binding.
+	// +kubebuilder:validation:Enum=PoolOnly;PerObjective
+	// +kubebuilder:default=PerObjective
+	// +optional
+	Mode InferenceIdentityBindingMode `json:"mode,omitempty"`
+
+	// containerDiscriminator specifies how to discriminate between containers when generating identities in PerObjective mode.
+	// Required if mode is PerObjective, must be empty if mode is PoolOnly.
+	// +optional
+	ContainerDiscriminator *ContainerDiscriminator `json:"containerDiscriminator,omitempty"`
 }
 
 // InferenceIdentityBindingStatus defines the observed state of InferenceIdentityBinding.
 type InferenceIdentityBindingStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// For Kubernetes API conventions, see:
@@ -73,6 +142,14 @@ type InferenceIdentityBindingStatus struct {
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// computedSpiffeID is the computed SPIFFE ID for this binding, based on the SpiffeIDTemplate and the TargetRef.
+	// +optional
+	ComputedSpiffeID []ComputedSpiffeIDStatus `json:"computedSpiffeID,omitempty"`
+
+	// renderedSelectors shows final selectors applied to rendered identities, after processing the WorkloadSelectorTemplates and SelectorSource.
+	// +optional
+	RenderedSelectors []RenderedSelectorStatus `json:"renderedSelectors,omitempty"`
 }
 
 // +kubebuilder:object:root=true
