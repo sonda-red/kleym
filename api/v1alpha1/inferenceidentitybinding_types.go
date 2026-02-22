@@ -67,7 +67,7 @@ type ComputedSpiffeIDStatus struct {
 	SpiffeID string `json:"spiffeID"`
 }
 
-// renderedSelectorStatus describes final selectors for one rendered identity, after processing the WorkloadSelectorTemplates and SelectorSource.
+// RenderedSelectorStatus describes final selectors for one rendered identity, after processing the WorkloadSelectorTemplates and SelectorSource.
 type RenderedSelectorStatus struct {
 	// spiffeID is the computed SPIFFE ID for this binding
 	// +required
