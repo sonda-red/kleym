@@ -20,6 +20,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type SelectorSource string
+
+const (
+	// SelectorSourceDerivedFromPool indicates that the selector is derived from the InferencePool's selector.
+	SelectorSourceDerivedFromPool SelectorSource = "DerivedFromPool"
+)
+
+type InferenceObjectiveTargetRef struct {
+	// Name of the InferenceObjective resource to bind to.
+	// +required
+	Name string `json:"name"`
+}
+
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
@@ -30,9 +43,13 @@ type InferenceIdentityBindingSpec struct {
 	// The following markers will use OpenAPI v3 schema to validate the value
 	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
 
-	// foo is an example field of InferenceIdentityBinding. Edit inferenceidentitybinding_types.go to remove/update
+	// TargetRef specifies the reference to the InferenceObjective in the same namespace
+	// +required
+	TargetRef InferenceObjectiveTargetRef `json:"targetRef"`
+
+	// spiffeIDTemplate optionally overrides the SPIFFE ID template for this binding. If not specified, the default template from the controller configuration will be used.
 	// +optional
-	Foo *string `json:"foo,omitempty"`
+	SpiffeIDTemplate *string `json:"spiffeIDTemplate,omitempty"`
 }
 
 // InferenceIdentityBindingStatus defines the observed state of InferenceIdentityBinding.
