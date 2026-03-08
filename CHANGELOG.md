@@ -1,3 +1,9 @@
+## [1.1.1](https://github.com/sonda-red/kleym/compare/v1.1.0...v1.1.1) (2026-03-08)
+
+### Bug Fixes
+
+* **deps:** update all dependencies ([#46](https://github.com/sonda-red/kleym/issues/46)) ([56c8345](https://github.com/sonda-red/kleym/commit/56c83453fbd21e334a6c96301a503b94a2f5a3c9))
+
 ## [1.1.0](https://github.com/sonda-red/kleym/compare/v1.0.3...v1.1.0) (2026-02-22)
 
 ### Features
