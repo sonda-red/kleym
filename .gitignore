@@ -21,6 +21,7 @@ go.work
 
 # editor and IDE paraphernalia
 .idea
+.codex
 .vscode
 *.swp
 *.swo

@@ -56,21 +56,18 @@ spec:
                   value:
                     description: value is the container name or image to match, depending
                       on type.
+                    minLength: 1
                     type: string
                 required:
                 - type
                 - value
                 type: object
               mode:
-                allOf:
-                - enum:
-                  - PoolOnly
-                  - PerObjective
-                - enum:
-                  - PoolOnly
-                  - PerObjective
                 default: PerObjective
                 description: mode selects the identity granularity for this binding.
+                enum:
+                - PoolOnly
+                - PerObjective
                 type: string
               selectorSource:
                 description: selectorSource defines how the workload selectors are
@@ -82,6 +79,7 @@ spec:
                 description: |-
                   spiffeIDTemplate optionally overrides the SPIFFE ID template for this binding.
                   If not specified, the default template from the controller configuration will be used.
+                minLength: 1
                 type: string
               targetRef:
                 description: targetRef specifies the reference to the InferenceObjective
@@ -89,6 +87,7 @@ spec:
                 properties:
                   name:
                     description: name of the InferenceObjective resource to bind to.
+                    minLength: 1
                     type: string
                 required:
                 - name
@@ -98,6 +97,7 @@ spec:
                   workloadSelectorTemplates are Go-template strings that produce SPIFFE workload
                   selectors for this binding. At least one template is required.
                 items:
+                  minLength: 1
                   type: string
                 minItems: 1
                 type: array
@@ -143,9 +143,11 @@ spec:
                   conditions represent the latest available observations of the binding's state.
 
                   Known condition types:
-                    - "Available":   the resource is fully functional
-                    - "Progressing": the resource is being created or updated
-                    - "Degraded":    the resource failed to reach or maintain its desired state
+                    - "Ready"
+                    - "Conflict"
+                    - "InvalidRef"
+                    - "UnsafeSelector"
+                    - "RenderFailure"
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
