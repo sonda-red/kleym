@@ -36,6 +36,7 @@ const (
 )
 
 // SelectorSource describes how workload selectors are derived.
+// +kubebuilder:validation:Enum=DerivedFromPool
 type SelectorSource string
 
 const (
@@ -44,6 +45,7 @@ const (
 )
 
 // ContainerDiscriminatorType defines which container attribute is used to discriminate identities.
+// +kubebuilder:validation:Enum=ContainerName;ContainerImage
 type ContainerDiscriminatorType string
 
 const (
@@ -61,6 +63,7 @@ const (
 type InferenceObjectiveTargetRef struct {
 	// name of the InferenceObjective resource to bind to.
 	// +required
+	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 }
 
@@ -69,11 +72,11 @@ type InferenceObjectiveTargetRef struct {
 type ContainerDiscriminator struct {
 	// type specifies the kind of discriminator to use (ContainerName or ContainerImage).
 	// +required
-	// +kubebuilder:validation:Enum=ContainerName;ContainerImage
 	Type ContainerDiscriminatorType `json:"type"`
 
 	// value is the container name or image to match, depending on type.
 	// +required
+	// +kubebuilder:validation:MinLength=1
 	Value string `json:"value"`
 }
 
@@ -93,10 +96,10 @@ type InferenceIdentityBindingSpec struct {
 	// spiffeIDTemplate optionally overrides the SPIFFE ID template for this binding.
 	// If not specified, the default template from the controller configuration will be used.
 	// +optional
+	// +kubebuilder:validation:MinLength=1
 	SpiffeIDTemplate *string `json:"spiffeIDTemplate,omitempty"`
 
 	// selectorSource defines how the workload selectors are derived.
-	// +kubebuilder:validation:Enum=DerivedFromPool
 	// +required
 	SelectorSource SelectorSource `json:"selectorSource"`
 
@@ -104,11 +107,11 @@ type InferenceIdentityBindingSpec struct {
 	// selectors for this binding. At least one template is required.
 	// +listType=set
 	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:items:MinLength=1
 	// +required
 	WorkloadSelectorTemplates []string `json:"workloadSelectorTemplates"`
 
 	// mode selects the identity granularity for this binding.
-	// +kubebuilder:validation:Enum=PoolOnly;PerObjective
 	// +kubebuilder:default=PerObjective
 	// +optional
 	Mode InferenceIdentityBindingMode `json:"mode,omitempty"`
@@ -158,9 +161,11 @@ type InferenceIdentityBindingStatus struct {
 	// conditions represent the latest available observations of the binding's state.
 	//
 	// Known condition types:
-	//   - "Available":   the resource is fully functional
-	//   - "Progressing": the resource is being created or updated
-	//   - "Degraded":    the resource failed to reach or maintain its desired state
+	//   - "Ready"
+	//   - "Conflict"
+	//   - "InvalidRef"
+	//   - "UnsafeSelector"
+	//   - "RenderFailure"
 	// +listType=map
 	// +listMapKey=type
 	// +optional
