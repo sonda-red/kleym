@@ -1,3 +1,10 @@
+## [1.1.3](https://github.com/sonda-red/kleym/compare/v1.1.2...v1.1.3) (2026-04-08)
+
+### Bug Fixes
+
+* add validation rules for InferenceIdentityBinding CRD fields ([cd42b0f](https://github.com/sonda-red/kleym/commit/cd42b0fb9b347ef6b861767c5a59e17932bff9d5))
+* update .gitignore to include .codex ([ae52282](https://github.com/sonda-red/kleym/commit/ae5228298fa3776dd3887c05cf856c06a4406c03))
+
 ## [1.1.2](https://github.com/sonda-red/kleym/compare/v1.1.1...v1.1.2) (2026-04-06)
 
 ### Bug Fixes
