@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/sonda-red/kleym/compare/v1.2.0...v1.2.1) (2026-04-14)
+
+### Code Refactoring
+
+* consolidate CI workflows into a single configuration file ([6d16e47](https://github.com/sonda-red/kleym/commit/6d16e47653355139d641a1df34e8ab9dc3774a2c))
+* consolidate lint and test jobs into a single verify job ([a733968](https://github.com/sonda-red/kleym/commit/a73396804ea37354172b0095d8f2a6985a42f207))
+
 ## [1.2.0](https://github.com/sonda-red/kleym/compare/v1.1.3...v1.2.0) (2026-04-14)
 
 ### Features
