@@ -4,6 +4,14 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - "api/**"
+      - "cmd/**"
+      - "internal/**"
+      - "Dockerfile"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/build-and-push.yml"
   push:
     branches:
       - main
@@ -33,6 +41,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -60,6 +70,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -73,7 +85,7 @@ jobs:
   build:
     name: Build and Push Container Image
     needs: test
-    if: ${{ github.event_name == 'pull_request' || github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' }}
     runs-on: arc-set-nuc
     container:
       image: docker:29-dind
@@ -88,6 +100,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Mark workspace as safe
         run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
