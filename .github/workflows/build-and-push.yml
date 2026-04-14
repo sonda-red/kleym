@@ -27,11 +27,12 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    name: Lint
+  verify:
+    name: Lint and Test
     runs-on: arc-set-nuc
     container:
       image: golang:1.25
+      options: --privileged
     env:
       GOFLAGS: -buildvcs=false -p=2
       GOMAXPROCS: "2"
@@ -48,43 +49,21 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
 
       - name: Run linter
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.11.4
-          skip-cache: false
+          skip-cache: true
           args: ./...
-
-  test:
-    name: Test
-    needs: lint
-    runs-on: arc-set-nuc
-    container:
-      image: golang:1.25
-      options: --privileged
-    env:
-      GOFLAGS: -buildvcs=false -p=2
-      GOMAXPROCS: "2"
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-          cache: true
 
       - name: Run tests
         run: make test
 
   build:
     name: Build and Push Container Image
-    needs: test
+    needs: verify
     if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' }}
     runs-on: arc-set-nuc
     container:
