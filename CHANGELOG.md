@@ -1,3 +1,20 @@
+## [1.2.0](https://github.com/sonda-red/kleym/compare/v1.1.3...v1.2.0) (2026-04-14)
+
+### Features
+
+* implement reconciliation logic for InferenceIdentityBinding with finalizer and event recording ([a33eba1](https://github.com/sonda-red/kleym/commit/a33eba16121775fc17a5177b6c8efcc9becb0c50))
+
+### Bug Fixes
+
+* add k8s.io/api dependency to go.mod ([3e035e5](https://github.com/sonda-red/kleym/commit/3e035e53d45c514676a881667b25aa750988bf71))
+* remove scheduled cron job from auto update workflow ([c862876](https://github.com/sonda-red/kleym/commit/c86287635dd5bddcb855c5208c43971d5d9124f8))
+* update ClusterRole to include additional rules for inference and spire resources ([8479912](https://github.com/sonda-red/kleym/commit/84799120a7914f447430eb065f644d0ba017772b))
+* update golangci-lint configuration and version, improve caching setup ([1a48b3c](https://github.com/sonda-red/kleym/commit/1a48b3c50786382b7917cffd16cdc6059338de01))
+
+### Code Refactoring
+
+* replace hardcoded values with constants for improved maintainability ([820e4ee](https://github.com/sonda-red/kleym/commit/820e4ee19c408f9079c98e9fc238ca3717649680))
+
 ## [1.1.3](https://github.com/sonda-red/kleym/compare/v1.1.2...v1.1.3) (2026-04-08)
 
 ### Bug Fixes
