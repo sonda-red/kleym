@@ -22,6 +22,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -32,6 +33,30 @@ import (
 )
 
 var _ = Describe("InferenceIdentityBinding Controller", func() {
+	cleanupBinding := func(ctx context.Context, key types.NamespacedName) {
+		resource := &kleymv1alpha1.InferenceIdentityBinding{}
+		err := k8sClient.Get(ctx, key, resource)
+		if errors.IsNotFound(err) {
+			return
+		}
+		Expect(err).NotTo(HaveOccurred())
+
+		controllerReconciler := &InferenceIdentityBindingReconciler{
+			Client: k8sClient,
+			Scheme: k8sClient.Scheme(),
+		}
+
+		Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+		_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: key})
+		Expect(err).NotTo(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			current := &kleymv1alpha1.InferenceIdentityBinding{}
+			getErr := k8sClient.Get(ctx, key, current)
+			g.Expect(errors.IsNotFound(getErr)).To(BeTrue())
+		}, "5s", "100ms").Should(Succeed())
+	}
+
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -69,15 +94,11 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 		})
 
 		AfterEach(func() {
-			resource := &kleymv1alpha1.InferenceIdentityBinding{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
-
 			By("Cleanup the specific resource instance InferenceIdentityBinding")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			cleanupBinding(ctx, typeNamespacedName)
 		})
 
-		It("should successfully reconcile the resource", func() {
+		It("should reconcile and surface unresolved references in status", func() {
 			By("Reconciling the created resource")
 			controllerReconciler := &InferenceIdentityBindingReconciler{
 				Client: k8sClient,
@@ -89,9 +110,22 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result).To(Equal(ctrl.Result{}))
+
+			By("updating status with invalid reference and adding finalizer")
+			fetched := &kleymv1alpha1.InferenceIdentityBinding{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, fetched)).To(Succeed())
+			Expect(fetched.Finalizers).To(ContainElement(inferenceIdentityBindingFinalizer))
+
+			invalidRef := meta.FindStatusCondition(fetched.Status.Conditions, conditionTypeInvalidRef)
+			Expect(invalidRef).NotTo(BeNil())
+			Expect(invalidRef.Status).To(Equal(metav1.ConditionTrue))
+
+			ready := meta.FindStatusCondition(fetched.Status.Conditions, conditionTypeReady)
+			Expect(ready).NotTo(BeNil())
+			Expect(ready.Status).To(Equal(metav1.ConditionFalse))
 		})
 
-		It("should successfully reconcile a resource with spec fields populated", func() {
+		It("should reconcile updates idempotently", func() {
 			By("fetching the existing resource")
 			resource := &kleymv1alpha1.InferenceIdentityBinding{}
 			Expect(k8sClient.Get(ctx, typeNamespacedName, resource)).To(Succeed())
@@ -108,6 +142,13 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			}
 
 			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(Equal(ctrl.Result{}))
+
+			By("reconciling again to verify idempotency")
+			result, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
@@ -169,7 +210,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			By("creating a valid PerObjective resource")
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			DeferCleanup(func() {
-				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+				cleanupBinding(ctx, types.NamespacedName{Name: resource.Name, Namespace: resource.Namespace})
 			})
 
 			By("reconciling the created resource")
@@ -195,7 +236,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			By("creating a resource without an explicit mode")
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			DeferCleanup(func() {
-				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+				cleanupBinding(ctx, types.NamespacedName{Name: resource.Name, Namespace: resource.Namespace})
 			})
 
 			By("verifying the API server defaulted mode to PerObjective")

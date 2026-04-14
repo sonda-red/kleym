@@ -5,6 +5,16 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - inference.networking.k8s.io
+  - inference.networking.x-k8s.io
+  resources:
+  - inferenceobjectives
+  - inferencepools
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - kleym.sonda.red
   resources:
   - inferenceidentitybindings
@@ -30,3 +40,15 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - spire.spiffe.io
+  resources:
+  - clusterspiffeids
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
