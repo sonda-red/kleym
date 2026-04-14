@@ -1,24 +1,79 @@
-name: Build and Push Container Image
+name: CI
 
 on:
-  push:
-    tags:
-      - 'v*'
   pull_request:
     branches:
       - main
-    paths:
-      - 'api/**'
-      - 'cmd/**'
-      - 'internal/**'
-      - 'Dockerfile'
-      - 'go.mod'
-      - 'go.sum'
-      - '.github/workflows/build-and-push.yml'
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
+  lint:
+    name: Lint
+    runs-on: arc-set-nuc
+    container:
+      image: golang:1.25
+    env:
+      GOFLAGS: -buildvcs=false -p=2
+      GOMAXPROCS: "2"
+      GOMODCACHE: /go/pkg/mod
+      GOCACHE: /root/.cache/go-build
+      GOLANGCI_LINT_CACHE: /root/.cache/golangci-lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11.4
+          skip-cache: false
+          args: ./...
+
+  test:
+    name: Test
+    needs: lint
+    runs-on: arc-set-nuc
+    container:
+      image: golang:1.25
+      options: --privileged
+    env:
+      GOFLAGS: -buildvcs=false -p=2
+      GOMAXPROCS: "2"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run tests
+        run: make test
+
   build:
+    name: Build and Push Container Image
+    needs: test
+    if: ${{ github.event_name == 'pull_request' || github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' }}
     runs-on: arc-set-nuc
     container:
       image: docker:29-dind
@@ -28,7 +83,6 @@ jobs:
       packages: write
     env:
       BUILD_PLATFORMS: ${{ (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
