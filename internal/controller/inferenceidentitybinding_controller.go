@@ -47,9 +47,10 @@ import (
 )
 
 const (
+	defaultNameValue                  = "kleym"
 	inferenceIdentityBindingFinalizer = "kleym.sonda.red/inferenceidentitybinding-finalizer"
 	managedByLabelKey                 = "kleym.sonda.red/managed-by"
-	managedByLabelValue               = "kleym"
+	managedByLabelValue               = defaultNameValue
 	bindingNameLabelKey               = "kleym.sonda.red/binding-name"
 	bindingNamespaceLabelKey          = "kleym.sonda.red/binding-namespace"
 	defaultTrustDomain                = "kleym.sonda.red"
@@ -154,6 +155,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	//nolint:staticcheck // We intentionally use the legacy recorder interface required by this reconciler.
 	r.Recorder = mgr.GetEventRecorderFor("inferenceidentitybinding-controller")
 
 	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
@@ -524,7 +526,7 @@ func deriveSelectorsFromPool(pool *unstructured.Unstructured) (map[string]any, [
 		return nil, nil, fmt.Errorf("pool spec.selector must be set")
 	}
 
-	matchLabels := map[string]any{}
+	var matchLabels map[string]any
 	if rawMatchLabels, hasMatchLabels := selectorMap["matchLabels"]; hasMatchLabels {
 		typedMatchLabels, ok := rawMatchLabels.(map[string]any)
 		if !ok {
@@ -682,7 +684,7 @@ func buildClusterSPIFFEIDName(
 
 	hashSum := sha1.Sum([]byte(spiffeID))
 	hashSuffix := hex.EncodeToString(hashSum[:4])
-	base := sanitizeDNSLabel(fmt.Sprintf("kleym-%s-%s", namespace, bindingName))
+	base := sanitizeDNSLabel(fmt.Sprintf("%s-%s-%s", defaultNameValue, namespace, bindingName))
 
 	maxBaseLen := 63 - len(modeText) - len(hashSuffix) - 2
 	if maxBaseLen < 1 {
@@ -691,7 +693,7 @@ func buildClusterSPIFFEIDName(
 	if len(base) > maxBaseLen {
 		base = strings.Trim(base[:maxBaseLen], "-")
 		if base == "" {
-			base = "kleym"
+			base = defaultNameValue
 		}
 	}
 
@@ -701,7 +703,7 @@ func buildClusterSPIFFEIDName(
 func sanitizeDNSLabel(input string) string {
 	lower := strings.ToLower(strings.TrimSpace(input))
 	if lower == "" {
-		return "kleym"
+		return defaultNameValue
 	}
 
 	var builder strings.Builder
@@ -721,7 +723,7 @@ func sanitizeDNSLabel(input string) string {
 
 	sanitized := strings.Trim(builder.String(), "-")
 	if sanitized == "" {
-		return "kleym"
+		return defaultNameValue
 	}
 
 	return sanitized
