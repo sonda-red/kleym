@@ -63,6 +63,14 @@ This repository is in early scaffold stage.
 - Product direction and MVP behavior are documented in `docs/spec.md`.
 - API group and CRD scaffold exist for `InferenceIdentityBinding` (`kleym.sonda.red/v1alpha1`).
 
+## Documentation Map
+
+- [`docs/spec.md`](docs/spec.md): authoritative product and API behavior.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md): local development workflow, repository layout, and testing expectations.
+- [`AGENTS.md`](AGENTS.md): minimal repository instructions for coding agents.
+- [`SEMANTIC_VERSIONING.md`](SEMANTIC_VERSIONING.md): release automation and commit conventions.
+- [`CHANGELOG.md`](CHANGELOG.md): released changes.
+
 ## Dependencies
 
 - [SPIRE Server](https://spiffe.io/spire/) and SPIRE Agent
@@ -72,10 +80,11 @@ This repository is in early scaffold stage.
 
 Prerequisites:
 
-- Go `1.24+`
+- Go `1.25+`
 - Docker
 - `kubectl`
 - Access to a Kubernetes cluster
+- `kind` for `make test-e2e`
 
 Run locally:
 
