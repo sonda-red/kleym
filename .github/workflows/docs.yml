@@ -35,7 +35,7 @@ permissions:
 jobs:
   build:
     name: Build Docs
-    runs-on: arc-set-nuc
+    runs-on: ubuntu-latest
     container:
       image: squidfunk/mkdocs-material:latest
     steps:

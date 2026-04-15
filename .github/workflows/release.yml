@@ -11,8 +11,7 @@ permissions:
 jobs:
   release:
     name: Release
-    runs-on: arc-set-nuc
-    container: node:lts
+    runs-on: ubuntu-latest
     permissions:
       contents: write # to be able to publish a GitHub release
       issues: write # to be able to comment on released issues
@@ -25,13 +24,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      # - name: Setup Node.js
-      #   uses: actions/setup-node@v4
-      #   with:
-      #     node-version: 'lts/*'
-
-      - name: Configure git safe.directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
 
       - name: Install dependencies
         run: npm install --save-dev semantic-release @semantic-release/git @semantic-release/changelog conventional-changelog-conventionalcommits

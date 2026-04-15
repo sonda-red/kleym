@@ -5,6 +5,7 @@
 Start here:
 
 - Read the [spec](spec.md) if you need the contract for product behavior, API expectations, or controller outcomes.
+- Read the [roadmap](roadmap.md) if you need current delivery phases and near-term priorities.
 - Read [install](install.md) if you need to run the controller locally, deploy it to a cluster, or execute tests.
 - Read the pages under [reference](reference/api.md) if you need stable facts about the current API surface, condition set, or managed resources.
 - Read the pages under [design](design/reconciliation.md) if you need explanatory internals for reconciliation flow, selector safety, or collision handling.
