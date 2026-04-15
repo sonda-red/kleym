@@ -265,7 +265,7 @@ func (r *InferenceIdentityBindingReconciler) resolveInferenceObjective(
 	namespace string,
 	name string,
 ) (*unstructured.Unstructured, error) {
-	objective, _, crdMissing, err := r.resolveByCandidates(
+	objective, crdMissing, err := r.resolveByCandidates(
 		ctx,
 		types.NamespacedName{Namespace: namespace, Name: name},
 		inferenceObjectiveGVKs,
@@ -295,7 +295,7 @@ func (r *InferenceIdentityBindingReconciler) resolveInferencePool(
 	poolRef inferencePoolRef,
 ) (*unstructured.Unstructured, error) {
 	poolCandidates := candidatePoolGVKs(poolRef.Group)
-	pool, _, crdMissing, err := r.resolveByCandidates(
+	pool, crdMissing, err := r.resolveByCandidates(
 		ctx,
 		types.NamespacedName{Namespace: poolRef.Namespace, Name: poolRef.Name},
 		poolCandidates,
@@ -324,7 +324,7 @@ func (r *InferenceIdentityBindingReconciler) resolveByCandidates(
 	ctx context.Context,
 	key types.NamespacedName,
 	candidates []schema.GroupVersionKind,
-) (*unstructured.Unstructured, schema.GroupVersionKind, bool, error) {
+) (*unstructured.Unstructured, bool, error) {
 	crdMissing := false
 
 	for _, gvk := range candidates {
@@ -333,18 +333,18 @@ func (r *InferenceIdentityBindingReconciler) resolveByCandidates(
 		err := r.Get(ctx, key, obj)
 		switch {
 		case err == nil:
-			return obj, gvk, crdMissing, nil
+			return obj, crdMissing, nil
 		case apierrors.IsNotFound(err):
 			continue
 		case meta.IsNoMatchError(err):
 			crdMissing = true
 			continue
 		default:
-			return nil, schema.GroupVersionKind{}, crdMissing, err
+			return nil, crdMissing, err
 		}
 	}
 
-	return nil, schema.GroupVersionKind{}, crdMissing, nil
+	return nil, crdMissing, nil
 }
 
 func extractPoolRef(objective *unstructured.Unstructured, defaultNamespace string) (inferencePoolRef, error) {
