@@ -2,7 +2,7 @@
 
 `kleym` is a Kubernetes operator that makes inference workloads legible to workload identity by translating inference intent into deterministic SPIFFE identities. It compiles that intent into SPIRE Controller Manager resources, primarily [`ClusterSPIFFEID`][clusterspiffeid].
 
-Scope boundary: `kleym` is an identity registration compiler. Inference deployment, traffic routing, and policy evaluation stay in the inference stack, gateway, mesh, or external policy engines.
+Scope boundary: `kleym` is an identity registration compiler. It stops at identity registration and selector provenance. Inference deployment, traffic routing, and policy evaluation stay in the inference stack, gateway, mesh, or external policy engines. `kleym` does not configure Envoy, Envoy Gateway, kgateway, ext authz, ext proc, OPA, Cedar, OAuth, or OIDC.
 
 # Core Problem
 
@@ -19,6 +19,13 @@ Inference stacks can be deployed reliably, but identity registration remains man
 1. SPIRE Server and SPIRE Agent.
 2. SPIRE Controller Manager and its [`ClusterSPIFFEID`][clusterspiffeid] CRD.
 3. `kleym` writes [`ClusterSPIFFEID`][clusterspiffeid] and does not write SPIRE entries directly.
+
+# Supported Downstream Pattern
+
+1. SPIRE issues X.509 SVIDs and/or JWT SVIDs.
+2. Envoy consumes identity through SDS or through components adjacent to the SPIRE Workload API.
+3. External auth policy maps SPIFFE ID to route or model authorization.
+4. Audit logging happens at the gateway or policy layer, not in `kleym`.
 
 # Preferred Inference Signal
 
@@ -42,6 +49,7 @@ One model per container makes model identity enforceable. SPIRE Kubernetes workl
 # Constraint
 
 Multiple [`ClusterSPIFFEID`][clusterspiffeid] resources can select the same pod set, which can result in multiple identities applying to the same pods. Some workloads only support one SVID reliably. Clusters that require per objective identities may need to restrict or disable any default identity that would collide.
+Some downstream consumers and sidecars behave as single identity consumers. Multiple matching [`ClusterSPIFFEID`][clusterspiffeid] objects may be valid from SPIRE's perspective but still operationally unsafe for a given serving stack. `kleym` only prevents deterministic collision cases it can prove. Cluster operators remain responsible for disabling overlapping default identities outside `kleym`.
 
 # MVP API Surface
 
