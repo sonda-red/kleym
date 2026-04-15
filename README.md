@@ -40,6 +40,7 @@ Project docs are organized by reader intent and live under [`docs/`](docs/).
 
 - [`docs/index.md`](docs/index.md): landing page
 - [`docs/spec.md`](docs/spec.md): the authoritative behavioral contract
+- [`docs/roadmap.md`](docs/roadmap.md): planned milestones and sequencing
 - [`docs/install.md`](docs/install.md): local run, deploy, and test commands
 - [`docs/reference/`](docs/reference): stable facts about API surface, conditions, and managed resources
 - [`docs/design/`](docs/design): internal design notes

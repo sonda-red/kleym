@@ -29,16 +29,10 @@ permissions:
 jobs:
   verify:
     name: Lint and Test
-    runs-on: arc-set-nuc
-    container:
-      image: golang:1.25
-      options: --privileged
+    runs-on: ubuntu-latest
     env:
       GOFLAGS: -buildvcs=false -p=2
       GOMAXPROCS: "2"
-      GOMODCACHE: /go/pkg/mod
-      GOCACHE: /root/.cache/go-build
-      GOLANGCI_LINT_CACHE: /root/.cache/golangci-lint
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
