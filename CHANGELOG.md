@@ -1,3 +1,21 @@
+## [1.3.0](https://github.com/sonda-red/kleym/compare/v1.2.1...v1.3.0) (2026-04-15)
+
+### Features
+
+* add unit tests for per-objective collision reconciliation logic ([75b4b12](https://github.com/sonda-red/kleym/commit/75b4b12203cfa2f6b2ff3adf0d8fde368082a9a4))
+* implement per-objective identity collision detection in reconciliation ([d67b7cf](https://github.com/sonda-red/kleym/commit/d67b7cfb26805fd10cb078831e613e5a289c0c9e))
+
+### Documentation
+
+* clarify scope boundary and add supported downstream patterns in spec.md ([930648d](https://github.com/sonda-red/kleym/commit/930648d727144b24aa393c5ec46c519fdf378896))
+* enhance documentation with a comprehensive repository map and contributing guidelines ([8477b41](https://github.com/sonda-red/kleym/commit/8477b41a01044203cefcf5a9ce100d6ade5f7b7a))
+
+### Code Refactoring
+
+* simplify return values in inference reconciliation methods ([9acb270](https://github.com/sonda-red/kleym/commit/9acb27094794959c09d9e7c30d19870d2c6c2f1a))
+* simplify return values in resolveInferenceObjective and resolveInferencePool methods ([30e588c](https://github.com/sonda-red/kleym/commit/30e588c50917c158c50aa8f1e1b148b4d2e4ab5c))
+* standardize test setup by removing namespace parameters and using default values ([29375d0](https://github.com/sonda-red/kleym/commit/29375d0fa1ca652a0a80be4159fc7efe4bb49b5a))
+
 ## [1.2.1](https://github.com/sonda-red/kleym/compare/v1.2.0...v1.2.1) (2026-04-14)
 
 ### Code Refactoring
