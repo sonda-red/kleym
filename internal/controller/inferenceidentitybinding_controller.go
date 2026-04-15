@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"sort"
@@ -56,9 +57,12 @@ const (
 	defaultTrustDomain                = "kleym.sonda.red"
 
 	conditionTypeReady          = "Ready"
+	conditionTypeConflict       = "Conflict"
 	conditionTypeInvalidRef     = "InvalidRef"
 	conditionTypeUnsafeSelector = "UnsafeSelector"
 	conditionTypeRenderFailure  = "RenderFailure"
+
+	noIdentityCollisionMessage = "No identity collision detected"
 )
 
 var (
@@ -130,6 +134,15 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 	identity, err := r.renderIdentity(binding, objective, pool)
 	if err != nil {
 		return r.handleReconcileStateError(ctx, binding, err)
+	}
+
+	hasCollision, err := r.reconcilePerObjectiveCollisionState(ctx, binding, identity)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if hasCollision {
+		logger.V(1).Info("skipping ClusterSPIFFEID reconciliation due to per-objective identity collision")
+		return ctrl.Result{}, nil
 	}
 
 	if err := r.reconcileClusterSPIFFEIDs(ctx, binding, []renderedIdentity{identity}); err != nil {
@@ -508,6 +521,248 @@ func (r *InferenceIdentityBindingReconciler) renderIdentity(
 		ObjectiveRef: objective.GetName(),
 		PoolRef:      pool.GetName(),
 	}, nil
+}
+
+type perObjectiveCollisionCandidate struct {
+	binding *kleymv1alpha1.InferenceIdentityBinding
+	key     string
+}
+
+func (r *InferenceIdentityBindingReconciler) reconcilePerObjectiveCollisionState(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	identity renderedIdentity,
+) (bool, error) {
+	if identity.Mode != kleymv1alpha1.InferenceIdentityBindingModePerObjective {
+		_, resolved, err := r.updateCollisionCondition(ctx, binding, false, noIdentityCollisionMessage)
+		if err != nil {
+			return false, err
+		}
+		if resolved {
+			r.recordEventf(binding, corev1.EventTypeNormal, "IdentityCollisionResolved", "identity collision resolved")
+		}
+	}
+
+	bindingList := &kleymv1alpha1.InferenceIdentityBindingList{}
+	if err := r.List(ctx, bindingList, client.InNamespace(binding.Namespace)); err != nil {
+		return false, err
+	}
+
+	candidates := make([]perObjectiveCollisionCandidate, 0, len(bindingList.Items))
+	currentBindingKey := namespacedBindingKey(binding.Namespace, binding.Name)
+	for i := range bindingList.Items {
+		candidateBinding := bindingList.Items[i].DeepCopy()
+		if !candidateBinding.DeletionTimestamp.IsZero() {
+			continue
+		}
+		if effectiveMode(candidateBinding.Spec.Mode) != kleymv1alpha1.InferenceIdentityBindingModePerObjective {
+			continue
+		}
+
+		candidateKey := namespacedBindingKey(candidateBinding.Namespace, candidateBinding.Name)
+		candidateIdentity := renderedIdentity{}
+		if candidateKey == currentBindingKey {
+			candidateIdentity = identity
+		} else {
+			resolvedIdentity, resolveErr := r.renderIdentityForBinding(ctx, candidateBinding)
+			if resolveErr != nil {
+				continue
+			}
+			candidateIdentity = resolvedIdentity
+		}
+
+		fingerprint, fingerprintErr := perObjectiveCollisionFingerprint(candidateIdentity, candidateBinding.Spec.ContainerDiscriminator)
+		if fingerprintErr != nil {
+			continue
+		}
+
+		candidates = append(candidates, perObjectiveCollisionCandidate{
+			binding: candidateBinding,
+			key:     fingerprint,
+		})
+	}
+
+	groups := make(map[string][]int, len(candidates))
+	for i, candidate := range candidates {
+		groups[candidate.key] = append(groups[candidate.key], i)
+	}
+
+	collidingByBinding := make(map[string]bool, len(candidates))
+	messageByBinding := make(map[string]string, len(candidates))
+	for _, indexes := range groups {
+		if len(indexes) < 2 {
+			for _, idx := range indexes {
+				candidate := candidates[idx]
+				messageByBinding[namespacedBindingKey(candidate.binding.Namespace, candidate.binding.Name)] = noIdentityCollisionMessage
+			}
+			continue
+		}
+
+		memberNames := make([]string, 0, len(indexes))
+		for _, idx := range indexes {
+			memberNames = append(memberNames, candidates[idx].binding.Name)
+		}
+		sort.Strings(memberNames)
+
+		for _, idx := range indexes {
+			candidate := candidates[idx]
+			bindingKey := namespacedBindingKey(candidate.binding.Namespace, candidate.binding.Name)
+			collidingByBinding[bindingKey] = true
+			messageByBinding[bindingKey] = identityCollisionMessage(candidate.binding.Name, memberNames)
+		}
+	}
+
+	for i := range candidates {
+		candidate := &candidates[i]
+		bindingKey := namespacedBindingKey(candidate.binding.Namespace, candidate.binding.Name)
+		colliding := collidingByBinding[bindingKey]
+		message := messageByBinding[bindingKey]
+		if message == "" {
+			message = noIdentityCollisionMessage
+		}
+
+		detected, resolved, err := r.updateCollisionCondition(ctx, candidate.binding, colliding, message)
+		if err != nil {
+			return false, err
+		}
+
+		if colliding {
+			if err := r.cleanupManagedClusterSPIFFEIDs(ctx, candidate.binding); err != nil {
+				return false, err
+			}
+			if detected {
+				r.recordEventf(candidate.binding, corev1.EventTypeWarning, "IdentityCollision", message)
+			}
+			continue
+		}
+		if resolved {
+			r.recordEventf(candidate.binding, corev1.EventTypeNormal, "IdentityCollisionResolved", "identity collision resolved")
+		}
+	}
+
+	return collidingByBinding[currentBindingKey], nil
+}
+
+func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+) (renderedIdentity, error) {
+	objective, _, err := r.resolveInferenceObjective(ctx, binding.Namespace, binding.Spec.TargetRef.Name)
+	if err != nil {
+		return renderedIdentity{}, err
+	}
+
+	poolRef, err := extractPoolRef(objective, binding.Namespace)
+	if err != nil {
+		return renderedIdentity{}, err
+	}
+
+	pool, _, err := r.resolveInferencePool(ctx, poolRef)
+	if err != nil {
+		return renderedIdentity{}, err
+	}
+
+	return r.renderIdentity(binding, objective, pool)
+}
+
+func (r *InferenceIdentityBindingReconciler) updateCollisionCondition(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	hasCollision bool,
+	message string,
+) (detected bool, resolved bool, err error) {
+	previousCondition := meta.FindStatusCondition(binding.Status.Conditions, conditionTypeConflict)
+	wasColliding := previousCondition != nil && previousCondition.Status == metav1.ConditionTrue
+
+	if err := r.patchStatus(ctx, binding, func(status *kleymv1alpha1.InferenceIdentityBindingStatus) {
+		if hasCollision {
+			status.ComputedSpiffeIDs = nil
+			status.RenderedSelectors = nil
+			setCondition(status, binding.Generation, conditionTypeReady, metav1.ConditionFalse, "IdentityCollision", message)
+			setCondition(status, binding.Generation, conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision", message)
+			setCondition(status, binding.Generation, conditionTypeInvalidRef, metav1.ConditionFalse, "Resolved", "References are valid")
+			setCondition(status, binding.Generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, "Resolved", "Selectors are safe")
+			setCondition(status, binding.Generation, conditionTypeRenderFailure, metav1.ConditionFalse, "Resolved", "Rendering is healthy")
+			return
+		}
+
+		setCondition(status, binding.Generation, conditionTypeConflict, metav1.ConditionFalse, "Resolved", noIdentityCollisionMessage)
+	}); err != nil {
+		return false, false, err
+	}
+
+	return !wasColliding && hasCollision, wasColliding && !hasCollision, nil
+}
+
+func perObjectiveCollisionFingerprint(
+	identity renderedIdentity,
+	discriminator *kleymv1alpha1.ContainerDiscriminator,
+) (string, error) {
+	if discriminator == nil {
+		return "", fmt.Errorf("containerDiscriminator is required for per-objective collision detection")
+	}
+
+	containerValue := strings.TrimSpace(discriminator.Value)
+	if containerValue == "" {
+		return "", fmt.Errorf("containerDiscriminator.value must not be empty")
+	}
+
+	podSelectorFingerprint, err := normalizedPodSelectorFingerprint(identity.PodSelector)
+	if err != nil {
+		return "", err
+	}
+
+	selectorFingerprint, err := normalizedSelectorFingerprint(identity.Selectors)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s|%s|%s|%s", podSelectorFingerprint, selectorFingerprint, discriminator.Type, containerValue), nil
+}
+
+func normalizedPodSelectorFingerprint(selector map[string]any) (string, error) {
+	if len(selector) == 0 {
+		return "", fmt.Errorf("pod selector must be present for collision detection")
+	}
+
+	serialized, err := json.Marshal(selector)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode pod selector fingerprint: %w", err)
+	}
+
+	return string(serialized), nil
+}
+
+func normalizedSelectorFingerprint(selectors []string) (string, error) {
+	if len(selectors) == 0 {
+		return "", fmt.Errorf("selectors must be present for collision detection")
+	}
+
+	serialized, err := json.Marshal(selectors)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode selector fingerprint: %w", err)
+	}
+
+	return string(serialized), nil
+}
+
+func identityCollisionMessage(bindingName string, collidingBindings []string) string {
+	peers := make([]string, 0, len(collidingBindings))
+	for _, name := range collidingBindings {
+		if name == bindingName {
+			continue
+		}
+		peers = append(peers, name)
+	}
+	sort.Strings(peers)
+	return fmt.Sprintf(
+		"identity collision with bindings %s: PerObjective bindings must not share the same pod selector and container discriminator",
+		strings.Join(peers, ", "),
+	)
+}
+
+func namespacedBindingKey(namespace, name string) string {
+	return types.NamespacedName{Namespace: namespace, Name: name}.String()
 }
 
 func effectiveMode(mode kleymv1alpha1.InferenceIdentityBindingMode) kleymv1alpha1.InferenceIdentityBindingMode {
@@ -919,7 +1174,8 @@ func (r *InferenceIdentityBindingReconciler) handleReconcileStateError(
 
 	if stateErr.conditionType == conditionTypeInvalidRef ||
 		stateErr.conditionType == conditionTypeUnsafeSelector ||
-		stateErr.conditionType == conditionTypeRenderFailure {
+		stateErr.conditionType == conditionTypeRenderFailure ||
+		stateErr.conditionType == conditionTypeConflict {
 		if cleanupErr := r.cleanupManagedClusterSPIFFEIDs(ctx, binding); cleanupErr != nil {
 			return ctrl.Result{}, cleanupErr
 		}
@@ -962,6 +1218,7 @@ func (r *InferenceIdentityBindingReconciler) updateSuccessStatus(
 		}
 
 		setCondition(status, binding.Generation, conditionTypeReady, metav1.ConditionTrue, "Reconciled", "Binding reconciled")
+		setCondition(status, binding.Generation, conditionTypeConflict, metav1.ConditionFalse, "Resolved", noIdentityCollisionMessage)
 		setCondition(status, binding.Generation, conditionTypeInvalidRef, metav1.ConditionFalse, "Resolved", "References are valid")
 		setCondition(status, binding.Generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, "Resolved", "Selectors are safe")
 		setCondition(status, binding.Generation, conditionTypeRenderFailure, metav1.ConditionFalse, "Resolved", "Rendering is healthy")
@@ -982,6 +1239,9 @@ func (r *InferenceIdentityBindingReconciler) updateFailureStatus(
 
 		if stateErr.conditionType != conditionTypeInvalidRef {
 			setCondition(status, binding.Generation, conditionTypeInvalidRef, metav1.ConditionFalse, "Resolved", "References are valid")
+		}
+		if stateErr.conditionType != conditionTypeConflict {
+			setCondition(status, binding.Generation, conditionTypeConflict, metav1.ConditionFalse, "Resolved", noIdentityCollisionMessage)
 		}
 		if stateErr.conditionType != conditionTypeUnsafeSelector {
 			setCondition(status, binding.Generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, "Resolved", "Selectors are safe")
