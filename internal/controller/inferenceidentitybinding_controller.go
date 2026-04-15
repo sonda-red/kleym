@@ -116,7 +116,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 		}
 	}
 
-	objective, _, err := r.resolveInferenceObjective(ctx, binding.Namespace, binding.Spec.TargetRef.Name)
+	objective, err := r.resolveInferenceObjective(ctx, binding.Namespace, binding.Spec.TargetRef.Name)
 	if err != nil {
 		return r.handleReconcileStateError(ctx, binding, err)
 	}
@@ -126,7 +126,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 		return r.handleReconcileStateError(ctx, binding, newStateError(conditionTypeInvalidRef, "InvalidPoolRef", err.Error()))
 	}
 
-	pool, _, err := r.resolveInferencePool(ctx, poolRef)
+	pool, err := r.resolveInferencePool(ctx, poolRef)
 	if err != nil {
 		return r.handleReconcileStateError(ctx, binding, err)
 	}
@@ -264,26 +264,26 @@ func (r *InferenceIdentityBindingReconciler) resolveInferenceObjective(
 	ctx context.Context,
 	namespace string,
 	name string,
-) (*unstructured.Unstructured, schema.GroupVersionKind, error) {
-	objective, gvk, crdMissing, err := r.resolveByCandidates(
+) (*unstructured.Unstructured, error) {
+	objective, _, crdMissing, err := r.resolveByCandidates(
 		ctx,
 		types.NamespacedName{Namespace: namespace, Name: name},
 		inferenceObjectiveGVKs,
 	)
 	if err != nil {
-		return nil, schema.GroupVersionKind{}, err
+		return nil, err
 	}
 	if objective != nil {
-		return objective, gvk, nil
+		return objective, nil
 	}
 	if crdMissing {
-		return nil, schema.GroupVersionKind{}, newStateError(
+		return nil, newStateError(
 			conditionTypeInvalidRef,
 			"InferenceObjectiveCRDMissing",
 			"InferenceObjective CRD is not installed",
 		)
 	}
-	return nil, schema.GroupVersionKind{}, newStateError(
+	return nil, newStateError(
 		conditionTypeInvalidRef,
 		"TargetObjectiveNotFound",
 		fmt.Sprintf("targetRef %q was not found", name),
@@ -293,27 +293,27 @@ func (r *InferenceIdentityBindingReconciler) resolveInferenceObjective(
 func (r *InferenceIdentityBindingReconciler) resolveInferencePool(
 	ctx context.Context,
 	poolRef inferencePoolRef,
-) (*unstructured.Unstructured, schema.GroupVersionKind, error) {
+) (*unstructured.Unstructured, error) {
 	poolCandidates := candidatePoolGVKs(poolRef.Group)
-	pool, gvk, crdMissing, err := r.resolveByCandidates(
+	pool, _, crdMissing, err := r.resolveByCandidates(
 		ctx,
 		types.NamespacedName{Namespace: poolRef.Namespace, Name: poolRef.Name},
 		poolCandidates,
 	)
 	if err != nil {
-		return nil, schema.GroupVersionKind{}, err
+		return nil, err
 	}
 	if pool != nil {
-		return pool, gvk, nil
+		return pool, nil
 	}
 	if crdMissing {
-		return nil, schema.GroupVersionKind{}, newStateError(
+		return nil, newStateError(
 			conditionTypeInvalidRef,
 			"InferencePoolCRDMissing",
 			"InferencePool CRD is not installed",
 		)
 	}
-	return nil, schema.GroupVersionKind{}, newStateError(
+	return nil, newStateError(
 		conditionTypeInvalidRef,
 		"TargetPoolNotFound",
 		fmt.Sprintf("poolRef %q was not found", poolRef.Name),
@@ -560,7 +560,7 @@ func (r *InferenceIdentityBindingReconciler) reconcilePerObjectiveCollisionState
 		}
 
 		candidateKey := namespacedBindingKey(candidateBinding.Namespace, candidateBinding.Name)
-		candidateIdentity := renderedIdentity{}
+		var candidateIdentity renderedIdentity
 		if candidateKey == currentBindingKey {
 			candidateIdentity = identity
 		} else {
@@ -647,7 +647,7 @@ func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 ) (renderedIdentity, error) {
-	objective, _, err := r.resolveInferenceObjective(ctx, binding.Namespace, binding.Spec.TargetRef.Name)
+	objective, err := r.resolveInferenceObjective(ctx, binding.Namespace, binding.Spec.TargetRef.Name)
 	if err != nil {
 		return renderedIdentity{}, err
 	}
@@ -657,7 +657,7 @@ func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
 		return renderedIdentity{}, err
 	}
 
-	pool, _, err := r.resolveInferencePool(ctx, poolRef)
+	pool, err := r.resolveInferencePool(ctx, poolRef)
 	if err != nil {
 		return renderedIdentity{}, err
 	}
