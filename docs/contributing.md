@@ -130,6 +130,7 @@ Docs-related pull requests and pushes to `main` also run a dedicated GitHub Acti
 
 ## CI And Releases
 
+- CI workflows run on GitHub-hosted runners (`ubuntu-latest`) and must not depend on local or self-hosted infrastructure.
 - `.github/workflows/build-and-push.yml` runs lint and unit-style tests on pull requests and builds container images for eligible refs
 - `.github/workflows/release.yml` uses `semantic-release` on `main`
 - Follow Conventional Commits. See `SEMANTIC_VERSIONING.md` for the expected format and versioning rules
