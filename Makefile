@@ -1,5 +1,9 @@
 # Image URL to use all building/pushing image targets
 IMG ?= ghcr.io/sonda-red/kleym:latest
+DOCS_IMAGE ?= squidfunk/mkdocs-material:latest
+DOCS_PORT ?= 8000
+DOCS_UID ?= $(shell id -u)
+DOCS_GID ?= $(shell id -g)
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -38,6 +42,16 @@ all: build
 .PHONY: help
 help: ## Display this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+##@ Documentation
+
+.PHONY: docs-build
+docs-build: ## Build the MkDocs site in a container.
+	$(CONTAINER_TOOL) run --rm --user "$(DOCS_UID):$(DOCS_GID)" -v "$(CURDIR):/docs" $(DOCS_IMAGE) build --strict
+
+.PHONY: docs-serve
+docs-serve: ## Serve the MkDocs site in a container; set DOCS_PORT to override 8000.
+	$(CONTAINER_TOOL) run --rm --user "$(DOCS_UID):$(DOCS_GID)" -p "$(DOCS_PORT):8000" -v "$(CURDIR):/docs" $(DOCS_IMAGE) serve -a 0.0.0.0:8000
 
 ##@ Development
 
