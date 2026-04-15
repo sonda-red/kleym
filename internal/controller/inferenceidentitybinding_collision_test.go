@@ -20,17 +20,19 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
+const testNamespace = "default"
+
 func TestReconcilePerObjectiveCollisionMarksAllAndBlocksClusterSPIFFEID(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	scheme := newCollisionTestScheme(t)
 	objects := []client.Object{
-		newTestPool("default", "pool-a"),
-		newTestObjective("default", "objective-a", "pool-a"),
-		newTestObjective("default", "objective-b", "pool-a"),
-		newPerObjectiveBinding("default", "binding-a", "objective-a", "main"),
-		newPerObjectiveBinding("default", "binding-b", "objective-b", "main"),
+		newTestPool(),
+		newTestObjective("objective-a"),
+		newTestObjective("objective-b"),
+		newPerObjectiveBinding("binding-a", "objective-a"),
+		newPerObjectiveBinding("binding-b", "objective-b"),
 	}
 
 	fakeRecorder := record.NewFakeRecorder(32)
@@ -45,16 +47,16 @@ func TestReconcilePerObjectiveCollisionMarksAllAndBlocksClusterSPIFFEID(t *testi
 	}
 
 	_, err := reconciler.Reconcile(ctx, reconcile.Request{
-		NamespacedName: types.NamespacedName{Namespace: "default", Name: "binding-a"},
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: "binding-a"},
 	})
 	if err != nil {
 		t.Fatalf("Reconcile returned error: %v", err)
 	}
 
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-a", conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision")
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-b", conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision")
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-a", conditionTypeReady, metav1.ConditionFalse, "IdentityCollision")
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-b", conditionTypeReady, metav1.ConditionFalse, "IdentityCollision")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeReady, metav1.ConditionFalse, "IdentityCollision")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeReady, metav1.ConditionFalse, "IdentityCollision")
 	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 0)
 	assertEventContains(t, fakeRecorder.Events, "IdentityCollision")
 }
@@ -65,11 +67,11 @@ func TestReconcilePerObjectiveCollisionResolutionClearsConflictAndResumes(t *tes
 	ctx := context.Background()
 	scheme := newCollisionTestScheme(t)
 	objects := []client.Object{
-		newTestPool("default", "pool-a"),
-		newTestObjective("default", "objective-a", "pool-a"),
-		newTestObjective("default", "objective-b", "pool-a"),
-		newPerObjectiveBinding("default", "binding-a", "objective-a", "main"),
-		newPerObjectiveBinding("default", "binding-b", "objective-b", "main"),
+		newTestPool(),
+		newTestObjective("objective-a"),
+		newTestObjective("objective-b"),
+		newPerObjectiveBinding("binding-a", "objective-a"),
+		newPerObjectiveBinding("binding-b", "objective-b"),
 	}
 
 	fakeRecorder := record.NewFakeRecorder(64)
@@ -84,38 +86,38 @@ func TestReconcilePerObjectiveCollisionResolutionClearsConflictAndResumes(t *tes
 	}
 
 	_, err := reconciler.Reconcile(ctx, reconcile.Request{
-		NamespacedName: types.NamespacedName{Namespace: "default", Name: "binding-a"},
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: "binding-a"},
 	})
 	if err != nil {
 		t.Fatalf("initial Reconcile returned error: %v", err)
 	}
 
 	bindingB := &kleymv1alpha1.InferenceIdentityBinding{}
-	if err := reconciler.Client.Get(ctx, types.NamespacedName{Namespace: "default", Name: "binding-b"}, bindingB); err != nil {
+	if err := reconciler.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: "binding-b"}, bindingB); err != nil {
 		t.Fatalf("failed to get binding-b: %v", err)
 	}
 	bindingB.Spec.ContainerDiscriminator.Value = "sidecar"
-	if err := reconciler.Client.Update(ctx, bindingB); err != nil {
+	if err := reconciler.Update(ctx, bindingB); err != nil {
 		t.Fatalf("failed to update binding-b: %v", err)
 	}
 
 	_, err = reconciler.Reconcile(ctx, reconcile.Request{
-		NamespacedName: types.NamespacedName{Namespace: "default", Name: "binding-b"},
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: "binding-b"},
 	})
 	if err != nil {
 		t.Fatalf("reconcile binding-b returned error: %v", err)
 	}
 	_, err = reconciler.Reconcile(ctx, reconcile.Request{
-		NamespacedName: types.NamespacedName{Namespace: "default", Name: "binding-a"},
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: "binding-a"},
 	})
 	if err != nil {
 		t.Fatalf("reconcile binding-a returned error: %v", err)
 	}
 
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-a", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-b", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-a", conditionTypeReady, metav1.ConditionTrue, "Reconciled")
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-b", conditionTypeReady, metav1.ConditionTrue, "Reconciled")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeReady, metav1.ConditionTrue, "Reconciled")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeReady, metav1.ConditionTrue, "Reconciled")
 	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 2)
 	assertEventContains(t, fakeRecorder.Events, "IdentityCollisionResolved")
 }
@@ -126,11 +128,11 @@ func TestPoolOnlyBindingsAreNotSubjectToPerObjectiveCollisionRule(t *testing.T) 
 	ctx := context.Background()
 	scheme := newCollisionTestScheme(t)
 	objects := []client.Object{
-		newTestPool("default", "pool-a"),
-		newTestObjective("default", "objective-a", "pool-a"),
-		newTestObjective("default", "objective-b", "pool-a"),
-		newPoolOnlyBinding("default", "binding-a", "objective-a"),
-		newPoolOnlyBinding("default", "binding-b", "objective-b"),
+		newTestPool(),
+		newTestObjective("objective-a"),
+		newTestObjective("objective-b"),
+		newPoolOnlyBinding("binding-a", "objective-a"),
+		newPoolOnlyBinding("binding-b", "objective-b"),
 	}
 
 	reconciler := &InferenceIdentityBindingReconciler{
@@ -143,14 +145,14 @@ func TestPoolOnlyBindingsAreNotSubjectToPerObjectiveCollisionRule(t *testing.T) 
 	}
 
 	_, err := reconciler.Reconcile(ctx, reconcile.Request{
-		NamespacedName: types.NamespacedName{Namespace: "default", Name: "binding-a"},
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: "binding-a"},
 	})
 	if err != nil {
 		t.Fatalf("Reconcile returned error: %v", err)
 	}
 
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-a", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-a", conditionTypeReady, metav1.ConditionTrue, "Reconciled")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeReady, metav1.ConditionTrue, "Reconciled")
 	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 1)
 }
 
@@ -160,11 +162,11 @@ func TestChangingBindingToPoolOnlyResolvesPeerCollision(t *testing.T) {
 	ctx := context.Background()
 	scheme := newCollisionTestScheme(t)
 	objects := []client.Object{
-		newTestPool("default", "pool-a"),
-		newTestObjective("default", "objective-a", "pool-a"),
-		newTestObjective("default", "objective-b", "pool-a"),
-		newPerObjectiveBinding("default", "binding-a", "objective-a", "main"),
-		newPerObjectiveBinding("default", "binding-b", "objective-b", "main"),
+		newTestPool(),
+		newTestObjective("objective-a"),
+		newTestObjective("objective-b"),
+		newPerObjectiveBinding("binding-a", "objective-a"),
+		newPerObjectiveBinding("binding-b", "objective-b"),
 	}
 
 	reconciler := &InferenceIdentityBindingReconciler{
@@ -177,33 +179,33 @@ func TestChangingBindingToPoolOnlyResolvesPeerCollision(t *testing.T) {
 	}
 
 	_, err := reconciler.Reconcile(ctx, reconcile.Request{
-		NamespacedName: types.NamespacedName{Namespace: "default", Name: "binding-a"},
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: "binding-a"},
 	})
 	if err != nil {
 		t.Fatalf("initial Reconcile returned error: %v", err)
 	}
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-a", conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision")
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-b", conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision")
 
 	bindingB := &kleymv1alpha1.InferenceIdentityBinding{}
-	if err := reconciler.Client.Get(ctx, types.NamespacedName{Namespace: "default", Name: "binding-b"}, bindingB); err != nil {
+	if err := reconciler.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: "binding-b"}, bindingB); err != nil {
 		t.Fatalf("failed to get binding-b: %v", err)
 	}
 	bindingB.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePoolOnly
 	bindingB.Spec.ContainerDiscriminator = nil
-	if err := reconciler.Client.Update(ctx, bindingB); err != nil {
+	if err := reconciler.Update(ctx, bindingB); err != nil {
 		t.Fatalf("failed to update binding-b: %v", err)
 	}
 
 	_, err = reconciler.Reconcile(ctx, reconcile.Request{
-		NamespacedName: types.NamespacedName{Namespace: "default", Name: "binding-b"},
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: "binding-b"},
 	})
 	if err != nil {
 		t.Fatalf("reconcile binding-b returned error: %v", err)
 	}
 
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-a", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-b", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
 }
 
 func TestPerObjectiveBindingsWithDifferentEffectiveSelectorsDoNotCollide(t *testing.T) {
@@ -212,11 +214,11 @@ func TestPerObjectiveBindingsWithDifferentEffectiveSelectorsDoNotCollide(t *test
 	ctx := context.Background()
 	scheme := newCollisionTestScheme(t)
 	objects := []client.Object{
-		newTestPool("default", "pool-a"),
-		newTestObjective("default", "objective-a", "pool-a"),
-		newTestObjective("default", "objective-b", "pool-a"),
-		newPerObjectiveBindingWithServiceAccount("default", "binding-a", "objective-a", "main", "inference-sa-a"),
-		newPerObjectiveBindingWithServiceAccount("default", "binding-b", "objective-b", "main", "inference-sa-b"),
+		newTestPool(),
+		newTestObjective("objective-a"),
+		newTestObjective("objective-b"),
+		newPerObjectiveBindingWithServiceAccount("binding-a", "objective-a", "inference-sa-a"),
+		newPerObjectiveBindingWithServiceAccount("binding-b", "objective-b", "inference-sa-b"),
 	}
 
 	reconciler := &InferenceIdentityBindingReconciler{
@@ -229,15 +231,15 @@ func TestPerObjectiveBindingsWithDifferentEffectiveSelectorsDoNotCollide(t *test
 	}
 
 	_, err := reconciler.Reconcile(ctx, reconcile.Request{
-		NamespacedName: types.NamespacedName{Namespace: "default", Name: "binding-a"},
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: "binding-a"},
 	})
 	if err != nil {
 		t.Fatalf("Reconcile returned error: %v", err)
 	}
 
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-a", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-b", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
-	assertConditionStatus(t, ctx, reconciler.Client, "default", "binding-a", conditionTypeReady, metav1.ConditionTrue, "Reconciled")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeReady, metav1.ConditionTrue, "Reconciled")
 	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 1)
 }
 
@@ -264,7 +266,7 @@ func registerUnstructuredGVK(scheme *runtime.Scheme, gvk schema.GroupVersionKind
 	scheme.AddKnownTypeWithName(gvk.GroupVersion().WithKind(gvk.Kind+"List"), &unstructured.UnstructuredList{})
 }
 
-func newTestPool(namespace, name string) *unstructured.Unstructured {
+func newTestPool() *unstructured.Unstructured {
 	pool := &unstructured.Unstructured{
 		Object: map[string]any{
 			"spec": map[string]any{
@@ -277,41 +279,39 @@ func newTestPool(namespace, name string) *unstructured.Unstructured {
 		},
 	}
 	pool.SetGroupVersionKind(inferencePoolGVKs[0])
-	pool.SetNamespace(namespace)
-	pool.SetName(name)
+	pool.SetNamespace(testNamespace)
+	pool.SetName("pool-a")
 	return pool
 }
 
-func newTestObjective(namespace, name, poolName string) *unstructured.Unstructured {
+func newTestObjective(name string) *unstructured.Unstructured {
 	objective := &unstructured.Unstructured{
 		Object: map[string]any{
 			"spec": map[string]any{
 				"poolRef": map[string]any{
-					"name": poolName,
+					"name": "pool-a",
 				},
 			},
 		},
 	}
 	objective.SetGroupVersionKind(inferenceObjectiveGVKs[0])
-	objective.SetNamespace(namespace)
+	objective.SetNamespace(testNamespace)
 	objective.SetName(name)
 	return objective
 }
 
-func newPerObjectiveBinding(namespace, name, objectiveName, containerName string) *kleymv1alpha1.InferenceIdentityBinding {
-	return newPerObjectiveBindingWithServiceAccount(namespace, name, objectiveName, containerName, "inference-sa")
+func newPerObjectiveBinding(name, objectiveName string) *kleymv1alpha1.InferenceIdentityBinding {
+	return newPerObjectiveBindingWithServiceAccount(name, objectiveName, "inference-sa")
 }
 
 func newPerObjectiveBindingWithServiceAccount(
-	namespace string,
 	name string,
 	objectiveName string,
-	containerName string,
 	serviceAccount string,
 ) *kleymv1alpha1.InferenceIdentityBinding {
 	return &kleymv1alpha1.InferenceIdentityBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
+			Namespace: testNamespace,
 			Name:      name,
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
@@ -320,22 +320,22 @@ func newPerObjectiveBindingWithServiceAccount(
 			},
 			SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
 			WorkloadSelectorTemplates: []string{
-				"k8s:ns:" + namespace,
+				"k8s:ns:" + testNamespace,
 				"k8s:sa:" + serviceAccount,
 			},
 			Mode: kleymv1alpha1.InferenceIdentityBindingModePerObjective,
 			ContainerDiscriminator: &kleymv1alpha1.ContainerDiscriminator{
 				Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
-				Value: containerName,
+				Value: "main",
 			},
 		},
 	}
 }
 
-func newPoolOnlyBinding(namespace, name, objectiveName string) *kleymv1alpha1.InferenceIdentityBinding {
+func newPoolOnlyBinding(name, objectiveName string) *kleymv1alpha1.InferenceIdentityBinding {
 	return &kleymv1alpha1.InferenceIdentityBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
+			Namespace: testNamespace,
 			Name:      name,
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
@@ -344,7 +344,7 @@ func newPoolOnlyBinding(namespace, name, objectiveName string) *kleymv1alpha1.In
 			},
 			SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
 			WorkloadSelectorTemplates: []string{
-				"k8s:ns:" + namespace,
+				"k8s:ns:" + testNamespace,
 				"k8s:sa:inference-sa",
 			},
 			Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
@@ -356,7 +356,6 @@ func assertConditionStatus(
 	t *testing.T,
 	ctx context.Context,
 	cli client.Client,
-	namespace string,
 	name string,
 	conditionType string,
 	expectedStatus metav1.ConditionStatus,
@@ -365,18 +364,18 @@ func assertConditionStatus(
 	t.Helper()
 
 	binding := &kleymv1alpha1.InferenceIdentityBinding{}
-	if err := cli.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, binding); err != nil {
-		t.Fatalf("failed to fetch %s/%s: %v", namespace, name, err)
+	if err := cli.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: name}, binding); err != nil {
+		t.Fatalf("failed to fetch %s/%s: %v", testNamespace, name, err)
 	}
 	condition := meta.FindStatusCondition(binding.Status.Conditions, conditionType)
 	if condition == nil {
-		t.Fatalf("expected condition %q on %s/%s", conditionType, namespace, name)
+		t.Fatalf("expected condition %q on %s/%s", conditionType, testNamespace, name)
 	}
 	if condition.Status != expectedStatus {
-		t.Fatalf("condition %q on %s/%s status = %q, want %q", conditionType, namespace, name, condition.Status, expectedStatus)
+		t.Fatalf("condition %q on %s/%s status = %q, want %q", conditionType, testNamespace, name, condition.Status, expectedStatus)
 	}
 	if expectedReason != "" && condition.Reason != expectedReason {
-		t.Fatalf("condition %q on %s/%s reason = %q, want %q", conditionType, namespace, name, condition.Reason, expectedReason)
+		t.Fatalf("condition %q on %s/%s reason = %q, want %q", conditionType, testNamespace, name, condition.Reason, expectedReason)
 	}
 }
 
