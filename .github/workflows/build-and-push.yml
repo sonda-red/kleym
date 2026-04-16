@@ -4,14 +4,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "api/**"
-      - "cmd/**"
-      - "internal/**"
-      - "Dockerfile"
-      - "go.mod"
-      - "go.sum"
-      - ".github/workflows/build-and-push.yml"
   push:
     branches:
       - main
@@ -27,8 +19,8 @@ permissions:
   contents: read
 
 jobs:
-  verify:
-    name: Lint and Test
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     env:
       GOFLAGS: -buildvcs=false -p=2
@@ -52,12 +44,32 @@ jobs:
           skip-cache: true
           args: ./...
 
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    env:
+      GOFLAGS: -buildvcs=false -p=2
+      GOMAXPROCS: "2"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
       - name: Run tests
         run: make test
 
   build:
     name: Build and Push Container Image
-    needs: verify
+    needs:
+      - lint
+      - test
     if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
