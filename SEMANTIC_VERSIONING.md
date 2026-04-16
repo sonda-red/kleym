@@ -4,12 +4,11 @@ This project uses automated semantic versioning with [semantic-release](https://
 
 ## How It Works
 
-When code is merged to the `main` branch, a GitHub Action automatically:
+After CI succeeds on `main`, a GitHub Action automatically:
 1. Analyzes commit messages since the last release
 2. Determines the next version number based on [Conventional Commits](https://www.conventionalcommits.org/)
-3. Generates a changelog
-4. Creates a git tag
-5. Publishes a GitHub release
+3. Creates a git tag
+4. Publishes a GitHub release with generated release notes
 
 ## Commit Message Format
 
@@ -86,10 +85,6 @@ git commit -m "ci: update GitHub Actions workflow"
 ## Initial Release
 
 If there are no previous tags, semantic-release will create version `1.0.0` on the first run.
-
-## Skipping CI
-
-The release commit itself includes `[skip ci]` to prevent triggering another workflow run.
 
 ## Configuration
 
