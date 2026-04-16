@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strings"
 	"text/template"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -38,10 +39,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
@@ -63,6 +67,14 @@ const (
 	conditionTypeRenderFailure  = "RenderFailure"
 
 	noIdentityCollisionMessage = "No identity collision detected"
+
+	fieldIndexTargetRefName             = "spec.targetRef.name"
+	fieldIndexEffectiveMode             = "spec.effectiveMode"
+	fieldIndexContainerDiscriminatorKey = "spec.containerDiscriminatorKey"
+	infraNotReadyRequeueAfter           = 30 * time.Second
+	identityCollisionMessagePrefix      = "identity collision with bindings "
+	identityCollisionMessageSuffix      = ": PerObjective bindings must not share the same pod selector and container discriminator"
+	modeValuePerObjective               = string(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
 )
 
 var (
@@ -120,7 +132,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 	initializeConditions(&binding.Status, binding.Generation)
 	wasColliding := conditionIsTrue(statusBase.Status.Conditions, conditionTypeConflict)
 
-	desiredState, err := r.computeDesiredState(ctx, binding)
+	desiredState, err := r.computeDesiredState(ctx, binding, wasColliding)
 	if err != nil {
 		stateErr := &reconcileStateError{}
 		if !errorsAsStateError(err, stateErr) {
@@ -133,6 +145,9 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 			return ctrl.Result{}, err
 		}
 		r.recordEventf(binding, corev1.EventTypeWarning, stateErr.reason, stateErr.message)
+		if isInfrastructureNotReadyReason(stateErr.reason) {
+			return ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}, nil
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -165,7 +180,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 				return ctrl.Result{}, err
 			}
 			r.recordEventf(binding, corev1.EventTypeWarning, stateErr.reason, stateErr.message)
-			return ctrl.Result{}, nil
+			return ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}, nil
 		}
 		return ctrl.Result{}, err
 	}
@@ -191,8 +206,13 @@ func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) 
 	//nolint:staticcheck // We intentionally use the legacy recorder interface required by this reconciler.
 	r.Recorder = mgr.GetEventRecorderFor("inferenceidentitybinding-controller")
 
+	if err := r.setupFieldIndexes(mgr); err != nil {
+		return err
+	}
+
+	watchPredicate := reconcileWatchPredicate()
 	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
-		For(&kleymv1alpha1.InferenceIdentityBinding{}).
+		For(&kleymv1alpha1.InferenceIdentityBinding{}, builder.WithPredicates(watchPredicate)).
 		Named("inferenceidentitybinding")
 
 	for _, gvk := range inferenceObjectiveGVKs {
@@ -201,6 +221,7 @@ func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) 
 		controllerBuilder = controllerBuilder.Watches(
 			objective,
 			handler.EnqueueRequestsFromMapFunc(r.mapObjectiveToBindings),
+			builder.WithPredicates(watchPredicate),
 		)
 	}
 
@@ -210,10 +231,129 @@ func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) 
 		controllerBuilder = controllerBuilder.Watches(
 			pool,
 			handler.EnqueueRequestsFromMapFunc(r.mapPoolToBindings),
+			builder.WithPredicates(watchPredicate),
 		)
 	}
 
 	return controllerBuilder.Complete(r)
+}
+
+func (r *InferenceIdentityBindingReconciler) setupFieldIndexes(mgr ctrl.Manager) error {
+	indexer := mgr.GetFieldIndexer()
+
+	if err := indexer.IndexField(
+		context.Background(),
+		&kleymv1alpha1.InferenceIdentityBinding{},
+		fieldIndexTargetRefName,
+		func(rawObj client.Object) []string {
+			return bindingTargetRefNameIndexValue(rawObj)
+		},
+	); err != nil {
+		return fmt.Errorf("failed to index InferenceIdentityBinding targetRef.name: %w", err)
+	}
+
+	if err := indexer.IndexField(
+		context.Background(),
+		&kleymv1alpha1.InferenceIdentityBinding{},
+		fieldIndexEffectiveMode,
+		func(rawObj client.Object) []string {
+			return bindingEffectiveModeIndexValue(rawObj)
+		},
+	); err != nil {
+		return fmt.Errorf("failed to index InferenceIdentityBinding effective mode: %w", err)
+	}
+
+	if err := indexer.IndexField(
+		context.Background(),
+		&kleymv1alpha1.InferenceIdentityBinding{},
+		fieldIndexContainerDiscriminatorKey,
+		func(rawObj client.Object) []string {
+			return bindingContainerDiscriminatorIndexValue(rawObj)
+		},
+	); err != nil {
+		return fmt.Errorf("failed to index InferenceIdentityBinding container discriminator: %w", err)
+	}
+
+	return nil
+}
+
+func bindingTargetRefNameIndexValue(rawObj client.Object) []string {
+	binding, ok := rawObj.(*kleymv1alpha1.InferenceIdentityBinding)
+	if !ok {
+		return nil
+	}
+
+	targetName := strings.TrimSpace(binding.Spec.TargetRef.Name)
+	if targetName == "" {
+		return nil
+	}
+
+	return []string{targetName}
+}
+
+func bindingEffectiveModeIndexValue(rawObj client.Object) []string {
+	binding, ok := rawObj.(*kleymv1alpha1.InferenceIdentityBinding)
+	if !ok {
+		return nil
+	}
+
+	return []string{string(effectiveMode(binding.Spec.Mode))}
+}
+
+func bindingContainerDiscriminatorIndexValue(rawObj client.Object) []string {
+	binding, ok := rawObj.(*kleymv1alpha1.InferenceIdentityBinding)
+	if !ok {
+		return nil
+	}
+
+	key := containerDiscriminatorIndexKey(binding.Spec.ContainerDiscriminator)
+	if key == "" {
+		return nil
+	}
+
+	return []string{key}
+}
+
+func containerDiscriminatorIndexKey(discriminator *kleymv1alpha1.ContainerDiscriminator) string {
+	if discriminator == nil {
+		return ""
+	}
+
+	value := strings.TrimSpace(discriminator.Value)
+	if value == "" {
+		return ""
+	}
+
+	return fmt.Sprintf("%s|%s", discriminator.Type, value)
+}
+
+func reconcileWatchPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(event.CreateEvent) bool {
+			return true
+		},
+		DeleteFunc: func(event.DeleteEvent) bool {
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			if e.ObjectOld == nil || e.ObjectNew == nil {
+				return true
+			}
+			if e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration() {
+				return true
+			}
+			return deletionTimestampChanged(e.ObjectOld, e.ObjectNew)
+		},
+		GenericFunc: func(event.GenericEvent) bool {
+			return true
+		},
+	}
+}
+
+func deletionTimestampChanged(oldObject, newObject client.Object) bool {
+	oldDeleting := oldObject.GetDeletionTimestamp() != nil
+	newDeleting := newObject.GetDeletionTimestamp() != nil
+	return oldDeleting != newDeleting
 }
 
 type reconcileStateError struct {
@@ -575,6 +715,7 @@ type perObjectiveCollisionSet struct {
 func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
+	wasCurrentColliding bool,
 ) (desiredBindingState, error) {
 	objective, err := r.resolveInferenceObjective(ctx, binding.Namespace, binding.Spec.TargetRef.Name)
 	if err != nil {
@@ -596,7 +737,7 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 		return desiredBindingState{}, err
 	}
 
-	collisionSet, err := r.computePerObjectiveCollisionSet(ctx, binding, identity)
+	collisionSet, err := r.computePerObjectiveCollisionSet(ctx, binding, identity, wasCurrentColliding)
 	if err != nil {
 		return desiredBindingState{}, err
 	}
@@ -629,24 +770,31 @@ func shouldCleanupManagedClusterSPIFFEIDs(conditionType string) bool {
 		conditionType == conditionTypeConflict
 }
 
+func isInfrastructureNotReadyReason(reason string) bool {
+	return reason == "InferenceObjectiveCRDMissing" ||
+		reason == "InferencePoolCRDMissing" ||
+		reason == "ClusterSPIFFEIDCRDMissing"
+}
+
 func (r *InferenceIdentityBindingReconciler) computePerObjectiveCollisionSet(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	identity renderedIdentity,
+	wasCurrentColliding bool,
 ) (perObjectiveCollisionSet, error) {
 	collisionSet := perObjectiveCollisionSet{
 		currentMessage: noIdentityCollisionMessage,
 	}
 
-	bindingList := &kleymv1alpha1.InferenceIdentityBindingList{}
-	if err := r.List(ctx, bindingList, client.InNamespace(binding.Namespace)); err != nil {
+	candidateBindings, err := r.listCollisionCandidateBindings(ctx, binding, wasCurrentColliding)
+	if err != nil {
 		return perObjectiveCollisionSet{}, err
 	}
 
-	candidates := make([]perObjectiveCollisionCandidate, 0, len(bindingList.Items))
+	candidates := make([]perObjectiveCollisionCandidate, 0, len(candidateBindings))
 	currentBindingKey := namespacedBindingKey(binding.Namespace, binding.Name)
-	for i := range bindingList.Items {
-		candidateBinding := bindingList.Items[i].DeepCopy()
+	for i := range candidateBindings {
+		candidateBinding := candidateBindings[i]
 		if !candidateBinding.DeletionTimestamp.IsZero() {
 			continue
 		}
@@ -733,6 +881,203 @@ func (r *InferenceIdentityBindingReconciler) computePerObjectiveCollisionSet(
 	}
 
 	return collisionSet, nil
+}
+
+func (r *InferenceIdentityBindingReconciler) listCollisionCandidateBindings(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	wasCurrentColliding bool,
+) ([]*kleymv1alpha1.InferenceIdentityBinding, error) {
+	candidatesByKey := map[string]*kleymv1alpha1.InferenceIdentityBinding{}
+	addCandidate := func(candidate *kleymv1alpha1.InferenceIdentityBinding) {
+		if candidate == nil {
+			return
+		}
+		bindingKey := namespacedBindingKey(candidate.Namespace, candidate.Name)
+		candidatesByKey[bindingKey] = candidate
+	}
+
+	if effectiveMode(binding.Spec.Mode) == kleymv1alpha1.InferenceIdentityBindingModePerObjective {
+		discriminatorKey := containerDiscriminatorIndexKey(binding.Spec.ContainerDiscriminator)
+		matchingDiscriminatorBindings, err := r.listBindingsByField(
+			ctx,
+			binding.Namespace,
+			fieldIndexContainerDiscriminatorKey,
+			discriminatorKey,
+		)
+		if err != nil {
+			return nil, err
+		}
+		for i := range matchingDiscriminatorBindings {
+			addCandidate(matchingDiscriminatorBindings[i])
+		}
+		addCandidate(binding.DeepCopy())
+	}
+
+	if wasCurrentColliding {
+		peerNames := collisionPeerBindingNames(binding.Status.Conditions)
+		if len(peerNames) == 0 {
+			perObjectiveBindings, err := r.listBindingsByField(
+				ctx,
+				binding.Namespace,
+				fieldIndexEffectiveMode,
+				modeValuePerObjective,
+			)
+			if err != nil {
+				return nil, err
+			}
+			for i := range perObjectiveBindings {
+				addCandidate(perObjectiveBindings[i])
+			}
+		} else {
+			for _, peerName := range peerNames {
+				peer := &kleymv1alpha1.InferenceIdentityBinding{}
+				if err := r.Get(
+					ctx,
+					types.NamespacedName{Namespace: binding.Namespace, Name: peerName},
+					peer,
+				); err != nil {
+					if apierrors.IsNotFound(err) {
+						continue
+					}
+					return nil, err
+				}
+				addCandidate(peer)
+			}
+		}
+	}
+
+	candidateKeys := make([]string, 0, len(candidatesByKey))
+	for key := range candidatesByKey {
+		candidateKeys = append(candidateKeys, key)
+	}
+	sort.Strings(candidateKeys)
+
+	candidates := make([]*kleymv1alpha1.InferenceIdentityBinding, 0, len(candidateKeys))
+	for _, key := range candidateKeys {
+		candidates = append(candidates, candidatesByKey[key])
+	}
+
+	return candidates, nil
+}
+
+func (r *InferenceIdentityBindingReconciler) listBindingsByField(
+	ctx context.Context,
+	namespace string,
+	field string,
+	value string,
+) ([]*kleymv1alpha1.InferenceIdentityBinding, error) {
+	if strings.TrimSpace(value) == "" {
+		return nil, nil
+	}
+
+	bindingList := &kleymv1alpha1.InferenceIdentityBindingList{}
+	if err := r.List(
+		ctx,
+		bindingList,
+		client.InNamespace(namespace),
+		client.MatchingFields{field: value},
+	); err != nil {
+		if !isFieldLookupUnsupported(err) {
+			return nil, err
+		}
+		return r.listBindingsByFieldFallback(ctx, namespace, field, value)
+	}
+
+	result := make([]*kleymv1alpha1.InferenceIdentityBinding, 0, len(bindingList.Items))
+	for i := range bindingList.Items {
+		result = append(result, bindingList.Items[i].DeepCopy())
+	}
+
+	return result, nil
+}
+
+func (r *InferenceIdentityBindingReconciler) listBindingsByFieldFallback(
+	ctx context.Context,
+	namespace string,
+	field string,
+	value string,
+) ([]*kleymv1alpha1.InferenceIdentityBinding, error) {
+	bindingList := &kleymv1alpha1.InferenceIdentityBindingList{}
+	if err := r.List(ctx, bindingList, client.InNamespace(namespace)); err != nil {
+		return nil, err
+	}
+
+	result := make([]*kleymv1alpha1.InferenceIdentityBinding, 0, len(bindingList.Items))
+	for i := range bindingList.Items {
+		binding := bindingList.Items[i].DeepCopy()
+		if bindingMatchesField(binding, field, value) {
+			result = append(result, binding)
+		}
+	}
+
+	return result, nil
+}
+
+func bindingMatchesField(
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	field string,
+	value string,
+) bool {
+	switch field {
+	case fieldIndexTargetRefName:
+		return strings.TrimSpace(binding.Spec.TargetRef.Name) == value
+	case fieldIndexEffectiveMode:
+		return string(effectiveMode(binding.Spec.Mode)) == value
+	case fieldIndexContainerDiscriminatorKey:
+		return containerDiscriminatorIndexKey(binding.Spec.ContainerDiscriminator) == value
+	default:
+		return false
+	}
+}
+
+func isFieldLookupUnsupported(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errText := strings.ToLower(err.Error())
+	return strings.Contains(errText, "index with name") ||
+		strings.Contains(errText, "field label not supported")
+}
+
+func collisionPeerBindingNames(conditions []metav1.Condition) []string {
+	conflictCondition := meta.FindStatusCondition(conditions, conditionTypeConflict)
+	if conflictCondition == nil || conflictCondition.Status != metav1.ConditionTrue {
+		return nil
+	}
+
+	message := strings.TrimSpace(conflictCondition.Message)
+	if !strings.HasPrefix(message, identityCollisionMessagePrefix) {
+		return nil
+	}
+	if !strings.HasSuffix(message, identityCollisionMessageSuffix) {
+		return nil
+	}
+
+	peerList := strings.TrimPrefix(message, identityCollisionMessagePrefix)
+	peerList = strings.TrimSuffix(peerList, identityCollisionMessageSuffix)
+	peerList = strings.TrimSpace(peerList)
+	if peerList == "" {
+		return nil
+	}
+
+	seen := map[string]struct{}{}
+	peers := []string{}
+	for _, entry := range strings.Split(peerList, ",") {
+		peerName := strings.TrimSpace(entry)
+		if peerName == "" {
+			continue
+		}
+		if _, exists := seen[peerName]; exists {
+			continue
+		}
+		seen[peerName] = struct{}{}
+		peers = append(peers, peerName)
+	}
+	sort.Strings(peers)
+
+	return peers
 }
 
 func (r *InferenceIdentityBindingReconciler) applyCollisionState(
@@ -871,10 +1216,7 @@ func identityCollisionMessage(bindingName string, collidingBindings []string) st
 		peers = append(peers, name)
 	}
 	sort.Strings(peers)
-	return fmt.Sprintf(
-		"identity collision with bindings %s: PerObjective bindings must not share the same pod selector and container discriminator",
-		strings.Join(peers, ", "),
-	)
+	return identityCollisionMessagePrefix + strings.Join(peers, ", ") + identityCollisionMessageSuffix
 }
 
 func namespacedBindingKey(namespace, name string) string {
@@ -1077,22 +1419,22 @@ func sanitizeDNSLabel(input string) string {
 		return defaultNameValue
 	}
 
-	var builder strings.Builder
+	var labelBuilder strings.Builder
 	lastHyphen := false
 	for _, character := range lower {
 		isAlphaNum := (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9')
 		if isAlphaNum {
-			builder.WriteRune(character)
+			labelBuilder.WriteRune(character)
 			lastHyphen = false
 			continue
 		}
 		if !lastHyphen {
-			builder.WriteRune('-')
+			labelBuilder.WriteRune('-')
 			lastHyphen = true
 		}
 	}
 
-	sanitized := strings.Trim(builder.String(), "-")
+	sanitized := strings.Trim(labelBuilder.String(), "-")
 	if sanitized == "" {
 		return defaultNameValue
 	}
@@ -1460,26 +1802,12 @@ func (r *InferenceIdentityBindingReconciler) mapObjectiveToBindings(
 	ctx context.Context,
 	object client.Object,
 ) []reconcile.Request {
-	bindingList := &kleymv1alpha1.InferenceIdentityBindingList{}
-	if err := r.List(ctx, bindingList, client.InNamespace(object.GetNamespace())); err != nil {
+	bindings, err := r.listBindingsReferencingObjective(ctx, object.GetNamespace(), object.GetName())
+	if err != nil {
 		return nil
 	}
 
-	requests := make([]reconcile.Request, 0, len(bindingList.Items))
-	for i := range bindingList.Items {
-		binding := &bindingList.Items[i]
-		if binding.Spec.TargetRef.Name != object.GetName() {
-			continue
-		}
-		requests = append(requests, reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Namespace: binding.Namespace,
-				Name:      binding.Name,
-			},
-		})
-	}
-
-	return requests
+	return requestsForBindings(bindings)
 }
 
 func (r *InferenceIdentityBindingReconciler) mapPoolToBindings(
@@ -1494,17 +1822,60 @@ func (r *InferenceIdentityBindingReconciler) mapPoolToBindings(
 		return nil
 	}
 
-	bindingList := &kleymv1alpha1.InferenceIdentityBindingList{}
-	if err := r.List(ctx, bindingList, client.InNamespace(namespace)); err != nil {
-		return nil
+	requestsByKey := map[string]reconcile.Request{}
+	objectiveNameList := make([]string, 0, len(objectiveNames))
+	for objectiveName := range objectiveNames {
+		objectiveNameList = append(objectiveNameList, objectiveName)
+	}
+	sort.Strings(objectiveNameList)
+
+	for _, objectiveName := range objectiveNameList {
+		bindings, err := r.listBindingsReferencingObjective(ctx, namespace, objectiveName)
+		if err != nil {
+			return nil
+		}
+		for i := range bindings {
+			binding := bindings[i]
+			request := reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: binding.Namespace,
+					Name:      binding.Name,
+				},
+			}
+			requestsByKey[request.String()] = request
+		}
 	}
 
-	requests := make([]reconcile.Request, 0, len(bindingList.Items))
-	for i := range bindingList.Items {
-		binding := &bindingList.Items[i]
-		if _, exists := objectiveNames[binding.Spec.TargetRef.Name]; !exists {
+	requestKeys := make([]string, 0, len(requestsByKey))
+	for key := range requestsByKey {
+		requestKeys = append(requestKeys, key)
+	}
+	sort.Strings(requestKeys)
+
+	requests := make([]reconcile.Request, 0, len(requestKeys))
+	for _, key := range requestKeys {
+		request, exists := requestsByKey[key]
+		if !exists {
 			continue
 		}
+		requests = append(requests, request)
+	}
+
+	return requests
+}
+
+func (r *InferenceIdentityBindingReconciler) listBindingsReferencingObjective(
+	ctx context.Context,
+	namespace string,
+	objectiveName string,
+) ([]*kleymv1alpha1.InferenceIdentityBinding, error) {
+	return r.listBindingsByField(ctx, namespace, fieldIndexTargetRefName, objectiveName)
+}
+
+func requestsForBindings(bindings []*kleymv1alpha1.InferenceIdentityBinding) []reconcile.Request {
+	requests := make([]reconcile.Request, 0, len(bindings))
+	for i := range bindings {
+		binding := bindings[i]
 		requests = append(requests, reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Namespace: binding.Namespace,
@@ -1512,6 +1883,10 @@ func (r *InferenceIdentityBindingReconciler) mapPoolToBindings(
 			},
 		})
 	}
+
+	sort.Slice(requests, func(i, j int) bool {
+		return requests[i].String() < requests[j].String()
+	})
 
 	return requests
 }

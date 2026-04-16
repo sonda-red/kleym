@@ -52,6 +52,8 @@ kubectl get crd clusterspiffeids.spire.spiffe.io
 
 If your cluster uses the alternate GAIE API group version supported by the controller, confirm those CRDs are installed instead.
 
+When a CRD is missing, the reconciler keeps retrying automatically on a timer, so it can recover after installation without waiting for unrelated watch events.
+
 ## Collision Triage
 
 If you hit `IdentityCollision`, compare all `PerObjective` bindings in the namespace that target the same pool and container discriminator.

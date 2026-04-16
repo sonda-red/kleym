@@ -109,7 +109,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result).To(Equal(ctrl.Result{}))
+			Expect(result).To(Equal(ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}))
 
 			By("updating status with invalid reference and adding finalizer")
 			fetched := &kleymv1alpha1.InferenceIdentityBinding{}
@@ -145,14 +145,14 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result).To(Equal(ctrl.Result{}))
+			Expect(result).To(Equal(ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}))
 
 			By("reconciling again to verify idempotency")
 			result, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result).To(Equal(ctrl.Result{}))
+			Expect(result).To(Equal(ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}))
 		})
 	})
 
@@ -223,7 +223,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 				NamespacedName: types.NamespacedName{Name: resource.Name, Namespace: resource.Namespace},
 			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result).To(Equal(ctrl.Result{}))
+			Expect(result).To(Equal(ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}))
 		})
 
 		It("should default omitted mode to PerObjective and allow a containerDiscriminator", func() {

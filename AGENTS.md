@@ -41,6 +41,7 @@ Keep the search tight. Read the directly relevant discussion and any immediately
 ## Change Discipline
 
 - Keep changes scoped to the requested outcome.
+- For every change, explicitly assess whether docs updates are needed and state the result in your handoff (`updated: <files>` or `not needed: <reason>`).
 - Update documentation with behavior changes:
   - `docs/spec.md` for product or API contract changes.
   - `README.md` for overview, setup, or command changes.

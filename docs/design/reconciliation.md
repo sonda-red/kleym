@@ -23,11 +23,15 @@ For each `InferenceIdentityBinding`, the reconciler currently does the following
 
 The controller does not only react to the binding itself. It also watches:
 
-- `InferenceObjective`, so changes to `poolRef` or object existence requeue affected bindings
-- `InferencePool`, so selector changes requeue bindings whose objectives reference that pool
+- `InferenceObjective`, so changes to `poolRef` or object existence requeue only bindings whose `spec.targetRef.name` points at that objective
+- `InferencePool`, so selector changes requeue only bindings whose target objectives reference that pool
 
 That keeps the rendered identity tied to current objective and pool state instead of only the binding object.
+
+Watch predicates filter status-only update events to avoid hot loops. Create and delete events still enqueue, and update events enqueue when object generation changes or deletion state changes.
 
 ## Failure Shape
 
 The reconciler treats invalid references, unsafe selectors, render failures, and collisions as controller state, not as crashes. In those paths it updates status, emits an event, and removes stale managed output instead of leaving outdated `ClusterSPIFFEID` resources behind.
+
+For missing external CRDs (`InferenceObjective`, `InferencePool`, `ClusterSPIFFEID`), the reconciler also schedules a timed retry (`RequeueAfter`) so recovery does not depend on unrelated future events.

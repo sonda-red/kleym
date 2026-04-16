@@ -8,7 +8,13 @@ Two `PerObjective` bindings can resolve to the same workload set if they point a
 
 ## Current Detection Strategy
 
-For each `PerObjective` binding in a namespace, the controller renders the identity and computes a collision fingerprint from:
+For each `PerObjective` reconciliation, the controller builds a targeted candidate set instead of scanning every binding in the namespace:
+
+- bindings with the same `containerDiscriminator` key (type plus value)
+- plus previously colliding peers when the current binding is already in `Conflict=True`
+- with a safe fallback to all `PerObjective` bindings if peer recovery data is unavailable
+
+It then renders identities for that candidate set and computes a collision fingerprint from:
 
 - the normalized pool-derived pod selector
 - the normalized final selector set
