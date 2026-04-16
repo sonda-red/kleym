@@ -47,6 +47,35 @@ Keep the search tight. Read the directly relevant discussion and any immediately
   - `CONTRIBUTING.md` for workflow or tooling changes.
 - If you change API types, RBAC markers, or generated manifests, run the required generators.
 
+## Controller Guardrails
+
+For changes under `internal/controller/` or API types that affect reconciliation:
+
+- Keep reconcile shape consistent:
+  1. fetch object
+  2. handle deletion
+  3. ensure finalizer
+  4. compute desired state from current inputs
+  5. apply child resources
+  6. patch status once near the end
+- Do not spread status mutations across helper functions unless unavoidable.
+- Set or refresh all known conditions every reconcile pass. Use `observedGeneration`.
+- Prefer pure helper functions for render, validation, and collision detection. Keep side effects in a narrow apply phase.
+- Preserve idempotency. A second reconcile with unchanged inputs must produce no object drift.
+- Preserve multi tenant safety. Never widen selectors beyond what can be proven from namespace, service account, and validated pool derived inputs.
+- Refuse ambiguous or unsafe state with explicit condition reason and message. Do not guess.
+- When adding watches or map functions, avoid namespace wide fanout if an index or predicate can narrow it.
+- For generated `ClusterSPIFFEID` resources, preserve deterministic naming and cleanup behavior.
+
+## Reconciliation Change Checklist
+
+If you change reconciliation behavior, also check:
+
+- spec changes in `docs/spec.md` if API or behavior changed
+- RBAC markers and generated manifests if API access changed
+- controller tests for happy path, invalid ref, unsafe selector, conflict, and resync stability
+- delete and cleanup behavior remains idempotent
+
 ## Verification
 
 - `make test` for API and controller changes.
