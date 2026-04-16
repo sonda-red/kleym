@@ -1,3 +1,16 @@
+## [1.3.1](https://github.com/sonda-red/kleym/compare/v1.3.0...v1.3.1) (2026-04-16)
+
+### Bug Fixes
+
+* **deps:** update all dependencies ([05d11a9](https://github.com/sonda-red/kleym/commit/05d11a9f343f9d4e2d55ac0c963ef1b6ea541db8))
+
+### Documentation
+
+* add favicon and requirements for MkDocs and MkDocs Material ([ed85085](https://github.com/sonda-red/kleym/commit/ed85085d54a71effbdd7b1d3f912e5c0bf2d095d))
+* add GitHub Actions workflow for building documentation with MkDocs ([c90f340](https://github.com/sonda-red/kleym/commit/c90f3402cc64c81e1e817b78d12bd90bc05ce2fb))
+* add Makefile targets for building and serving MkDocs site ([74da35b](https://github.com/sonda-red/kleym/commit/74da35b08597faa90a76b8ac0bf3dcfd2456a381))
+* restructure documentation with new contributing guide, design pages, and examples; enhance README and install instructions ([cda839b](https://github.com/sonda-red/kleym/commit/cda839b9d59e3fca992da7aa2fbfe000fc86b3dd))
+
 ## [1.3.0](https://github.com/sonda-red/kleym/compare/v1.2.1...v1.3.0) (2026-04-15)
 
 ### Features
