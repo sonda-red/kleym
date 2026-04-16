@@ -31,19 +31,25 @@ extra_css:
   - stylesheets/extra.css
 
 nav:
-  - Home: index.md
-  - Spec: spec.md
-  - Roadmap: roadmap.md
-  - Install: install.md
-  - Reference:
-      - API: reference/api.md
-      - Conditions: reference/conditions.md
-      - Resources: reference/resources.md
+  - Overview:
+      - Home: index.md
+      - Concepts: concepts.md
+      - Architecture: architecture.md
+  - Use:
+      - Install: install.md
+      - Examples:
+          - Basic Binding: examples/basic-binding.md
+          - PerObjective: examples/per-objective.md
+      - Reference:
+          - API: reference/api.md
+          - Conditions: reference/conditions.md
+          - Managed Resources: reference/resources.md
+      - Troubleshooting: troubleshooting.md
   - Design:
+      - Spec: spec.md
       - Reconciliation: design/reconciliation.md
       - Selector Safety: design/selector-safety.md
       - Collision Detection: design/collision-detection.md
-  - Examples:
-      - Basic Binding: examples/basic-binding.md
-      - PerObjective: examples/per-objective.md
-  - Contributing: contributing.md
+      - Roadmap: roadmap.md
+  - Development:
+      - Contributing: contributing.md

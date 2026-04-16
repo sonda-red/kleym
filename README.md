@@ -36,16 +36,23 @@ make lint
 
 ## Documentation
 
-Project docs are organized by reader intent and live under [`docs/`](docs/).
+Docs live under [`docs/`](docs/).
 
-- [`docs/index.md`](docs/index.md): landing page
-- [`docs/spec.md`](docs/spec.md): the authoritative behavioral contract
-- [`docs/roadmap.md`](docs/roadmap.md): planned milestones and sequencing
-- [`docs/install.md`](docs/install.md): local run, deploy, and test commands
-- [`docs/reference/`](docs/reference): stable facts about API surface, conditions, and managed resources
-- [`docs/design/`](docs/design): internal design notes
-- [`docs/examples/`](docs/examples): concrete manifests and expected outcomes
-- [`docs/contributing.md`](docs/contributing.md): contributor workflow and validation expectations
+- Overview:
+  - [`docs/index.md`](docs/index.md): landing page
+  - [`docs/concepts.md`](docs/concepts.md): identity model
+  - [`docs/architecture.md`](docs/architecture.md): end-to-end controller flow
+- Use:
+  - [`docs/install.md`](docs/install.md): local run, deploy, and test commands
+  - [`docs/examples/`](docs/examples): concrete manifests and expected outcomes
+  - [`docs/reference/`](docs/reference): stable facts about API surface, conditions, and managed resources
+  - [`docs/troubleshooting.md`](docs/troubleshooting.md): condition-driven debugging and dependency checks
+- Design:
+  - [`docs/spec.md`](docs/spec.md): the authoritative behavioral contract
+  - [`docs/design/`](docs/design): internal design notes
+  - [`docs/roadmap.md`](docs/roadmap.md): planned milestones and sequencing
+- Development:
+  - [`docs/contributing.md`](docs/contributing.md): contributor workflow and validation expectations
 
 Preview the docs site locally:
 
