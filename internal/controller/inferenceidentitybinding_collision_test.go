@@ -122,6 +122,57 @@ func TestReconcilePerObjectiveCollisionResolutionClearsConflictAndResumes(t *tes
 	assertEventContains(t, fakeRecorder.Events, "IdentityCollisionResolved")
 }
 
+func TestReconcilePerObjectiveCollisionResolutionRefreshesPeersOnSingleReconcile(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scheme := newCollisionTestScheme(t)
+	objects := []client.Object{
+		newTestPool(),
+		newTestObjective("objective-a"),
+		newTestObjective("objective-b"),
+		newPerObjectiveBinding("binding-a", "objective-a"),
+		newPerObjectiveBinding("binding-b", "objective-b"),
+	}
+
+	reconciler := &InferenceIdentityBindingReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+			WithObjects(objects...).
+			Build(),
+		Scheme: scheme,
+	}
+
+	_, err := reconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: "binding-a"},
+	})
+	if err != nil {
+		t.Fatalf("initial Reconcile returned error: %v", err)
+	}
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision")
+
+	bindingB := &kleymv1alpha1.InferenceIdentityBinding{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: "binding-b"}, bindingB); err != nil {
+		t.Fatalf("failed to get binding-b: %v", err)
+	}
+	bindingB.Spec.ContainerDiscriminator.Value = "sidecar"
+	if err := reconciler.Update(ctx, bindingB); err != nil {
+		t.Fatalf("failed to update binding-b: %v", err)
+	}
+
+	_, err = reconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: "binding-b"},
+	})
+	if err != nil {
+		t.Fatalf("reconcile binding-b returned error: %v", err)
+	}
+
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
+}
+
 func TestPoolOnlyBindingsAreNotSubjectToPerObjectiveCollisionRule(t *testing.T) {
 	t.Parallel()
 
