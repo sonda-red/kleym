@@ -1,21 +1,33 @@
 # kleym Documentation
 
-`kleym` is a technical product repo with one authoritative behavior contract and a smaller set of supporting pages organized by reader intent.
+`kleym` is a Kubernetes operator that compiles inference identity intent into deterministic SPIFFE identities.
 
-Start here:
+## Overview
 
-- Read the [spec](spec.md) if you need the contract for product behavior, API expectations, or controller outcomes.
-- Read the [roadmap](roadmap.md) if you need current delivery phases and near-term priorities.
-- Read [install](install.md) if you need to run the controller locally, deploy it to a cluster, or execute tests.
-- Read the pages under [reference](reference/api.md) if you need stable facts about the current API surface, condition set, or managed resources.
-- Read the pages under [design](design/reconciliation.md) if you need explanatory internals for reconciliation flow, selector safety, or collision handling.
-- Read the pages under [examples](examples/basic-binding.md) if you need concrete YAML and the outcomes `kleym` is expected to produce.
-- Read [contributing](contributing.md) if you are making changes in the repository.
+- Read [concepts](concepts.md) for the identity model, mode choices, and safety boundaries.
+- Read [architecture](architecture.md) for the end-to-end control flow from `InferenceIdentityBinding` to `ClusterSPIFFEID`.
+
+## Use
+
+- Read [install](install.md) to run the controller locally, deploy it, and execute validation commands.
+- Read [examples](examples/basic-binding.md) for concrete manifests and expected outcomes.
+- Read [reference](reference/api.md) for stable facts about the API, conditions, and managed resources.
+- Read [troubleshooting](troubleshooting.md) when reconciliation fails or cluster dependencies are missing.
+
+## Design
+
+- Read [spec](spec.md) for the authoritative behavior contract.
+- Read [reconciliation](design/reconciliation.md), [selector safety](design/selector-safety.md), and [collision detection](design/collision-detection.md) for controller internals.
+- Read [roadmap](roadmap.md) for planned milestones and sequencing.
+
+## Development
+
+- Read [contributing](contributing.md) if you are changing the repository.
 
 Documentation rules for this repo:
 
 - `spec.md` stays singular and authoritative.
+- overview pages summarize the model without duplicating the full contract.
 - `reference/` states what is true today.
 - `design/` explains why the controller works the way it does.
-- `examples/` shows concrete manifests and expected outcomes.
-- Issues and pull request text are design history, not documentation.
+- issues and pull request text are design history, not documentation.
