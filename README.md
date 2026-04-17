@@ -51,7 +51,6 @@ Docs live under [`docs/`](docs/).
 - Design:
   - [`docs/spec.md`](docs/spec.md): the authoritative behavioral contract
   - [`docs/design/`](docs/design): internal design notes
-  - [`docs/roadmap.md`](docs/roadmap.md): planned milestones and sequencing
 - Development:
   - [`docs/contributing.md`](docs/contributing.md): contributor workflow and validation expectations
 
