@@ -7,8 +7,8 @@
   --hextra-max-footer-width: 90rem;
 
   --kleym-bg: #f7f5f0;
-  --kleym-surface: rgba(255, 255, 255, 0.88);
-  --kleym-surface-strong: #ffffff;
+  --kleym-surface: #ffffff;
+  --kleym-surface-strong: #fcfbf7;
   --kleym-border: rgba(34, 36, 25, 0.12);
   --kleym-border-strong: rgba(34, 36, 25, 0.22);
   --kleym-text: #222419;
@@ -19,8 +19,8 @@
   --kleym-warm: #ed311d;
   --kleym-warm-soft: rgba(237, 49, 29, 0.12);
   --kleym-cream: #f2deba;
-  --kleym-code-bg: rgba(0, 124, 128, 0.08);
-  --kleym-shadow: 0 18px 44px rgba(34, 36, 25, 0.08);
+  --kleym-code-bg: #eef6f6;
+  --kleym-shadow: none;
   --kleym-grid: rgba(34, 36, 25, 0.045);
 }
 
@@ -30,8 +30,8 @@ html[class~="dark"] {
   --primary-lightness: 40%;
 
   --kleym-bg: #171913;
-  --kleym-surface: rgba(34, 36, 25, 0.84);
-  --kleym-surface-strong: #272a22;
+  --kleym-surface: #1f221b;
+  --kleym-surface-strong: #242821;
   --kleym-border: rgba(242, 222, 186, 0.11);
   --kleym-border-strong: rgba(242, 222, 186, 0.2);
   --kleym-text: #f3efe5;
@@ -42,8 +42,8 @@ html[class~="dark"] {
   --kleym-warm: #ff6a58;
   --kleym-warm-soft: rgba(237, 49, 29, 0.18);
   --kleym-cream: #f2deba;
-  --kleym-code-bg: rgba(0, 124, 128, 0.16);
-  --kleym-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+  --kleym-code-bg: rgba(39, 160, 163, 0.14);
+  --kleym-shadow: none;
   --kleym-grid: rgba(242, 222, 186, 0.06);
 }
 
@@ -54,17 +54,7 @@ body {
 }
 
 body {
-  background:
-    radial-gradient(circle at top right, rgba(242, 222, 186, 0.4), transparent 20%),
-    radial-gradient(circle at 0 0, rgba(0, 124, 128, 0.06), transparent 16%),
-    linear-gradient(180deg, #fbfaf7 0%, var(--kleym-bg) 100%);
-}
-
-html[class~="dark"] body {
-  background:
-    radial-gradient(circle at top right, rgba(0, 124, 128, 0.12), transparent 18%),
-    radial-gradient(circle at 0 0, rgba(237, 49, 29, 0.08), transparent 14%),
-    linear-gradient(180deg, #12140f 0%, var(--kleym-bg) 100%);
+  background: var(--kleym-bg);
 }
 
 .content,
@@ -100,8 +90,7 @@ html[class~="dark"] body {
 
 .hextra-nav-container-blur {
   border-bottom: 1px solid var(--kleym-border);
-  backdrop-filter: blur(20px);
-  box-shadow: 0 10px 28px rgba(34, 36, 25, 0.05);
+  box-shadow: none;
 }
 
 .hextra-sidebar-container,
@@ -116,12 +105,12 @@ html[class~="dark"] body {
 .hextra-code-block {
   background: var(--kleym-surface);
   border-color: var(--kleym-border);
-  box-shadow: var(--kleym-shadow);
+  box-shadow: none;
 }
 
 .hextra-search-input {
   color: var(--kleym-text);
-  border: 1px solid transparent;
+  border: 1px solid var(--kleym-border);
 }
 
 .hextra-search-input::placeholder {
@@ -130,27 +119,16 @@ html[class~="dark"] body {
 
 .hextra-search-input:focus-visible {
   border-color: var(--kleym-border-strong);
-  box-shadow:
-    0 0 0 3px var(--kleym-accent-soft),
-    var(--kleym-shadow);
-}
-
-.hextra-search-results,
-.hextra-toc,
-.hextra-code-block {
-  backdrop-filter: blur(16px);
+  box-shadow: 0 0 0 2px var(--kleym-accent-soft);
 }
 
 .hextra-card {
   transition:
-    transform 180ms ease,
     border-color 180ms ease,
-    box-shadow 180ms ease,
     background-color 180ms ease;
 }
 
 .hextra-card:hover {
-  transform: translateY(-2px);
   border-color: var(--kleym-border-strong);
   background: var(--kleym-surface-strong);
 }
@@ -158,7 +136,7 @@ html[class~="dark"] body {
 .hextra-sidebar-active-item {
   background: var(--kleym-accent-soft);
   color: var(--kleym-accent-strong);
-  box-shadow: inset 0 0 0 1px rgba(0, 124, 128, 0.18);
+  border: 1px solid rgba(0, 124, 128, 0.18);
 }
 
 .hextra-footer {
@@ -176,84 +154,14 @@ html[class~="dark"] body {
   margin: 1.5rem 0 0.5rem;
 }
 
-.kleym-home__hero,
-.kleym-home__fact,
-.kleym-home__tile {
-  animation: kleym-rise 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.kleym-home__facts .kleym-home__fact:nth-child(2),
-.kleym-home__tiles .kleym-home__tile:nth-child(2),
-.kleym-home__tiles .kleym-home__tile:nth-child(5) {
-  animation-delay: 60ms;
-}
-
-.kleym-home__facts .kleym-home__fact:nth-child(3),
-.kleym-home__tiles .kleym-home__tile:nth-child(3),
-.kleym-home__tiles .kleym-home__tile:nth-child(6) {
-  animation-delay: 120ms;
-}
-
-.kleym-home__tiles .kleym-home__tile:nth-child(4) {
-  animation-delay: 180ms;
-}
-
 .kleym-home__hero {
-  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.95fr);
   gap: 1.5rem;
-  overflow: hidden;
   padding: clamp(1.5rem, 3vw, 3rem);
   border: 1px solid var(--kleym-border);
   border-radius: 2rem;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.76)),
-    linear-gradient(125deg, rgba(242, 222, 186, 0.18), transparent 42%),
-    var(--kleym-surface);
-  box-shadow: var(--kleym-shadow);
-}
-
-html[class~="dark"] .kleym-home__hero {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
-    linear-gradient(125deg, rgba(242, 222, 186, 0.05), transparent 48%),
-    var(--kleym-surface);
-}
-
-.kleym-home__hero::before,
-.kleym-home__hero::after {
-  content: "";
-  pointer-events: none;
-  position: absolute;
-}
-
-.kleym-home__hero::before {
-  top: -2rem;
-  right: -2rem;
-  width: 12rem;
-  height: 12rem;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(242, 222, 186, 0.48) 0%, transparent 72%);
-}
-
-.kleym-home__hero::after {
-  bottom: 1.25rem;
-  left: 1.25rem;
-  width: 8rem;
-  height: 8rem;
-  background-image:
-    linear-gradient(var(--kleym-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--kleym-grid) 1px, transparent 1px);
-  background-size: 14px 14px;
-  mask-image: linear-gradient(135deg, transparent, black);
-  opacity: 0.6;
-}
-
-.kleym-home__copy,
-.kleym-home__panel {
-  position: relative;
-  z-index: 1;
+  background: var(--kleym-surface-strong);
 }
 
 .kleym-home__badge {
@@ -264,21 +172,16 @@ html[class~="dark"] .kleym-home__hero {
   border: 1px solid var(--kleym-border);
   border-radius: 999px;
   color: var(--kleym-text);
-  background: rgba(242, 222, 186, 0.26);
+  background: var(--kleym-surface-strong);
   text-decoration: none;
   transition:
     border-color 180ms ease,
-    transform 180ms ease,
     background-color 180ms ease;
 }
 
-html[class~="dark"] .kleym-home__badge {
-  background: rgba(242, 222, 186, 0.08);
-}
-
 .kleym-home__badge:hover {
-  transform: translateY(-1px);
   border-color: var(--kleym-border-strong);
+  background: var(--kleym-surface);
 }
 
 .kleym-home__badge-dot {
@@ -286,7 +189,6 @@ html[class~="dark"] .kleym-home__badge {
   height: 0.55rem;
   border-radius: 999px;
   background: var(--kleym-warm);
-  box-shadow: 0 0 0 0.35rem var(--kleym-warm-soft);
 }
 
 .kleym-home__eyebrow,
@@ -344,39 +246,30 @@ html[class~="dark"] .kleym-home__badge {
   font-weight: 700;
   text-decoration: none;
   transition:
-    transform 180ms ease,
     border-color 180ms ease,
     background-color 180ms ease,
     color 180ms ease;
 }
 
-.kleym-home__action:hover {
-  transform: translateY(-1px);
-}
-
 .kleym-home__action--primary {
   color: #fffaf3;
-  background: linear-gradient(135deg, var(--kleym-warm), #c12817);
+  background: var(--kleym-warm);
   border-color: transparent;
 }
 
 .kleym-home__action--primary:hover {
   color: #fff7ef;
-  filter: saturate(1.04);
+  background: #c12817;
 }
 
 .kleym-home__action--secondary {
   color: var(--kleym-text);
-  background: rgba(255, 255, 255, 0.52);
+  background: var(--kleym-surface-strong);
 }
 
 .kleym-home__action--secondary:hover {
-  border-color: rgba(0, 124, 128, 0.3);
-  background: rgba(0, 124, 128, 0.06);
-}
-
-html[class~="dark"] .kleym-home__action--secondary:hover {
-  background: rgba(0, 124, 128, 0.12);
+  border-color: var(--kleym-border-strong);
+  background: var(--kleym-accent-soft);
 }
 
 .kleym-home__panel,
@@ -384,14 +277,12 @@ html[class~="dark"] .kleym-home__action--secondary:hover {
 .kleym-home__tile {
   border: 1px solid var(--kleym-border);
   border-radius: 1.5rem;
-  background: var(--kleym-surface);
-  box-shadow: var(--kleym-shadow);
+  background: var(--kleym-surface-strong);
 }
 
 .kleym-home__panel {
   align-self: end;
   padding: 1.3rem;
-  backdrop-filter: blur(16px);
 }
 
 .kleym-home__signal-list {
@@ -474,7 +365,6 @@ html[class~="dark"] .kleym-home__action--secondary:hover {
   border: 1px solid var(--kleym-border);
   border-radius: 1.25rem;
   background: var(--kleym-surface);
-  box-shadow: var(--kleym-shadow);
 }
 
 .kleym-home__tile {
@@ -486,31 +376,17 @@ html[class~="dark"] .kleym-home__action--secondary:hover {
   color: inherit;
   text-decoration: none;
   transition:
-    transform 180ms ease,
     border-color 180ms ease,
     background-color 180ms ease;
 }
 
 .kleym-home__tile:hover {
-  transform: translateY(-2px);
   border-color: var(--kleym-border-strong);
   background: var(--kleym-surface-strong);
 }
 
 .kleym-home__tile-copy {
   margin-top: auto;
-}
-
-@keyframes kleym-rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 @media (max-width: 960px) {
@@ -531,12 +407,9 @@ html[class~="dark"] .kleym-home__action--secondary:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .hextra-card,
-  .kleym-home__hero,
-  .kleym-home__fact,
   .kleym-home__tile,
   .kleym-home__action,
   .kleym-home__badge {
-    animation: none;
     transition: none;
   }
 }
