@@ -9,6 +9,10 @@ sidebar:
   hide: true
 ---
 
+<div class="kleym-about-mark">
+  <img src="/images/sondrd-512.png" alt="Sonda Red square logo" width="180" height="180">
+</div>
+
 `kleym` is a Kubernetes operator that compiles inference identity intent into deterministic SPIFFE identities for GAIE-aligned inference workloads.
 
 It exists to make workload identity legible, repeatable, and safe across inference stacks. Instead of treating SPIFFE registration as manual cluster glue, `kleym` derives stable `ClusterSPIFFEID` resources from the same namespaced objects operators already use to describe inference intent.

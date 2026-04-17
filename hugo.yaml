@@ -7,8 +7,8 @@ enableGitInfo: true
 contentDir: docs
 assetDir: docs/assets
 staticDir:
+  - docs/static
   - docs/assets
-  - static
 
 module:
   workspace: docs/hugo.work
@@ -61,7 +61,7 @@ params:
     displayTitle: true
     displayLogo: true
     logo:
-      path: images/favicon.png
+      path: images/sondrd-64.png
     width: wide
 
   theme:
