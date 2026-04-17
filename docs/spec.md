@@ -92,6 +92,7 @@ External CRDs consumed
 5. Reconcile one or more [`ClusterSPIFFEID`][clusterspiffeid] resources in `spire.spiffe.io` using the computed SPIFFE IDs and validated selectors.
 6. Update status and emit events for conflicts, unsafe selection, identity collisions, and render failures.
 7. Treat infrastructure-not-ready states such as missing required CRDs as transient by retrying reconciliation on a timer so recovery does not depend on unrelated watch events.
+8. On `InferenceIdentityBinding` deletion, remove managed [`ClusterSPIFFEID`][clusterspiffeid] children first and keep the binding finalizer until a follow-up list confirms no managed children remain.
 
 # Multi Tenant Safety
 
