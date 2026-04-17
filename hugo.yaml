@@ -7,8 +7,8 @@ enableGitInfo: true
 contentDir: docs
 assetDir: docs/assets
 staticDir:
+  - docs/static
   - docs/assets
-  - static
 
 module:
   workspace: docs/hugo.work
@@ -29,12 +29,15 @@ menu:
       name: Documentation
       pageRef: /
       weight: 1
-    - name: Search
+    - name: About
+      pageRef: /about
       weight: 2
+    - name: Search
+      weight: 3
       params:
         type: search
     - name: GitHub
-      weight: 3
+      weight: 4
       url: "https://github.com/sonda-red/kleym"
       params:
         icon: github
@@ -44,9 +47,12 @@ menu:
       params:
         type: separator
       weight: 1
+    - name: About
+      pageRef: /about
+      weight: 2
     - name: Releases (GitHub)
       url: "https://github.com/sonda-red/kleym/releases"
-      weight: 2
+      weight: 3
 
 params:
   description: "Kubernetes operator that compiles inference identity intent into deterministic SPIFFE identities."
@@ -55,7 +61,7 @@ params:
     displayTitle: true
     displayLogo: true
     logo:
-      path: images/favicon.png
+      path: images/sondrd-64.png
     width: wide
 
   theme:
@@ -64,7 +70,7 @@ params:
 
   footer:
     enable: true
-    displayCopyright: true
+    displayCopyright: false
     displayPoweredBy: false
     width: wide
 
