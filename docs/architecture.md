@@ -1,4 +1,7 @@
-# Architecture
+---
+title: Architecture
+weight: 20
+---
 
 ## Control Flow
 
@@ -49,6 +52,6 @@ That gives `kleym` three useful properties:
 
 ## See Also
 
-- Read [concepts](concepts.md) for the mode and selector model.
-- Read [managed resources](reference/resources.md) for the concrete output object shape.
-- Read [reconciliation](design/reconciliation.md) for the controller flow in more detail.
+- Read [concepts](concepts) for the mode and selector model.
+- Read [managed resources](reference/resources) for the concrete output object shape.
+- Read [reconciliation](design/reconciliation) for the controller flow in more detail.

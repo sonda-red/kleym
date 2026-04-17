@@ -13,5 +13,5 @@ Key rules:
 Project entry points:
 
 - [`README.md`](README.md): project overview and quickstart
-- [`docs/index.md`](docs/index.md): published docs landing page
+- [`docs/_index.md`](docs/_index.md): published docs landing page
 - [`docs/contributing.md`](docs/contributing.md): workflow, repository map, and validation expectations

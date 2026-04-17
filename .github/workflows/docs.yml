@@ -6,22 +6,20 @@ on:
       - main
     paths:
       - "docs/**"
-      - "mkdocs.yml"
+      - "hugo.yaml"
       - "README.md"
       - "CONTRIBUTING.md"
       - "Makefile"
-      - "requirements-docs.txt"
       - ".github/workflows/docs.yml"
   push:
     branches:
       - main
     paths:
       - "docs/**"
-      - "mkdocs.yml"
+      - "hugo.yaml"
       - "README.md"
       - "CONTRIBUTING.md"
       - "Makefile"
-      - "requirements-docs.txt"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -36,13 +34,24 @@ jobs:
   build:
     name: Build Docs
     runs-on: ubuntu-latest
-    container:
-      image: squidfunk/mkdocs-material:latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
+          fetch-depth: 0
           persist-credentials: false
 
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Set up Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: "0.152.2"
+          extended: true
+
       - name: Build docs
-        run: mkdocs build --strict
+        run: make docs-build

@@ -34,5 +34,6 @@ go.work
 # Kubeconfig might contain secrets
 *.kubeconfig
 
-# Makefile generated files
-site
+# Hugo build output
+public
+.hugo_build.lock

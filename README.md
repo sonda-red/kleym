@@ -39,7 +39,7 @@ make lint
 Docs live under [`docs/`](docs/).
 
 - Overview:
-  - [`docs/index.md`](docs/index.md): landing page
+  - [`docs/_index.md`](docs/_index.md): landing page
   - [`docs/concepts.md`](docs/concepts.md): identity model
   - [`docs/architecture.md`](docs/architecture.md): end-to-end controller flow
 - Use:
@@ -47,6 +47,7 @@ Docs live under [`docs/`](docs/).
   - [`docs/examples/`](docs/examples): concrete manifests and expected outcomes
   - [`docs/reference/`](docs/reference): stable facts about API surface, conditions, and managed resources
   - [`docs/troubleshooting.md`](docs/troubleshooting.md): condition-driven debugging and dependency checks
+  - [`docs/versioning.md`](docs/versioning.md): docs version snapshot workflow
 - Design:
   - [`docs/spec.md`](docs/spec.md): the authoritative behavioral contract
   - [`docs/design/`](docs/design): internal design notes
@@ -60,10 +61,18 @@ Preview the docs site locally:
 make docs-serve
 ```
 
+Docs commands require Hugo Extended `0.146+`.
+
 Build the static docs site:
 
 ```sh
 make docs-build
+```
+
+Build root and configured version snapshots:
+
+```sh
+make docs-build-versioned
 ```
 
 ## License

@@ -1,10 +1,13 @@
-# Contributing
+---
+title: Contributing
+weight: 110
+---
 
 `kleym` is a Kubernetes operator that compiles inference identity intent into SPIRE Controller Manager resources. The repo is still early, so contributors should prefer small, explicit changes that keep the spec, code, and generated artifacts aligned.
 
 ## Sources Of Truth
 
-- [`spec.md`](spec.md) is the authoritative product and API behavior document.
+- [`spec.md`](spec) is the authoritative product and API behavior document.
 - `README.md` is the project entry point and quickstart.
 - `AGENTS.md` is the minimal repository contract for coding agents.
 - `SEMANTIC_VERSIONING.md` describes release automation and commit conventions.
@@ -16,7 +19,7 @@ If code and docs disagree, fix the disagreement instead of silently choosing one
 Issues and pull requests are part of the design history for this repository. Check the directly relevant GitHub context when:
 
 - a task references an issue, PR, review thread, release note, or regression
-- intended behavior is unclear from the current code and the [spec](spec.md)
+- intended behavior is unclear from the current code and the [spec](spec)
 - you are changing API contracts, reconciliation semantics, CI, release flow, or project policy
 
 Keep that review narrow. Read the issue or PR that motivated the change and any directly related follow-ups. Avoid broad history searches unless the task genuinely requires it.
@@ -36,6 +39,7 @@ Keep that review narrow. Read the issue or PR that motivated the change and any 
 - `kubectl`
 - Access to a Kubernetes cluster for deployment testing
 - `kind` for local e2e testing
+- Hugo Extended `0.146+` for docs preview/build
 
 The repository bootstraps local tool binaries under `bin/` through `make` targets, so global installs of `controller-gen`, `kustomize`, `setup-envtest`, and `golangci-lint` are not required.
 
@@ -51,8 +55,9 @@ The repository bootstraps local tool binaries under `bin/` through `make` target
 ## Common Commands
 
 - `make help`: list supported targets
-- `make docs-build`: build the docs site with the MkDocs Material container
-- `make docs-serve`: serve the docs site with the MkDocs Material container
+- `make docs-build`: build the docs site with Hugo + Hextra
+- `make docs-serve`: serve docs locally with Hugo
+- `make docs-build-versioned`: build root docs and configured `/versions/*` snapshots
 - `make run`: run the controller locally against the current kubeconfig
 - `make build`: build the manager binary
 - `make test`: run non-e2e tests with envtest setup
@@ -66,7 +71,7 @@ The repository bootstraps local tool binaries under `bin/` through `make` target
 
 ### API And Controller Changes
 
-- Update the [spec](spec.md) when behavior or API contract changes.
+- Update the [spec](spec) when behavior or API contract changes.
 - If you touch files in `api/` or change kubebuilder markers, run:
 
 ```sh
@@ -85,7 +90,7 @@ Run `make lint` as well when you touch Go code, build logic, or CI-sensitive beh
 ### Documentation Changes
 
 - Update `README.md` when setup, scope, or entry-point commands change.
-- Update the [spec](spec.md) when the product contract changes.
+- Update the [spec](spec) when the product contract changes.
 - Update this page when workflow, tooling, or contributor expectations change.
 
 ### Dependency And Build Changes
@@ -114,7 +119,9 @@ Run `make lint` as well when you touch Go code, build logic, or CI-sensitive beh
 
 ## Docs Workflow
 
-The docs site is built with MkDocs Material. Use the containerized workflow by default:
+The docs site is built with Hugo + Hextra.
+
+For local preview:
 
 ```sh
 make docs-serve
@@ -126,7 +133,13 @@ To build the static site:
 make docs-build
 ```
 
-Docs-related pull requests and pushes to `main` also run a dedicated GitHub Actions docs build that executes `mkdocs build --strict`.
+To build versioned output paths configured in `.docs-versions`:
+
+```sh
+make docs-build-versioned
+```
+
+Docs-related pull requests and pushes to `main` run a dedicated docs workflow that executes `make docs-build`.
 
 ## CI And Releases
 

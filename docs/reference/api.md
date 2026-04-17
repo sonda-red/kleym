@@ -1,6 +1,9 @@
-# API
+---
+title: API
+weight: 10
+---
 
-This page records the stable API facts exposed by the current scaffold. Behavioral contract still lives in the [spec](../spec.md).
+This page records the stable API facts exposed by the current scaffold. Behavioral contract still lives in the [spec](../spec).
 
 ## Primary Resource
 

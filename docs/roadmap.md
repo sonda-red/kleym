@@ -1,6 +1,9 @@
-# Roadmap
+---
+title: Roadmap
+weight: 90
+---
 
-This roadmap tracks delivery order for `kleym` and keeps scope aligned with the contract in [spec.md](spec.md).
+This roadmap tracks delivery order for `kleym` and keeps scope aligned with the contract in [spec](spec).
 
 ## Phase 0: Public Readiness
 

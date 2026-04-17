@@ -1,4 +1,7 @@
-# Managed Resources
+---
+title: Managed Resources
+weight: 30
+---
 
 This page records the Kubernetes resources `kleym` writes and the objects it depends on to do that work.
 

@@ -1,6 +1,9 @@
-# Reconciliation
+---
+title: Reconciliation
+weight: 10
+---
 
-This page explains the current controller flow. The behavior contract remains in the [spec](../spec.md).
+This page explains the current controller flow. The behavior contract remains in the [spec](../spec).
 
 ## Current Flow
 
