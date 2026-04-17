@@ -72,6 +72,7 @@ const (
 	fieldIndexEffectiveMode             = "spec.effectiveMode"
 	fieldIndexContainerDiscriminatorKey = "spec.containerDiscriminatorKey"
 	infraNotReadyRequeueAfter           = 30 * time.Second
+	deleteVerificationRequeueAfter      = 2 * time.Second
 	identityCollisionMessagePrefix      = "identity collision with bindings "
 	identityCollisionMessageSuffix      = ": PerObjective bindings must not share the same pod selector and container discriminator"
 	modeValuePerObjective               = string(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
@@ -422,6 +423,15 @@ func (r *InferenceIdentityBindingReconciler) reconcileDelete(
 
 	if err := r.cleanupManagedClusterSPIFFEIDs(ctx, binding); err != nil {
 		return ctrl.Result{}, err
+	}
+
+	remaining, err := r.listManagedClusterSPIFFEIDs(ctx, binding)
+	if err != nil {
+		if !meta.IsNoMatchError(err) {
+			return ctrl.Result{}, err
+		}
+	} else if len(remaining) > 0 {
+		return ctrl.Result{RequeueAfter: deleteVerificationRequeueAfter}, nil
 	}
 
 	controllerutil.RemoveFinalizer(binding, inferenceIdentityBindingFinalizer)
