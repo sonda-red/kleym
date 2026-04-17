@@ -1,4 +1,7 @@
-# Install
+---
+title: Install
+weight: 30
+---
 
 This page covers the practical commands for running `kleym`, deploying it, testing it, and previewing the documentation site locally.
 
@@ -9,6 +12,7 @@ This page covers the practical commands for running `kleym`, deploying it, testi
 - `kubectl`
 - Access to a Kubernetes cluster
 - `kind` for `make test-e2e`
+- Hugo Extended `0.146+` for docs preview/build
 
 The repository bootstraps local tool binaries under `bin/` through `make` targets, so you do not need to install `controller-gen`, `kustomize`, `setup-envtest`, or `golangci-lint` globally.
 
@@ -66,11 +70,11 @@ Run Kind-backed end-to-end coverage:
 make test-e2e
 ```
 
-Use the smallest command set that proves the change. See [contributing](contributing.md) for the repository validation expectations.
+Use the smallest command set that proves the change. See [contributing](contributing) for the repository validation expectations.
 
 ## Preview Docs
 
-Serve the MkDocs site with the pinned container image:
+Serve the Hextra docs site locally:
 
 ```sh
 make docs-serve
@@ -82,10 +86,16 @@ Build the static site locally:
 make docs-build
 ```
 
-Override the port if you need something other than `8000`:
+Build the default site plus configured version snapshots:
+
+```sh
+make docs-build-versioned
+```
+
+Override the port if you need something other than `1313`:
 
 ```sh
 make docs-serve DOCS_PORT=8080
 ```
 
-If you prefer a local Python workflow instead of the containerized one, `requirements-docs.txt` still pins the MkDocs dependencies for that path.
+Version snapshots are defined in `.docs-versions`.

@@ -1,6 +1,9 @@
-# Conditions
+---
+title: Conditions
+weight: 20
+---
 
-This page records the current status condition set exposed by `InferenceIdentityBinding`. The [spec](../spec.md) remains authoritative for intended behavior.
+This page records the current status condition set exposed by `InferenceIdentityBinding`. The [spec](../spec) remains authoritative for intended behavior.
 
 ## Condition Types
 

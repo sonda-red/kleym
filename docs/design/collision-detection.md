@@ -1,6 +1,9 @@
-# Collision Detection
+---
+title: Collision Detection
+weight: 30
+---
 
-This page explains the current per-objective collision logic. The intended policy still lives in the [spec](../spec.md).
+This page explains the current per-objective collision logic. The intended policy still lives in the [spec](../spec).
 
 ## Problem
 

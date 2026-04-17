@@ -1,9 +1,7 @@
 # Image URL to use all building/pushing image targets
 IMG ?= ghcr.io/sonda-red/kleym:latest
-DOCS_IMAGE ?= squidfunk/mkdocs-material:latest
-DOCS_PORT ?= 8000
-DOCS_UID ?= $(shell id -u)
-DOCS_GID ?= $(shell id -g)
+DOCS_PORT ?= 1313
+HUGO ?= hugo
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -46,12 +44,12 @@ help: ## Display this help.
 ##@ Documentation
 
 .PHONY: docs-build
-docs-build: ## Build the MkDocs site in a container.
-	$(CONTAINER_TOOL) run --rm --user "$(DOCS_UID):$(DOCS_GID)" -v "$(CURDIR):/docs" $(DOCS_IMAGE) build --strict
+docs-build: ## Build the Hugo + Hextra docs site.
+	"$(HUGO)" --gc --minify
 
 .PHONY: docs-serve
-docs-serve: ## Serve the MkDocs site in a container; set DOCS_PORT to override 8000.
-	$(CONTAINER_TOOL) run --rm --user "$(DOCS_UID):$(DOCS_GID)" -p "$(DOCS_PORT):8000" -v "$(CURDIR):/docs" $(DOCS_IMAGE) serve -a 0.0.0.0:8000
+docs-serve: ## Serve docs locally with Hugo; set DOCS_PORT to override 1313.
+	"$(HUGO)" server --buildDrafts --disableFastRender --bind 0.0.0.0 --port "$(DOCS_PORT)"
 
 ##@ Development
 

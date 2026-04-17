@@ -1,4 +1,7 @@
-# Purpose
+---
+title: Spec
+weight: 80
+---
 
 `kleym` is a Kubernetes operator that makes inference workloads legible to workload identity by translating inference intent into deterministic SPIFFE identities. It compiles that intent into SPIRE Controller Manager resources, primarily [`ClusterSPIFFEID`][clusterspiffeid].
 

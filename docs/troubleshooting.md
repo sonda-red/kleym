@@ -1,6 +1,9 @@
-# Troubleshooting
+---
+title: Troubleshooting
+weight: 60
+---
 
-For the full condition set, read [reference/conditions.md](reference/conditions.md).
+For the full condition set, read [reference/conditions](reference/conditions).
 
 ## Start Here
 
@@ -64,4 +67,4 @@ Most collisions come from one of these situations:
 - a copied manifest changed the objective name but kept the same discriminator
 - a workload only has one serving container, so `PerObjective` cannot safely separate identities
 
-Read [collision detection](design/collision-detection.md) if you need the exact controller rule.
+Read [collision detection](design/collision-detection) if you need the exact controller rule.

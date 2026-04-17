@@ -1,4 +1,7 @@
-# PerObjective
+---
+title: PerObjective
+weight: 20
+---
 
 This example shows the current `PerObjective` path, including the container discriminator that keeps one objective identity tied to one container selection.
 

@@ -1,6 +1,9 @@
-# Concepts
+---
+title: Concepts
+weight: 10
+---
 
-The [spec](spec.md) remains the authoritative contract.
+The [spec](spec) remains the authoritative contract.
 
 ## What `InferenceIdentityBinding` Is
 
@@ -72,6 +75,6 @@ SPIRE and SPIRE Controller Manager remain responsible for issuing identities. `k
 
 ## See Also
 
-- Read [architecture](architecture.md) for the end-to-end control flow.
-- Read [examples](examples/basic-binding.md) for concrete manifests.
-- Read [spec](spec.md) if you need the full contract.
+- Read [architecture](architecture) for the end-to-end control flow.
+- Read [examples](examples/basic-binding) for concrete manifests.
+- Read [spec](spec) if you need the full contract.

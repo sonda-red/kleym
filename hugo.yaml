@@ -1,0 +1,88 @@
+baseURL: "https://kleym.sonda.red/"
+title: "kleym"
+
+enableRobotsTXT: true
+enableGitInfo: true
+
+contentDir: docs
+assetDir: docs/assets
+staticDir:
+  - docs/assets
+  - static
+
+module:
+  workspace: docs/hugo.work
+  hugoVersion:
+    extended: true
+    min: "0.146.0"
+  imports:
+    - path: github.com/imfing/hextra
+
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+
+menu:
+  main:
+    - identifier: docs
+      name: Documentation
+      pageRef: /
+      weight: 1
+    - name: Search
+      weight: 2
+      params:
+        type: search
+    - name: GitHub
+      weight: 3
+      url: "https://github.com/sonda-red/kleym"
+      params:
+        icon: github
+
+  sidebar:
+    - name: More
+      params:
+        type: separator
+      weight: 1
+    - name: Releases (GitHub)
+      url: "https://github.com/sonda-red/kleym/releases"
+      weight: 2
+
+params:
+  description: "Kubernetes operator that compiles inference identity intent into deterministic SPIFFE identities."
+
+  navbar:
+    displayTitle: true
+    displayLogo: true
+    logo:
+      path: images/favicon.png
+    width: wide
+
+  theme:
+    default: system
+    displayToggle: true
+
+  footer:
+    enable: true
+    displayCopyright: true
+    displayPoweredBy: false
+    width: wide
+
+  displayUpdatedDate: true
+  dateFormat: "January 2, 2006"
+
+  search:
+    enable: true
+    type: flexsearch
+
+  editURL:
+    enable: true
+    base: "https://github.com/sonda-red/kleym/edit/main/docs"
+
+  page:
+    width: wide
+
+  highlight:
+    copy:
+      enable: true
+      display: hover

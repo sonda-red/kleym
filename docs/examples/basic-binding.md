@@ -1,4 +1,7 @@
-# Basic Binding
+---
+title: Basic Binding
+weight: 10
+---
 
 This example shows the simplest `PoolOnly` flow.
 

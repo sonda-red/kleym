@@ -1,0 +1,26 @@
+:root {
+  --primary-hue: 9deg;
+  --primary-saturation: 83%;
+  --primary-lightness: 51%;
+  --hextra-max-content-width: 72rem;
+}
+
+[data-theme="dark"] {
+  --primary-hue: 12deg;
+  --primary-saturation: 86%;
+  --primary-lightness: 60%;
+}
+
+.content {
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+}
+
+.content h1,
+.content h2,
+.content h3 {
+  letter-spacing: -0.01em;
+}
+
+.content code:not(.code-block code) {
+  color: #a32917;
+}

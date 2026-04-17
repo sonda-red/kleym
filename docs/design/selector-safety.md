@@ -1,6 +1,9 @@
-# Selector Safety
+---
+title: Selector Safety
+weight: 20
+---
 
-This page explains why selector rendering is intentionally narrow. The contract for what must be enforced lives in the [spec](../spec.md).
+This page explains why selector rendering is intentionally narrow. The contract for what must be enforced lives in the [spec](../spec).
 
 ## Safety Goal
 
