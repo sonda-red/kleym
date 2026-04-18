@@ -81,7 +81,7 @@ External CRDs consumed
 
 `InferenceIdentityBinding` status
 
-1. `computedSpiffeIDs` lists identities created, including pool and objective identities.
+1. `computedSpiffeIDs` lists identities currently reconciled for the binding. Current behavior writes one entry: pool identity in `PoolOnly` mode or objective identity in `PerObjective` mode.
 2. `renderedSelectors` shows the final selectors applied to [`ClusterSPIFFEID`][clusterspiffeid].
 3. `conditions` include `Ready`, `Conflict`, `InvalidRef`, `UnsafeSelector`, `RenderFailure`. The `Conflict` condition uses reason `IdentityCollision` when two objectives in `PerObjective` mode resolve to the same pod set and the same container name.
 

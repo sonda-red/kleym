@@ -119,6 +119,59 @@ func TestRenderIdentityPerObjectiveAddsContainerSelector(t *testing.T) {
 	}
 }
 
+func TestRenderIdentityUsesCustomSPIFFEIDTemplateOverride(t *testing.T) {
+	t.Parallel()
+
+	reconciler := &InferenceIdentityBindingReconciler{}
+	customTemplate := "spiffe://example.test/ns/{{ .Namespace }}/objective/{{ .ObjectiveName }}"
+	binding := &kleymv1alpha1.InferenceIdentityBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "binding-custom-template",
+			Namespace: "default",
+		},
+		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+			TargetRef:        kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-custom"},
+			SpiffeIDTemplate: &customTemplate,
+			WorkloadSelectorTemplates: []string{
+				"k8s:ns:default",
+				"k8s:sa:inference-sa",
+			},
+			Mode: kleymv1alpha1.InferenceIdentityBindingModePerObjective,
+			ContainerDiscriminator: &kleymv1alpha1.ContainerDiscriminator{
+				Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
+				Value: "main",
+			},
+		},
+	}
+	objective := &unstructured.Unstructured{
+		Object: map[string]any{
+			"metadata": map[string]any{"name": "objective-custom"},
+		},
+	}
+	pool := &unstructured.Unstructured{
+		Object: map[string]any{
+			"metadata": map[string]any{"name": "pool-custom"},
+			"spec": map[string]any{
+				"selector": map[string]any{
+					"matchLabels": map[string]any{
+						"app": "model-server",
+					},
+				},
+			},
+		},
+	}
+
+	identity, err := reconciler.renderIdentity(binding, objective, pool)
+	if err != nil {
+		t.Fatalf("renderIdentity returned error: %v", err)
+	}
+
+	expectedSPIFFEID := "spiffe://example.test/ns/default/objective/objective-custom"
+	if identity.SpiffeID != expectedSPIFFEID {
+		t.Fatalf("rendered spiffeID = %q, want %q", identity.SpiffeID, expectedSPIFFEID)
+	}
+}
+
 func TestExtractPoolRefRejectsCrossNamespace(t *testing.T) {
 	t.Parallel()
 
