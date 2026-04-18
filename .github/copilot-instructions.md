@@ -26,7 +26,8 @@ Use these rules whenever you generate commit messages or pull request titles for
 
 ## Release Semantics
 
-- Versions are created by pushing annotated `vX.Y.Z` tags, not by commit analysis.
+- Versions are created by the release workflow (`workflow_dispatch`), not by manual tagging.
+- Do not create tags locally or via the GitHub UI. The release workflow creates the tag and release atomically.
 - Conventional PR titles are used for GitHub auto-generated release notes, not for version calculation.
 - Breaking changes must include a `BREAKING CHANGE:` footer and should use `!` in the header when appropriate.
 

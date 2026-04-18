@@ -166,6 +166,10 @@ release-artifacts: kustomize ## Build install.yaml and CRD bundle for a release.
 	$(MAKE) build-installer IMG=ghcr.io/sonda-red/kleym:$(VERSION)
 	"$(KUSTOMIZE)" build config/crd > dist/kleym-crds.yaml
 
+.PHONY: release-plan
+release-plan: ## Show commits since last release and suggest version bump.
+	@scripts/release-plan.sh
+
 ##@ Deployment
 
 ifndef ignore-not-found
