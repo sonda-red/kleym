@@ -70,6 +70,52 @@ func TestMapPoolToBindingsTargetsOnlyBindingsForReferencingObjectives(t *testing
 	}
 }
 
+func TestMapPoolToBindingsRespectsPoolRefGroup(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scheme := newCollisionTestScheme(t)
+	reconciler := &InferenceIdentityBindingReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexTargetRefName, bindingTargetRefNameIndexValue).
+			WithObjects(
+				newObjectiveWithPool("objective-default", "pool-shared", ""),
+				newObjectiveWithPool("objective-k8s", "pool-shared", "inference.networking.k8s.io"),
+				newObjectiveWithPool("objective-x", "pool-shared", "inference.networking.x-k8s.io"),
+				newPerObjectiveBinding("binding-default", "objective-default"),
+				newPerObjectiveBinding("binding-k8s", "objective-k8s"),
+				newPerObjectiveBinding("binding-x", "objective-x"),
+			).
+			Build(),
+		Scheme: scheme,
+	}
+
+	k8sPool := newTestPool()
+	k8sPool.SetName("pool-shared")
+	k8sPool.SetGroupVersionKind(inferencePoolGVKs[0])
+	k8sRequests := reconciler.mapPoolToBindings(ctx, k8sPool)
+	k8sExpected := []string{
+		types.NamespacedName{Namespace: testNamespace, Name: "binding-default"}.String(),
+		types.NamespacedName{Namespace: testNamespace, Name: "binding-k8s"}.String(),
+	}
+	if got := requestNames(k8sRequests); !equalStringSlices(got, k8sExpected) {
+		t.Fatalf("mapPoolToBindings (k8s group) returned %v, want %v", got, k8sExpected)
+	}
+
+	xPool := newTestPool()
+	xPool.SetName("pool-shared")
+	xPool.SetGroupVersionKind(inferencePoolGVKs[1])
+	xRequests := reconciler.mapPoolToBindings(ctx, xPool)
+	xExpected := []string{
+		types.NamespacedName{Namespace: testNamespace, Name: "binding-default"}.String(),
+		types.NamespacedName{Namespace: testNamespace, Name: "binding-x"}.String(),
+	}
+	if got := requestNames(xRequests); !equalStringSlices(got, xExpected) {
+		t.Fatalf("mapPoolToBindings (x-k8s group) returned %v, want %v", got, xExpected)
+	}
+}
+
 func TestReconcileWatchPredicateSkipsStatusOnlyUpdates(t *testing.T) {
 	t.Parallel()
 
