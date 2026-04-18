@@ -3,7 +3,7 @@ title: Contributing
 weight: 110
 ---
 
-`kleym` is a Kubernetes operator that compiles inference identity intent into SPIRE Controller Manager resources. The repo is still early, so contributors should prefer small, explicit changes that keep the spec, code, and generated artifacts aligned.
+`kleym` is a Kubernetes operator that compiles inference identity intent into SPIFFE Runtime Environment (SPIRE) Controller Manager resources. The repo is still early, so contributors should prefer small, explicit changes that keep the spec, code, and generated artifacts aligned.
 
 ## Sources Of Truth
 

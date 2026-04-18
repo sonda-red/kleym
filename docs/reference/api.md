@@ -14,6 +14,19 @@ This page records the stable API facts exposed by the current scaffold. Behavior
 
 `InferenceIdentityBinding` expresses identity intent for a single `InferenceObjective` and drives reconciliation of managed `ClusterSPIFFEID` resources.
 
+External Gateway API Inference Extension (GAIE) schema references:
+
+- [`InferenceObjective` (GAIE API)](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/)
+- [`InferencePool` (GAIE API)](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/)
+- [GAIE API types index](https://gateway-api-inference-extension.sigs.k8s.io/api-types/)
+
+External SPIFFE/SPIRE references:
+
+- [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/overview/)
+- [SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/)
+- [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager)
+- [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md)
+
 ## Spec Fields
 
 | Field | Required | Notes |
