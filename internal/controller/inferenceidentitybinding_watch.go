@@ -252,7 +252,7 @@ func (r *InferenceIdentityBindingReconciler) objectiveNamesReferencingPool(
 ) map[string]struct{} {
 	objectiveNames := map[string]struct{}{}
 
-	for _, gvk := range inferenceObjectiveGVKs {
+	for _, gvk := range r.watchObjectiveGVKs() {
 		list := &unstructured.UnstructuredList{}
 		list.SetGroupVersionKind(gvk.GroupVersion().WithKind(gvk.Kind + "List"))
 		if err := r.List(ctx, list, client.InNamespace(namespace)); err != nil {

@@ -35,7 +35,7 @@ func (r *InferenceIdentityBindingReconciler) resolveInferenceObjective(
 	objective, crdMissing, err := r.resolveByCandidates(
 		ctx,
 		types.NamespacedName{Namespace: namespace, Name: name},
-		inferenceObjectiveGVKs,
+		r.resolveObjectiveGVKs(),
 	)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func (r *InferenceIdentityBindingReconciler) resolveInferencePool(
 	ctx context.Context,
 	poolRef inferencePoolRef,
 ) (*unstructured.Unstructured, error) {
-	poolCandidates := candidatePoolGVKs(poolRef.Group)
+	poolCandidates := candidatePoolGVKs(r.resolvePoolGVKs(), poolRef.Group)
 	pool, crdMissing, err := r.resolveByCandidates(
 		ctx,
 		types.NamespacedName{Namespace: poolRef.Namespace, Name: poolRef.Name},
@@ -168,13 +168,13 @@ func extractPoolRef(objective *unstructured.Unstructured, defaultNamespace strin
 	}, nil
 }
 
-func candidatePoolGVKs(group string) []schema.GroupVersionKind {
+func candidatePoolGVKs(candidates []schema.GroupVersionKind, group string) []schema.GroupVersionKind {
 	if group == "" {
-		return inferencePoolGVKs
+		return candidates
 	}
 
-	filtered := make([]schema.GroupVersionKind, 0, len(inferencePoolGVKs))
-	for _, gvk := range inferencePoolGVKs {
+	filtered := make([]schema.GroupVersionKind, 0, len(candidates))
+	for _, gvk := range candidates {
 		if gvk.Group == group {
 			filtered = append(filtered, gvk)
 		}
