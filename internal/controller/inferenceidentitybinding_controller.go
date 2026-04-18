@@ -17,8 +17,10 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -81,8 +83,10 @@ var (
 // InferenceIdentityBindingReconciler reconciles a InferenceIdentityBinding object
 type InferenceIdentityBindingReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Scheme                 *runtime.Scheme
+	Recorder               record.EventRecorder
+	availableObjectiveGVKs []schema.GroupVersionKind
+	availablePoolGVKs      []schema.GroupVersionKind
 }
 
 // +kubebuilder:rbac:groups=kleym.sonda.red,resources=inferenceidentitybindings,verbs=get;list;watch;create;update;patch;delete
@@ -188,6 +192,8 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	setupLogger := logf.Log.WithName("setup").WithName("inferenceidentitybinding")
+
 	//nolint:staticcheck // We intentionally use the legacy recorder interface required by this reconciler.
 	r.Recorder = mgr.GetEventRecorderFor("inferenceidentitybinding-controller")
 
@@ -195,12 +201,47 @@ func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) 
 		return err
 	}
 
+	availableObjectiveGVKs, err := filterAvailableGVKs(
+		mgr.GetRESTMapper(),
+		inferenceObjectiveGVKs,
+		setupLogger.WithValues("resourceKind", "InferenceObjective"),
+	)
+	if err != nil {
+		return err
+	}
+
+	availablePoolGVKs, err := filterAvailableGVKs(
+		mgr.GetRESTMapper(),
+		inferencePoolGVKs,
+		setupLogger.WithValues("resourceKind", "InferencePool"),
+	)
+	if err != nil {
+		return err
+	}
+
+	if len(availableObjectiveGVKs) == 0 && len(availablePoolGVKs) == 0 {
+		return fmt.Errorf(
+			"no supported GAIE GVKs are available: objective candidates=%v, pool candidates=%v",
+			inferenceObjectiveGVKs,
+			inferencePoolGVKs,
+		)
+	}
+
+	r.availableObjectiveGVKs = append(
+		make([]schema.GroupVersionKind, 0, len(availableObjectiveGVKs)),
+		availableObjectiveGVKs...,
+	)
+	r.availablePoolGVKs = append(
+		make([]schema.GroupVersionKind, 0, len(availablePoolGVKs)),
+		availablePoolGVKs...,
+	)
+
 	watchPredicate := reconcileWatchPredicate()
 	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
 		For(&kleymv1alpha1.InferenceIdentityBinding{}, builder.WithPredicates(watchPredicate)).
 		Named("inferenceidentitybinding")
 
-	for _, gvk := range inferenceObjectiveGVKs {
+	for _, gvk := range availableObjectiveGVKs {
 		objective := &unstructured.Unstructured{}
 		objective.SetGroupVersionKind(gvk)
 		controllerBuilder = controllerBuilder.Watches(
@@ -210,7 +251,7 @@ func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) 
 		)
 	}
 
-	for _, gvk := range inferencePoolGVKs {
+	for _, gvk := range availablePoolGVKs {
 		pool := &unstructured.Unstructured{}
 		pool.SetGroupVersionKind(gvk)
 		controllerBuilder = controllerBuilder.Watches(
@@ -221,6 +262,25 @@ func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) 
 	}
 
 	return controllerBuilder.Complete(r)
+}
+
+func filterAvailableGVKs(
+	mapper meta.RESTMapper,
+	candidates []schema.GroupVersionKind,
+	logger logr.Logger,
+) ([]schema.GroupVersionKind, error) {
+	available := make([]schema.GroupVersionKind, 0, len(candidates))
+	for _, gvk := range candidates {
+		if _, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version); err != nil {
+			if meta.IsNoMatchError(err) {
+				logger.Info("skipping unavailable GVK", "gvk", gvk.String())
+				continue
+			}
+			return nil, fmt.Errorf("resolve REST mapping for %s: %w", gvk.String(), err)
+		}
+		available = append(available, gvk)
+	}
+	return available, nil
 }
 func (r *InferenceIdentityBindingReconciler) reconcileDelete(
 	ctx context.Context,
