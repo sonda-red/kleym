@@ -55,6 +55,15 @@ kubectl get crd clusterspiffeids.spire.spiffe.io
 
 If your cluster uses the alternate GAIE API group version supported by the controller, confirm those CRDs are installed instead.
 
+Reference docs:
+
+- [`InferenceObjective` API type](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/)
+- [`InferencePool` API type](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/)
+- [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/overview/)
+- [SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/)
+- [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager)
+- [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md)
+
 When a CRD is missing, the reconciler keeps retrying automatically on a timer, so it can recover after installation without waiting for unrelated watch events.
 
 ## Collision Triage

@@ -5,7 +5,9 @@ weight: 20
 
 This example shows the current `PerObjective` path, including the container discriminator that keeps one objective identity tied to one container selection.
 
-As in the other examples, the GAIE snippets focus on the fields `kleym` currently consumes. Your cluster may require additional GAIE fields.
+As in the other examples, the Gateway API Inference Extension (GAIE) snippets focus on the fields `kleym` currently consumes. Your cluster may require additional GAIE fields.
+For full GAIE schema details, see [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/).
+Reference docs: [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/overview/), [SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/), and [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md).
 
 ## Input
 

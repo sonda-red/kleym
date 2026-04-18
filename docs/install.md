@@ -11,10 +11,14 @@ This page covers the practical commands for running `kleym`, deploying it, testi
 - Docker
 - `kubectl`
 - Access to a Kubernetes cluster
+- Gateway API Inference Extension (GAIE) CRDs for [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/)
+- SPIFFE Runtime Environment (SPIRE) Controller Manager with the [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md)
 - `kind` for `make test-e2e`
 - Hugo Extended `0.146+` for docs preview/build
 
 The repository bootstraps local tool binaries under `bin/` through `make` targets, so you do not need to install `controller-gen`, `kustomize`, `setup-envtest`, or `golangci-lint` globally.
+
+For identity-system background, see [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/overview/) and [SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/).
 
 ## Run Locally
 

@@ -5,12 +5,14 @@ weight: 10
 
 This example shows the simplest `PoolOnly` flow.
 
-`kleym` currently consumes only a small slice of the referenced GAIE objects:
+`kleym` currently consumes only a small slice of the referenced Gateway API Inference Extension (GAIE) objects:
 
 - from the objective: `spec.poolRef`
 - from the pool: `spec.selector`
 
 Your installed GAIE version may require additional fields on those objects. The snippets below focus on the fields that matter to `kleym`.
+For full GAIE schema details, see [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/).
+Reference docs: [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/overview/), [SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/), and [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md).
 
 ## Input
 

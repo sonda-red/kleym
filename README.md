@@ -4,6 +4,66 @@
 
 `kleym` is an identity registration compiler. It does not deploy inference workloads, route inference traffic, or evaluate request policy.
 
+## Reconcile Flow
+
+```mermaid
+---
+config:
+  layout: elk
+---
+flowchart TD
+    B["InferenceIdentityBinding"]
+
+    subgraph GAIE["GAIE Inputs"]
+        O["InferenceObjective"]
+        P["InferencePool"]
+    end
+
+    subgraph Reconcile["kleym Reconcile"]
+        D1{"Deleted?"}
+        D1Y["Clean up ClusterSPIFFEIDs\nRemove finalizer"]
+        F["Ensure finalizer"]
+        RESOLVE["Resolve targetRef → Objective\nExtract and resolve poolRef → Pool"]
+        RENDER["Derive selectors from pool\nAdd container discriminator (PerObjective)\nValidate safety selectors\nRender SPIFFE ID"]
+        COL{"Collision?"}
+        COLY["Set Conflict status\nClean up ClusterSPIFFEIDs"]
+        APPLY["Reconcile ClusterSPIFFEID"]
+        STATUS["Patch status + emit events"]
+    end
+
+    subgraph SPIRE["SPIRE Stack"]
+        CS["ClusterSPIFFEID"]
+        SCM["SPIRE Controller Manager"]
+        SR["SPIRE registration entries"]
+    end
+
+    B --> D1
+    D1 -->|yes| D1Y
+    D1 -->|no| F --> RESOLVE
+    O & P --> RESOLVE
+    RESOLVE --> RENDER --> COL
+    COL -->|yes| COLY --> STATUS
+    COL -->|no| APPLY --> STATUS
+    APPLY --> CS --> SCM --> SR
+    STATUS --> B
+
+    classDef binding fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d,stroke-width:1.4px
+    classDef gaie fill:#fff7ed,stroke:#c2410c,color:#7c2d12,stroke-width:1.2px
+    classDef controller fill:#f1f5f9,stroke:#475569,color:#0f172a,stroke-width:1.2px
+    classDef gate fill:#e2e8f0,stroke:#334155,color:#0f172a,stroke-width:1.2px
+    classDef status fill:#dcfce7,stroke:#15803d,color:#14532d,stroke-width:1.2px
+    classDef warning fill:#fee2e2,stroke:#dc2626,color:#7f1d1d,stroke-width:1.2px,stroke-dasharray:4 2
+    classDef spire fill:#eff6ff,stroke:#1d4ed8,color:#1e3a8a,stroke-width:1.2px
+
+    class B binding
+    class O,P gaie
+    class D1,COL gate
+    class D1Y,F,RESOLVE,RENDER,APPLY controller
+    class STATUS status
+    class COLY warning
+    class CS,SCM,SR spire
+```
+
 ## Quickstart
 
 Prerequisites:

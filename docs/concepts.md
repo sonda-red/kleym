@@ -3,7 +3,18 @@ title: Concepts
 weight: 10
 ---
 
-The [spec](spec) remains the authoritative contract.
+This page covers the main ideas behind `kleym`: the external resources it depends on, the intent object it owns, identity modes, container discrimination, and selector safety. The [spec](spec) remains the authoritative contract.
+
+## Gateway API Inference Extension (GAIE) Resources `kleym` Depends On
+
+`kleym` intentionally reads only a narrow part of Gateway API Inference Extension (GAIE), but those objects are external dependencies and define the source of truth for intent.
+
+- [`InferenceObjective` (GAIE API type)](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/): model-level serving intent. `kleym` resolves the objective named by `spec.targetRef.name` and reads its `spec.poolRef`.
+- [`InferencePool` (GAIE API type)](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/): serving pool intent. `kleym` resolves the objective's `poolRef` and derives selector input from `spec.selector`.
+- [GAIE API types index](https://gateway-api-inference-extension.sigs.k8s.io/api-types/): canonical reference for GAIE resource schemas and status fields.
+- [GAIE GA migration guide](https://gateway-api-inference-extension.sigs.k8s.io/guides/ga-migration/): background on migration from `InferenceModel` to `InferenceObjective`.
+
+`kleym` supports GAIE objects from both `inference.networking.k8s.io/v1` and `inference.networking.x-k8s.io/v1alpha2`. See [reference/api](reference/api) for the current supported GVK list.
 
 ## What `InferenceIdentityBinding` Is
 
@@ -72,6 +83,8 @@ It does not:
 - issue certificates itself
 
 SPIRE and SPIRE Controller Manager remain responsible for issuing identities. `kleym` only determines which identities should exist and which workloads they should target.
+
+Reference docs: [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/overview/), [SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/), and [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager).
 
 ## See Also
 

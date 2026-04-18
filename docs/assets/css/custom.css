@@ -9,6 +9,10 @@
   border-radius: 0.5rem;
 }
 
+.mermaid {
+  overflow-x: auto;
+}
+
 .kleym-about-mark {
   margin: 0 0 1.5rem;
 }
