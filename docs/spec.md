@@ -34,11 +34,15 @@ Inference stacks can be deployed reliably, but identity registration remains man
 
 ## Preferred Inference Signal
 
-GAIE v1 objects are the primary signal.
+GAIE objects are the primary signal.
 
 1. [`InferenceObjective`][gaie-inferenceobjective] is the primary model level object and references an [`InferencePool`][gaie-inferencepool] via `poolRef`.
 2. [`InferencePool`][gaie-inferencepool] defines the serving pod pool for inference traffic.
 3. [`InferenceModel`][gaie-inferencemodel-legacy] is treated as legacy.
+4. At startup, `kleym` discovers which supported GAIE GVKs are served by the cluster and watches only that subset.
+   - `GVK` means `GroupVersionKind` (`<api-group>/<version>, Kind=<kind>`), for example:
+     - `inference.networking.x-k8s.io/v1alpha2, Kind=InferenceObjective`
+     - `inference.networking.k8s.io/v1, Kind=InferencePool`
 
 ## Identity Model
 
@@ -60,8 +64,12 @@ Some downstream consumers and sidecars behave as single identity consumers. Mult
 
 External CRDs consumed
 
-1. GAIE [`InferencePool`][gaie-inferencepool]
-2. GAIE v1 [`InferenceObjective`][gaie-inferenceobjective]
+Compatibility matrix for GAIE inputs (by GVK):
+
+1. `inference.networking.k8s.io/v1, Kind=InferencePool` (preferred).
+2. `inference.networking.x-k8s.io/v1alpha2, Kind=InferencePool` (compatible).
+3. `inference.networking.x-k8s.io/v1alpha2, Kind=InferenceObjective` (currently required in most released GAIE versions).
+4. `inference.networking.k8s.io/v1, Kind=InferenceObjective` (compatible when present).
 
 `kleym` CRD
 
@@ -87,14 +95,17 @@ External CRDs consumed
 
 ## Controller Behavior
 
-1. Watch `InferenceIdentityBinding`, [`InferenceObjective`][gaie-inferenceobjective], and [`InferencePool`][gaie-inferencepool].
-2. Resolve `targetRef` to [`InferenceObjective`][gaie-inferenceobjective], then resolve `poolRef` to [`InferencePool`][gaie-inferencepool].
-3. Derive pod selection from [`InferencePool`][gaie-inferencepool], then intersect with the mandatory safety selectors (namespace and service account) and, in `PerObjective` mode, the container discriminator.
-4. Detect identity collisions: if two `InferenceIdentityBinding` resources in `PerObjective` mode would match the same pod set and the same `container-name` value, set the `Conflict` condition with reason `IdentityCollision` on both resources and refuse to reconcile either until the collision is resolved.
-5. Reconcile one or more [`ClusterSPIFFEID`][clusterspiffeid] resources in `spire.spiffe.io` using the computed SPIFFE IDs and validated selectors.
-6. Update status and emit events for conflicts, unsafe selection, identity collisions, and render failures.
-7. Treat infrastructure-not-ready states such as missing required CRDs as transient by retrying reconciliation on a timer so recovery does not depend on unrelated watch events.
-8. On `InferenceIdentityBinding` deletion, remove managed [`ClusterSPIFFEID`][clusterspiffeid] children first and keep the binding finalizer until a follow-up list confirms no managed children remain.
+1. Discover supported GAIE objective and pool GVKs served by the cluster (`GVK = GroupVersionKind`); watch only discovered GVKs.
+   - Startup fails only when none of the supported GAIE objective/pool GVKs are available.
+2. Watch `InferenceIdentityBinding`, plus discovered [`InferenceObjective`][gaie-inferenceobjective] and discovered [`InferencePool`][gaie-inferencepool] GVKs.
+   - Example: if the cluster serves only `InferenceObjective` in `inference.networking.x-k8s.io/v1alpha2`, `kleym` watches that GVK and skips `inference.networking.k8s.io/v1` objective.
+3. Resolve `targetRef` to [`InferenceObjective`][gaie-inferenceobjective], then resolve `poolRef` to [`InferencePool`][gaie-inferencepool].
+4. Derive pod selection from [`InferencePool`][gaie-inferencepool], then intersect with the mandatory safety selectors (namespace and service account) and, in `PerObjective` mode, the container discriminator.
+5. Detect identity collisions: if two `InferenceIdentityBinding` resources in `PerObjective` mode would match the same pod set and the same `container-name` value, set the `Conflict` condition with reason `IdentityCollision` on both resources and refuse to reconcile either until the collision is resolved.
+6. Reconcile one or more [`ClusterSPIFFEID`][clusterspiffeid] resources in `spire.spiffe.io` using the computed SPIFFE IDs and validated selectors.
+7. Update status and emit events for conflicts, unsafe selection, identity collisions, and render failures.
+8. Treat infrastructure-not-ready states such as missing required CRDs as transient by retrying reconciliation on a timer so recovery does not depend on unrelated watch events.
+9. On `InferenceIdentityBinding` deletion, remove managed [`ClusterSPIFFEID`][clusterspiffeid] children first and keep the binding finalizer until a follow-up list confirms no managed children remain.
 
 ## Multi Tenant Safety
 
