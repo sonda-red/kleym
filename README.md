@@ -37,6 +37,7 @@ make lint
 ## Documentation
 
 Docs live under [`docs/`](docs/).
+Published docs: <https://kleym.sonda.red>.
 
 - Overview:
   - [`docs/_index.md`](docs/_index.md): landing page
