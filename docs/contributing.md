@@ -10,7 +10,7 @@ weight: 110
 - [`spec.md`](spec) is the authoritative product and API behavior document.
 - `README.md` is the project entry point and quickstart.
 - `AGENTS.md` is the minimal repository contract for coding agents.
-- `SEMANTIC_VERSIONING.md` describes release automation and commit conventions.
+- `RELEASING.md` describes the tag-based release procedure.
 
 If code and docs disagree, fix the disagreement instead of silently choosing one.
 
@@ -144,6 +144,6 @@ Docs-related pull requests and pushes to `main` run a dedicated docs workflow th
 ## CI And Releases
 
 - CI workflows run on GitHub-hosted runners (`ubuntu-latest`) and must not depend on local or self-hosted infrastructure.
-- `.github/workflows/build-and-push.yml` runs separate `Lint` and `Test` jobs and builds container images for eligible refs only after both pass
-- `.github/workflows/release.yml` runs `semantic-release` only after a successful `CI` workflow run on `main`
-- Follow Conventional Commits. See `SEMANTIC_VERSIONING.md` for the expected format and versioning rules
+- `.github/workflows/ci.yml` runs separate `Lint` and `Test` jobs on pull requests and pushes to `main`
+- `.github/workflows/release.yml` runs on `v*` tag pushes, verifies the tag is on `main`, builds artifacts and images, and creates a GitHub Release
+- Follow Conventional Commits for PR titles. See `RELEASING.md` for the tag-based release procedure

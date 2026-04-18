@@ -160,6 +160,12 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && "$(KUSTOMIZE)" edit set image controller=${IMG}
 	"$(KUSTOMIZE)" build config/default > dist/install.yaml
 
+VERSION ?= latest
+.PHONY: release-artifacts
+release-artifacts: kustomize ## Build install.yaml and CRD bundle for a release.
+	$(MAKE) build-installer IMG=ghcr.io/sonda-red/kleym:$(VERSION)
+	"$(KUSTOMIZE)" build config/crd > dist/kleym-crds.yaml
+
 ##@ Deployment
 
 ifndef ignore-not-found

@@ -26,9 +26,8 @@ Use these rules whenever you generate commit messages or pull request titles for
 
 ## Release Semantics
 
-- `feat` triggers a **minor** release.
-- `fix`, `perf`, `refactor`, and `revert` trigger a **patch** release.
-- `docs`, `style`, `test`, `build`, `ci`, and `chore` trigger **no release**.
+- Versions are created by pushing annotated `vX.Y.Z` tags, not by commit analysis.
+- Conventional PR titles are used for GitHub auto-generated release notes, not for version calculation.
 - Breaking changes must include a `BREAKING CHANGE:` footer and should use `!` in the header when appropriate.
 
 ## Preferred Scopes
@@ -44,8 +43,7 @@ Use these when they match the change:
 
 These rules must stay aligned with:
 
-- [`SEMANTIC_VERSIONING.md`](../SEMANTIC_VERSIONING.md)
-- [`.releaserc.json`](../.releaserc.json)
+- [`RELEASING.md`](../RELEASING.md)
 
 ## Pull Request Descriptions
 
