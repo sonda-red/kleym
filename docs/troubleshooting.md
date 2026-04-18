@@ -45,15 +45,40 @@ If reconciliation fails, `Ready=False` and the triggering condition becomes `Tru
 
 `kleym` depends on external CRDs as inputs and outputs.
 
+`GVK` means `GroupVersionKind` (`<api-group>/<version>, Kind=<kind>`). In this context:
+
+- `inference.networking.x-k8s.io/v1alpha2, Kind=InferenceObjective`
+- `inference.networking.k8s.io/v1, Kind=InferenceObjective`
+- `inference.networking.k8s.io/v1, Kind=InferencePool`
+- `inference.networking.x-k8s.io/v1alpha2, Kind=InferencePool`
+
 Check for:
 
 ```sh
 kubectl get crd inferenceobjectives.inference.networking.k8s.io
+kubectl get crd inferenceobjectives.inference.networking.x-k8s.io
 kubectl get crd inferencepools.inference.networking.k8s.io
+kubectl get crd inferencepools.inference.networking.x-k8s.io
 kubectl get crd clusterspiffeids.spire.spiffe.io
 ```
 
 If your cluster uses the alternate GAIE API group version supported by the controller, confirm those CRDs are installed instead.
+
+During startup, `kleym` discovers supported GAIE GVKs and logs a warning for each unavailable one:
+
+```text
+... skipping unavailable GVK ...
+```
+
+These warnings are expected when your cluster intentionally serves only part of the compatibility matrix.
+Example: cluster has `InferenceObjective` only in `inference.networking.x-k8s.io/v1alpha2`, so startup logs a skip warning for `inference.networking.k8s.io/v1, Kind=InferenceObjective`.
+
+You can confirm what is actually served via:
+
+```sh
+kubectl api-resources --api-group=inference.networking.x-k8s.io
+kubectl api-resources --api-group=inference.networking.k8s.io
+```
 
 Reference docs:
 
@@ -65,6 +90,7 @@ Reference docs:
 - [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md)
 
 When a CRD is missing, the reconciler keeps retrying automatically on a timer, so it can recover after installation without waiting for unrelated watch events.
+If you install a newly supported GAIE CRD after `kleym` has already started, restart the controller so startup-time GVK discovery can register the new watches.
 
 ## Collision Triage
 
