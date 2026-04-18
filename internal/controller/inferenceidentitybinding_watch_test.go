@@ -97,6 +97,49 @@ func TestReconcileWatchPredicateSkipsStatusOnlyUpdates(t *testing.T) {
 	}
 }
 
+func TestReconcileWatchPredicateSkipsControllerStatusPatchEventShape(t *testing.T) {
+	t.Parallel()
+
+	predicate := reconcileWatchPredicate()
+	oldBinding := newPerObjectiveBinding("binding-a", "objective-a")
+	oldBinding.Generation = 7
+	oldBinding.ResourceVersion = "10"
+	oldBinding.UID = types.UID("11111111-1111-1111-1111-111111111111")
+
+	statusPatched := oldBinding.DeepCopy()
+	statusPatched.ResourceVersion = "11"
+	statusPatched.ManagedFields = []metav1.ManagedFieldsEntry{
+		{
+			Manager:     "inferenceidentitybinding-controller",
+			Operation:   metav1.ManagedFieldsOperationUpdate,
+			APIVersion:  kleymv1alpha1.GroupVersion.String(),
+			Subresource: "status",
+		},
+	}
+	statusPatched.Status.ComputedSpiffeIDs = []kleymv1alpha1.ComputedSpiffeIDStatus{
+		{
+			Mode:     kleymv1alpha1.InferenceIdentityBindingModePerObjective,
+			SpiffeID: "spiffe://kleym.sonda.red/ns/default/obj/objective-a",
+		},
+	}
+	statusPatched.Status.Conditions = []metav1.Condition{
+		{
+			Type:               conditionTypeReady,
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: oldBinding.Generation,
+			Reason:             "Reconciled",
+			Message:            "Binding reconciled",
+		},
+	}
+
+	if predicate.Update(event.UpdateEvent{
+		ObjectOld: oldBinding,
+		ObjectNew: statusPatched,
+	}) {
+		t.Fatalf("controller status patch update should not pass predicate")
+	}
+}
+
 func newObjectiveWithPool(name, poolName, poolGroup string) *unstructured.Unstructured {
 	poolRef := map[string]any{
 		"name": poolName,

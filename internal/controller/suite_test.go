@@ -26,6 +26,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,12 +65,22 @@ var _ = BeforeSuite(func() {
 	var err error
 	err = kleymv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
+	registerEnvtestUnstructuredGVK(scheme.Scheme, clusterSPIFFEIDGVK)
+	for _, gvk := range inferenceObjectiveGVKs {
+		registerEnvtestUnstructuredGVK(scheme.Scheme, gvk)
+	}
+	for _, gvk := range inferencePoolGVKs {
+		registerEnvtestUnstructuredGVK(scheme.Scheme, gvk)
+	}
 
 	// +kubebuilder:scaffold:scheme
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "config", "crd", "bases"),
+			filepath.Join("testdata", "crds"),
+		},
 		ErrorIfCRDPathMissing: true,
 	}
 
@@ -121,4 +134,9 @@ func getFirstFoundEnvTestBinaryDir() string {
 		}
 	}
 	return ""
+}
+
+func registerEnvtestUnstructuredGVK(s *runtime.Scheme, gvk schema.GroupVersionKind) {
+	s.AddKnownTypeWithName(gvk, &unstructured.Unstructured{})
+	s.AddKnownTypeWithName(gvk.GroupVersion().WithKind(gvk.Kind+"List"), &unstructured.UnstructuredList{})
 }
