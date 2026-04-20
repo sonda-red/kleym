@@ -17,6 +17,8 @@ For each `PerObjective` reconciliation, the controller builds a targeted candida
 - plus previously colliding peers when the current binding is already in `Conflict=True`
 - with a safe fallback to all `PerObjective` bindings if peer recovery data is unavailable
 
+The candidate lookup uses field indexes when available. If an index is not available (for example during envtest bootstrap before index registration, or in partial startup states), the controller falls back to listing bindings in the namespace and filtering in memory.
+
 It then renders identities for that candidate set and computes a collision fingerprint from:
 
 - the normalized pool-derived pod selector
@@ -25,6 +27,8 @@ It then renders identities for that candidate set and computes a collision finge
 - `containerDiscriminator.value`
 
 Bindings with the same fingerprint are treated as colliding.
+
+To recover peer bindings across reconciliations, the controller stores peer names in the `Conflict` condition message. This avoids introducing an API status field dedicated to a rare collision path while still allowing deterministic peer recovery. If the message cannot be parsed, the controller falls back to scanning all `PerObjective` bindings in the namespace.
 
 ## Current Outcome
 
