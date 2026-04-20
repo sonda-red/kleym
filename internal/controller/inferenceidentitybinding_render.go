@@ -30,6 +30,17 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
+const (
+	// maxDNSLabelLength is the maximum length of a single DNS label per RFC 1123.
+	// ClusterSPIFFEID names must fit within this limit.
+	maxDNSLabelLength = 63
+
+	// nameHashBytes is the number of SHA1 hash bytes used in the ClusterSPIFFEID
+	// name suffix. 4 bytes = 8 hex chars, which keeps names short while making
+	// accidental collisions unlikely when the base name is truncated.
+	nameHashBytes = 4
+)
+
 func (r *InferenceIdentityBindingReconciler) renderIdentity(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	objective *unstructured.Unstructured,
@@ -153,6 +164,21 @@ func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
 	return r.renderIdentity(binding, objective, pool)
 }
 
+// deriveSelectorsFromPool extracts pod-level selectors from an InferencePool.
+//
+// GAIE pools use spec.selector with matchLabels (map[string]string). When read
+// through the unstructured API, the shape may vary by API version: some versions
+// nest labels under matchLabels, others use a flat map. This function handles
+// both: it checks for matchLabels first, then falls back to treating the entire
+// selector map as flat labels if all values are strings.
+//
+// matchExpressions are detected and rejected — kleym only supports matchLabels
+// for deterministic selector rendering.
+//
+// The returned selectors use the SPIRE Kubernetes Workload Attestor format:
+// "k8s:pod-label:<key>:<value>".
+//
+// See docs/design/selector-safety.md for the safety model.
 func deriveSelectorsFromPool(pool *unstructured.Unstructured) (map[string]any, []string, error) {
 	selectorMap, found, err := unstructured.NestedMap(pool.Object, "spec", "selector")
 	if err != nil {
@@ -238,6 +264,17 @@ func selectorForContainerDiscriminator(discriminator *kleymv1alpha1.ContainerDis
 	}
 }
 
+// validateSafetySelectors enforces that the rendered selector set includes the
+// two mandatory SPIRE Kubernetes Workload Attestor selectors:
+//
+//   - k8s:ns:<namespace>  — binds the identity to a specific namespace.
+//     Without this, a ClusterSPIFFEID could match pods in other namespaces,
+//     allowing identity escape across tenant boundaries.
+//   - k8s:sa:<service-account> — binds the identity to a specific service account.
+//     Without this, any pod in the namespace could receive the identity.
+//
+// These are SPIRE workload selector types documented at:
+// https://github.com/spiffe/spire/blob/main/doc/plugin_agent_workloadattestor_k8s.md
 func validateSafetySelectors(namespace string, selectors []string) error {
 	hasNamespaceSelector := false
 	hasServiceAccountSelector := false
@@ -307,6 +344,17 @@ func renderTemplate(kind, name, source string, data renderTemplateData) (string,
 	return value, nil
 }
 
+// buildClusterSPIFFEIDName produces a deterministic, DNS-label-safe name for a
+// ClusterSPIFFEID resource.
+//
+// Format: <base>-<mode>-<hash>
+//
+//   - base: sanitized "kleym-<namespace>-<bindingName>", truncated to fit.
+//   - mode: "pool" or "objective" — ensures PoolOnly and PerObjective names
+//     never collide even for the same binding.
+//   - hash: first nameHashBytes (4) bytes of SHA1(spiffeID), hex-encoded.
+//     This suffix keeps names unique when the base is truncated due to the
+//     maxDNSLabelLength (63 char) limit per RFC 1123.
 func buildClusterSPIFFEIDName(
 	namespace string,
 	bindingName string,
@@ -319,10 +367,11 @@ func buildClusterSPIFFEIDName(
 	}
 
 	hashSum := sha1.Sum([]byte(spiffeID))
-	hashSuffix := hex.EncodeToString(hashSum[:4])
+	hashSuffix := hex.EncodeToString(hashSum[:nameHashBytes])
 	base := sanitizeDNSLabel(fmt.Sprintf("%s-%s-%s", defaultNameValue, namespace, bindingName))
 
-	maxBaseLen := 63 - len(modeText) - len(hashSuffix) - 2
+	// Reserve space for the mode text, hash suffix, and two hyphens.
+	maxBaseLen := maxDNSLabelLength - len(modeText) - len(hashSuffix) - 2
 	if maxBaseLen < 1 {
 		maxBaseLen = 1
 	}
@@ -336,6 +385,11 @@ func buildClusterSPIFFEIDName(
 	return fmt.Sprintf("%s-%s-%s", base, modeText, hashSuffix)
 }
 
+// sanitizeDNSLabel converts an arbitrary string into a valid DNS label.
+// DNS labels (RFC 952, RFC 1123) must contain only lowercase alphanumeric
+// characters and hyphens, must not start or end with a hyphen, and must not
+// contain consecutive hyphens. The lastHyphen flag below prevents runs of
+// hyphens that would make the label invalid.
 func sanitizeDNSLabel(input string) string {
 	lower := strings.ToLower(strings.TrimSpace(input))
 	if lower == "" {

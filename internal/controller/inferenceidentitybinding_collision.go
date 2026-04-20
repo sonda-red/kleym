@@ -31,6 +31,21 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
+// computePerObjectiveCollisionSet detects identity collisions between PerObjective bindings.
+//
+// Two bindings collide when they produce identical (podSelector, selectors,
+// containerDiscriminatorType, containerDiscriminatorValue) tuples — meaning
+// SPIRE would assign the same identity to the same container twice.
+//
+// Algorithm:
+//  1. Gather candidate bindings that could collide with the current one.
+//  2. Compute a JSON fingerprint for each candidate's rendered identity.
+//  3. Group candidates by fingerprint — groups with 2+ members are collisions.
+//  4. Mark every member of a collision group; the controller will set the
+//     Conflict condition on all of them and block ClusterSPIFFEID reconciliation
+//     until the collision is resolved (e.g. by changing a container discriminator).
+//
+// See docs/design/collision-detection.md for the full design.
 func (r *InferenceIdentityBindingReconciler) computePerObjectiveCollisionSet(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
@@ -138,6 +153,19 @@ func (r *InferenceIdentityBindingReconciler) computePerObjectiveCollisionSet(
 	return collisionSet, nil
 }
 
+// listCollisionCandidateBindings assembles the set of bindings that could
+// collide with the current binding.
+//
+// It uses two strategies to keep the candidate set small:
+//  1. If the current binding is PerObjective, look up bindings with the same
+//     container discriminator key using a field index (fast, narrow).
+//  2. If the current binding was previously colliding, look up the named peers
+//     from the Conflict condition message. If no peer names are available
+//     (message format mismatch or condition cleared externally), fall back to
+//     listing all PerObjective bindings in the namespace.
+//
+// The results are deduplicated by namespace/name and sorted for deterministic
+// reconciliation order.
 func (r *InferenceIdentityBindingReconciler) listCollisionCandidateBindings(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
@@ -216,6 +244,11 @@ func (r *InferenceIdentityBindingReconciler) listCollisionCandidateBindings(
 	return candidates, nil
 }
 
+// listBindingsByField looks up bindings using a controller-runtime field index.
+// Field indexes allow efficient lookups without a full namespace scan. If the
+// index is not available (e.g. during envtest bootstrap before indexes are
+// registered, or during partial CRD installation), the lookup falls back to
+// listing all bindings in the namespace and filtering in memory.
 func (r *InferenceIdentityBindingReconciler) listBindingsByField(
 	ctx context.Context,
 	namespace string,
@@ -296,6 +329,16 @@ func isFieldLookupUnsupported(err error) bool {
 		strings.Contains(errText, "field label not supported")
 }
 
+// collisionPeerBindingNames extracts peer binding names from the Conflict
+// condition message.
+//
+// Peer names are encoded in the condition message text rather than in a
+// dedicated status field. This is a deliberate trade-off: a structured
+// status.collisionPeers field would require an API type change, CRD
+// regeneration, and migration logic for a condition that is rare in practice.
+// The message-based approach is self-healing — if the message format is
+// unrecognizable, the caller falls back to scanning all PerObjective bindings
+// in the namespace on the next reconcile.
 func collisionPeerBindingNames(conditions []metav1.Condition) []string {
 	conflictCondition := meta.FindStatusCondition(conditions, conditionTypeConflict)
 	if conflictCondition == nil || conflictCondition.Status != metav1.ConditionTrue {
@@ -335,6 +378,10 @@ func collisionPeerBindingNames(conditions []metav1.Condition) []string {
 	return peers
 }
 
+// perObjectiveCollisionFingerprint produces a deterministic string key for a
+// rendered identity. Two identities with the same fingerprint would produce
+// overlapping ClusterSPIFFEID resources targeting the same container, which is
+// unsafe. The key is: podSelector JSON | selectors JSON | discriminator type | discriminator value.
 func perObjectiveCollisionFingerprint(
 	identity renderedIdentity,
 	discriminator *kleymv1alpha1.ContainerDiscriminator,

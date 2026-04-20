@@ -21,6 +21,14 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
+// reconcileStateError bundles a Kubernetes condition type, reason, and message
+// into a single error value. This lets helper functions (resolver, render,
+// collision) return domain-specific errors that the Reconcile() caller can
+// convert directly into the right status condition, without scattering
+// condition-setting logic across multiple files.
+//
+// Any error that is NOT a reconcileStateError is treated as an unexpected
+// failure and returned to the controller-runtime for generic retry.
 type reconcileStateError struct {
 	conditionType string
 	reason        string
@@ -104,6 +112,11 @@ func effectiveMode(mode kleymv1alpha1.InferenceIdentityBindingMode) kleymv1alpha
 	}
 	return mode
 }
+
+// errorsAsStateError is a type-assertion helper that extracts a
+// reconcileStateError from a generic error. It works like errors.As but
+// for a concrete pointer type (not an interface), copying the value into
+// the caller's target so the caller can read conditionType/reason/message.
 func errorsAsStateError(err error, target *reconcileStateError) bool {
 	stateErr, ok := err.(*reconcileStateError)
 	if !ok {
