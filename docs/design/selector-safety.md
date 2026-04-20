@@ -29,6 +29,8 @@ The controller currently accepts only deterministic pool selectors:
 - `spec.selector.matchLabels`
 - or a flat selector map that can be normalized into `matchLabels`
 
+The flat selector form is accepted because GAIE resources are read through `unstructured` objects and schema shape can vary across served versions. Normalizing either shape into `matchLabels` keeps selector rendering deterministic while preserving compatibility.
+
 It rejects:
 
 - empty selectors

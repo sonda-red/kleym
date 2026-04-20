@@ -96,20 +96,39 @@ type InferenceIdentityBindingReconciler struct {
 // +kubebuilder:rbac:groups=inference.networking.x-k8s.io,resources=inferenceobjectives;inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups=spire.spiffe.io,resources=clusterspiffeids,verbs=get;list;watch;create;update;patch;delete
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
+// Reconcile drives the InferenceIdentityBinding toward its desired state.
+//
+// The flow follows five mutually exclusive phases:
+//
+//  1. Fetch — get the binding; exit if not found.
+//  2. Delete — if DeletionTimestamp is set, clean up ClusterSPIFFEIDs and remove the finalizer.
+//  3. Finalizer — if not present, add and requeue (implicit via Update).
+//  4. Compute + validate — resolve references, render identity, detect collisions.
+//     Errors here are either:
+//     - infrastructure-not-ready (CRD missing, transient) → requeue on a timer so recovery
+//     does not depend on an unrelated watch event.
+//     - permanent (invalid ref, unsafe selector) → set condition and stop.
+//  5. Apply — reconcile ClusterSPIFFEID, patch status, emit events.
+//
+// Only one phase runs per invocation. Each phase either returns early or falls
+// through to the next. Status is patched exactly once near the end of each path.
+//
+// See docs/design/reconciliation.md for the full flow diagram.
 func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logf.FromContext(ctx).WithValues("inferenceIdentityBinding", req.NamespacedName)
 
+	// Phase 1: Fetch the binding.
 	binding := &kleymv1alpha1.InferenceIdentityBinding{}
 	if err := r.Get(ctx, req.NamespacedName, binding); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// Phase 2: Handle deletion — clean up children, then remove finalizer.
 	if !binding.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, binding)
 	}
 
+	// Phase 3: Ensure finalizer is present (requeues implicitly via Update).
 	if !controllerutil.ContainsFinalizer(binding, inferenceIdentityBindingFinalizer) {
 		controllerutil.AddFinalizer(binding, inferenceIdentityBindingFinalizer)
 		if err := r.Update(ctx, binding); err != nil {
@@ -117,12 +136,17 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 		}
 	}
 
+	// Phase 4: Compute desired state — resolve objective → pool → identity → collisions.
 	statusBase := binding.DeepCopy()
 	initializeConditions(&binding.Status, binding.Generation)
 	wasColliding := conditionIsTrue(statusBase.Status.Conditions, conditionTypeConflict)
 
 	desiredState, err := r.computeDesiredState(ctx, binding, wasColliding)
 	if err != nil {
+		// reconcileStateError carries condition type + reason + message so we can
+		// set the right status condition from a single error return. Any other
+		// error type is an unexpected failure and is returned to the controller
+		// runtime for generic retry.
 		stateErr := &reconcileStateError{}
 		if !errorsAsStateError(err, stateErr) {
 			return ctrl.Result{}, err
@@ -134,12 +158,16 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 			return ctrl.Result{}, err
 		}
 		r.recordEventf(binding, corev1.EventTypeWarning, stateErr.reason, stateErr.message)
+		// Infrastructure-not-ready (e.g. CRD missing) is transient: requeue on
+		// a timer so recovery does not depend on an unrelated watch event.
+		// Permanent errors (invalid ref, unsafe selector) stop here.
 		if isInfrastructureNotReadyReason(stateErr.reason) {
 			return ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}, nil
 		}
 		return ctrl.Result{}, nil
 	}
 
+	// Phase 5a: Apply collision state — if colliding, block ClusterSPIFFEID reconciliation.
 	collisionResult, err := r.applyCollisionState(ctx, binding, desiredState.perObjectiveCollisionSet, wasColliding)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -159,6 +187,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 		return ctrl.Result{}, nil
 	}
 
+	// Phase 5b: Apply — reconcile ClusterSPIFFEID resources.
 	if err := r.reconcileClusterSPIFFEIDs(ctx, binding, desiredState.identities); err != nil {
 		if meta.IsNoMatchError(err) {
 			stateErr := newStateError(conditionTypeRenderFailure, "ClusterSPIFFEIDCRDMissing", "ClusterSPIFFEID CRD is not installed")

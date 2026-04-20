@@ -33,6 +33,17 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
+// setupFieldIndexes registers three controller-runtime field indexes on
+// InferenceIdentityBinding objects. Field indexes allow efficient lookups
+// (like a database index) without scanning every object in the namespace.
+//
+// Indexes registered:
+//  1. targetRef.name — used by mapObjectiveToBindings and listBindingsReferencingObjective
+//     to find all bindings that reference a given InferenceObjective.
+//  2. effectiveMode — used by listCollisionCandidateBindings to find all
+//     PerObjective bindings when peer names are unavailable.
+//  3. containerDiscriminatorKey — used by listCollisionCandidateBindings to
+//     find bindings with the same container discriminator for collision detection.
 func (r *InferenceIdentityBindingReconciler) setupFieldIndexes(mgr ctrl.Manager) error {
 	indexer := mgr.GetFieldIndexer()
 
@@ -122,6 +133,13 @@ func containerDiscriminatorIndexKey(discriminator *kleymv1alpha1.ContainerDiscri
 	return fmt.Sprintf("%s|%s", discriminator.Type, value)
 }
 
+// reconcileWatchPredicate filters watch events to reduce unnecessary reconciliations.
+// It allows creates and deletes unconditionally, but for updates it only triggers
+// a reconcile when:
+//   - spec.generation changed (meaning the spec was modified), or
+//   - the deletion timestamp changed (object is being deleted).
+//
+// This prevents reconcile storms from status-only updates or metadata changes.
 func reconcileWatchPredicate() predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(event.CreateEvent) bool {
@@ -163,6 +181,18 @@ func (r *InferenceIdentityBindingReconciler) mapObjectiveToBindings(
 	return requestsForBindings(bindings)
 }
 
+// mapPoolToBindings handles the two-hop fanout when an InferencePool changes:
+//
+//	pool change → find objectives that reference this pool
+//	             → find bindings that reference those objectives
+//	             → enqueue those bindings for reconciliation
+//
+// This traversal is necessary because bindings don't reference pools directly;
+// they reference objectives, which in turn reference pools via poolRef. A pool
+// change (e.g. selector update) can affect the rendered identity of any binding
+// that transitively depends on it.
+//
+// Results are deduplicated and sorted for deterministic reconciliation order.
 func (r *InferenceIdentityBindingReconciler) mapPoolToBindings(
 	ctx context.Context,
 	object client.Object,

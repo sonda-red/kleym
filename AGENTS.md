@@ -84,3 +84,24 @@ If you change reconciliation behavior, also check:
 - `make test-e2e` for Kind or cluster behavior, or when explicitly requested.
 
 State in your handoff which GitHub context you checked, or that no relevant GitHub context was available.
+
+## Code Style Constraints
+
+- Prefer simple, readable Go over clever patterns. If a stdlib function exists, use it. Do not introduce generics, functional patterns, or custom iterator types unless the alternative is significantly worse.
+- When using controller-runtime patterns (predicates, field indexes, event mapping, unstructured APIs), add an inline comment explaining what the pattern does in plain language.
+- Use named constants for magic numbers. Document the source (RFC, Kubernetes convention, SPIRE behavior).
+- Keep functions under ~50 lines. If a function exceeds this, add section comments explaining each phase.
+- Do not use `reflect` or type assertions without a comment explaining why the typed alternative is unavailable (e.g. external CRDs not in the Go module).
+
+## Explanation Requirements
+
+- Every new function must have a doc comment that explains WHY it exists, not just WHAT it does. Skip this for trivial helpers where the function name is self-explanatory. Link to `docs/spec.md` or `docs/design/` sections when the rationale is domain-specific.
+- When generating code that uses non-obvious patterns (reflection, unstructured APIs, custom error types, template rendering), add an inline comment explaining the pattern for a reader who knows Go basics but not controller-runtime internals.
+- In PR descriptions and handoff notes, include a "What I changed and why" section that a code owner can review without needing to parse every line of Go.
+
+## Simplicity Preference
+
+- Prefer explicit over implicit. If two approaches are equally correct, choose the one with fewer abstractions.
+- Do not extract helper functions for one-time operations. Inline is fine if it is clear.
+- Do not add error handling for cases that cannot occur given the current API surface. Only validate at system boundaries (user input, external API responses, CRD data).
+- When proposing changes, flag any pattern that would be hard for an intermediate Go developer to understand or modify.
