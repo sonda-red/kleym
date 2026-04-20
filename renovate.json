@@ -4,10 +4,20 @@
     "config:recommended",
     "group:all"
   ],
-  "automerge": true,
-  "platformAutomerge": true,
+  "automerge": false,
+  "platformAutomerge": false,
   "automergeType": "pr",
   "packageRules": [
+    {
+      "description": "Automerge patch and minor updates only",
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "automerge": true,
+      "platformAutomerge": true,
+      "automergeType": "pr"
+    },
     {
       "description": "Go version comes from go.mod via setup-go",
       "matchManagers": [
