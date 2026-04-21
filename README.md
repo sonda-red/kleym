@@ -1,8 +1,86 @@
-# kleym
+<div align="center">
+  <img src="docs/assets/images/sondrd-128.png" alt="Sonda Red logo" width="96" height="96">
+  <h1>kleym</h1>
+  <p><strong>Compile inference identity intent into deterministic SPIFFE identities for Kubernetes.</strong></p>
+  <p>
+    <a href="https://kleym.sonda.red">Documentation</a>
+    ·
+    <a href="docs/spec.md">Spec</a>
+    ·
+    <a href="docs/examples/">Examples</a>
+    ·
+    <a href="docs/contributing.md">Contributing</a>
+  </p>
+</div>
 
-`kleym` is a Kubernetes operator that compiles inference identity intent into deterministic SPIFFE identities and materializes them as SPIRE Controller Manager `ClusterSPIFFEID` resources.
+<p align="center">
+  <a href="https://github.com/sonda-red/kleym/actions/workflows/ci.yml">
+    <img src="https://github.com/sonda-red/kleym/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://github.com/sonda-red/kleym/actions/workflows/docs.yml">
+    <img src="https://github.com/sonda-red/kleym/actions/workflows/docs.yml/badge.svg" alt="Docs">
+  </a>
+  <img src="https://img.shields.io/badge/go-1.25%2B-00ADD8?logo=go&logoColor=white" alt="Go 1.25+">
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-Apache%202.0-black" alt="License: Apache-2.0">
+  </a>
+</p>
+
+`kleym` is a Kubernetes operator for clusters that use the [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/). It reads inference intent from resources such as [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/), then compiles that intent into deterministic SPIFFE identities and materializes them as SPIRE Controller Manager `ClusterSPIFFEID` resources.
+
+## Where kleym fits
+
+- The [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/) describes inference workloads and request objectives in Kubernetes.
+- `kleym` turns that intent into workload identity registrations with tenant-safe selectors.
+- SPIRE Controller Manager applies those registrations so SPIRE can issue identities to the matching workloads.
+
+## Why kleym
+
+- Derives stable SPIFFE identities from Gateway API Inference Extension resources instead of ad hoc labels.
+- Keeps selector rendering tenant-safe by intersecting namespace, service account, pool-derived selectors, and optional container discrimination.
+- Delegates identity issuance and rotation to SPIRE Controller Manager instead of writing SPIRE entries directly.
+
+## Scope boundary
 
 `kleym` is an identity registration compiler. It does not deploy inference workloads, route inference traffic, or evaluate request policy.
+
+## How it works
+
+- `InferenceIdentityBinding` declares identity intent for one `InferenceObjective`.
+- `kleym` resolves that objective and its referenced `InferencePool`.
+- The controller renders deterministic selectors and SPIFFE IDs from those inputs.
+- Managed `ClusterSPIFFEID` resources are reconciled for SPIRE Controller Manager.
+
+## Quickstart
+
+Prerequisites:
+
+- Go `1.25+`
+- Docker
+- `kubectl`
+- Access to a Kubernetes cluster with the Gateway API Inference Extension [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) CRDs
+- SPIRE Controller Manager with the `ClusterSPIFFEID` CRD
+- `kind` for `make test-e2e`
+
+Run the controller locally:
+
+```sh
+make run
+```
+
+Install CRDs and deploy the controller:
+
+```sh
+make install
+make deploy IMG=ghcr.io/sonda-red/kleym:latest
+```
+
+Run validation:
+
+```sh
+make test
+make lint
+```
 
 ## Reconcile Flow
 
@@ -14,7 +92,7 @@ config:
 flowchart TD
     B["InferenceIdentityBinding"]
 
-    subgraph GAIE["GAIE Inputs"]
+    subgraph GAIE["Gateway API Inference Extension Inputs"]
         O["InferenceObjective"]
         P["InferencePool"]
     end
@@ -64,56 +142,22 @@ flowchart TD
     class CS,SCM,SR spire
 ```
 
-## Quickstart
-
-Prerequisites:
-
-- Go `1.25+`
-- Docker
-- `kubectl`
-- Access to a Kubernetes cluster
-- `kind` for `make test-e2e`
-
-Run the controller locally:
-
-```sh
-make run
-```
-
-Install CRDs and deploy the controller:
-
-```sh
-make install
-make deploy IMG=<registry>/kleym:<tag>
-```
-
-Run tests:
-
-```sh
-make test
-make lint
-```
-
 ## Documentation
 
-Docs live under [`docs/`](docs/).
-Published docs: <https://kleym.sonda.red>.
+Docs live under [`docs/`](docs/), with the published site at <https://kleym.sonda.red>.
 
-- Overview:
-  - [`docs/_index.md`](docs/_index.md): landing page
-  - [`docs/concepts.md`](docs/concepts.md): identity model
-  - [`docs/architecture.md`](docs/architecture.md): end-to-end controller flow
-- Use:
-  - [`docs/install.md`](docs/install.md): local run, deploy, and test commands
-  - [`docs/examples/`](docs/examples): concrete manifests and expected outcomes
-  - [`docs/reference/`](docs/reference): stable facts about API surface, conditions, and managed resources
-  - [`docs/troubleshooting.md`](docs/troubleshooting.md): condition-driven debugging and dependency checks
-  - [`docs/versioning.md`](docs/versioning.md): docs version snapshot workflow
-- Design:
-  - [`docs/spec.md`](docs/spec.md): the authoritative behavioral contract
-  - [`docs/design/`](docs/design): internal design notes
-- Development:
-  - [`docs/contributing.md`](docs/contributing.md): contributor workflow and validation expectations
+| Topic | What it covers |
+| --- | --- |
+| [`docs/install.md`](docs/install.md) | Local run, deployment, and test commands |
+| [`docs/concepts.md`](docs/concepts.md) | Identity boundaries, selector safety, and scope |
+| [`docs/architecture.md`](docs/architecture.md) | End-to-end controller flow |
+| [`docs/examples/`](docs/examples/) | Concrete manifests and expected outcomes |
+| [`docs/reference/`](docs/reference/) | API surface, conditions, and managed resources |
+| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Condition-driven debugging and dependency checks |
+| [`docs/versioning.md`](docs/versioning.md) | Docs version snapshot workflow |
+| [`docs/spec.md`](docs/spec.md) | Authoritative product and API behavior |
+| [`docs/design/`](docs/design/) | Internal design notes |
+| [`docs/contributing.md`](docs/contributing.md) | Contributor workflow and validation expectations |
 
 Preview the docs site locally:
 
