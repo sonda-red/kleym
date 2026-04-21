@@ -28,8 +28,6 @@
 
 `kleym` is a Kubernetes operator for clusters that use the [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/). It reads inference intent from resources such as [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/), then compiles that intent into deterministic SPIFFE identities and materializes them as SPIRE Controller Manager `ClusterSPIFFEID` resources.
 
-> `kleym` is an identity registration compiler. It does not deploy inference workloads, route inference traffic, or evaluate request policy.
-
 ## Where kleym fits
 
 - The [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/) describes inference workloads and request objectives in Kubernetes.
@@ -41,6 +39,10 @@
 - Derives stable SPIFFE identities from Gateway API Inference Extension resources instead of ad hoc labels.
 - Keeps selector rendering tenant-safe by intersecting namespace, service account, pool-derived selectors, and optional container discrimination.
 - Delegates identity issuance and rotation to SPIRE Controller Manager instead of writing SPIRE entries directly.
+
+## Scope boundary
+
+`kleym` is an identity registration compiler. It does not deploy inference workloads, route inference traffic, or evaluate request policy.
 
 ## How it works
 
