@@ -16,6 +16,8 @@ limitations under the License.
 package controller
 
 import (
+	"errors"
+
 	"k8s.io/apimachinery/pkg/types"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
@@ -118,8 +120,8 @@ func effectiveMode(mode kleymv1alpha1.InferenceIdentityBindingMode) kleymv1alpha
 // for a concrete pointer type (not an interface), copying the value into
 // the caller's target so the caller can read conditionType/reason/message.
 func errorsAsStateError(err error, target *reconcileStateError) bool {
-	stateErr, ok := err.(*reconcileStateError)
-	if !ok {
+	var stateErr *reconcileStateError
+	if !errors.As(err, &stateErr) {
 		return false
 	}
 	*target = *stateErr

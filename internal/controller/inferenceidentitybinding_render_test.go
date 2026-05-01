@@ -49,8 +49,8 @@ func TestRenderIdentityRejectsUnsafeSelectors(t *testing.T) {
 		t.Fatalf("expected unsafe selector error, got nil")
 	}
 
-	stateErr, ok := err.(*reconcileStateError)
-	if !ok {
+	var stateErr reconcileStateError
+	if !errorsAsStateError(err, &stateErr) {
 		t.Fatalf("expected reconcileStateError, got %T", err)
 	}
 	if stateErr.conditionType != conditionTypeUnsafeSelector {

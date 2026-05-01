@@ -1,49 +1,65 @@
 version: "2"
+
 run:
   allow-parallel-runners: true
+
 linters:
   default: none
+
   enable:
+    # Correctness
     - copyloopvar
-    - dupl
     - errcheck
-    - ginkgolinter
-    - goconst
-    - gocyclo
+    - errorlint
     - govet
     - ineffassign
-    - lll
-    - misspell
-    - nakedret
-    - prealloc
-    - revive
+    - nilerr
     - staticcheck
     - unconvert
-    - unparam
     - unused
+
+    # Project specific tests
+    - ginkgolinter
+
+    # Low noise hygiene
+    - gocyclo
+    - misspell
+    - nolintlint
+    - revive
+
   settings:
+    gocyclo:
+      min-complexity: 30
+
     revive:
       rules:
         - name: comment-spacings
         - name: import-shadowing
+
   exclusions:
     generated: lax
+
+    presets:
+      - common-false-positives
+      - std-error-handling
+
     rules:
-      - linters:
-          - lll
-        path: api/*
-      - linters:
-          - dupl
-          - lll
-        path: internal/*
+      # Test fixtures intentionally repeat Kubernetes object keys, names,
+      # selector strings, and expected condition values.
+      - path: '(.+)_test\.go'
+        linters:
+          - gocyclo
+
     paths:
       - third_party$
       - builtin$
       - examples$
+
 formatters:
   enable:
     - gofmt
     - goimports
+
   exclusions:
     generated: lax
     paths:
