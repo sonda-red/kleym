@@ -41,17 +41,23 @@ Keep the search tight. Read the directly relevant discussion and any immediately
 ## Change Discipline
 
 - Keep changes scoped to the requested outcome.
+- Before editing, look for existing implementations, helpers, types, tests, and local conventions. Reuse the closest established pattern unless there is a concrete reason it does not fit.
+- Keep patches small enough to review in one sitting. If the smallest correct fix looks like a rewrite, describe the minimal change set and the reason before doing it.
+- Do not make architectural, API, CRD, reconciliation, identity, or failure-behavior decisions without explicit human direction.
 - For every change, explicitly assess whether docs updates are needed and state the result in your handoff (`updated: <files>` or `not needed: <reason>`).
 - Update documentation with behavior changes:
   - `docs/spec.md` for product or API contract changes.
   - `README.md` for overview, setup, or command changes.
   - `CONTRIBUTING.md` for workflow or tooling changes.
 - If you change API types, RBAC markers, or generated manifests, run the required generators.
+- Treat generated code as untrusted until reviewed. Check it for hidden coupling, duplicated logic, and clever abstractions before keeping it.
+- If uncertainty affects scope, safety, API shape, or behavior, stop and report the gap instead of filling it with plausible code.
 
 ## Controller Guardrails
 
 For changes under `internal/controller/` or API types that affect reconciliation:
 
+- Preserve human ownership of core system shape. CRD semantics, reconciliation behavior, identity derivation rules, and failure behavior must stay simple enough for a maintainer to explain.
 - Keep reconcile shape consistent:
   1. fetch object
   2. handle deletion
@@ -79,6 +85,7 @@ If you change reconciliation behavior, also check:
 
 ## Verification
 
+- Tests are required for behavior changes. Prefer focused tests that verify the invariant being changed rather than broad snapshot or cosmetic coverage.
 - `make test` for API and controller changes.
 - `make lint` when touching Go code or build and CI logic.
 - `make test-e2e` for Kind or cluster behavior, or when explicitly requested.
@@ -102,6 +109,7 @@ State in your handoff which GitHub context you checked, or that no relevant GitH
 ## Simplicity Preference
 
 - Prefer explicit over implicit. If two approaches are equally correct, choose the one with fewer abstractions.
+- Do not introduce new abstractions, packages, helpers, frameworks, controllers, CRDs, or public API fields unless the task explicitly requires them.
 - Do not extract helper functions for one-time operations. Inline is fine if it is clear.
 - Do not add error handling for cases that cannot occur given the current API surface. Only validate at system boundaries (user input, external API responses, CRD data).
 - When proposing changes, flag any pattern that would be hard for an intermediate Go developer to understand or modify.
