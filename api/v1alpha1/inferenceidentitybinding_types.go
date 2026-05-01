@@ -212,7 +212,3 @@ type InferenceIdentityBindingList struct {
 	metav1.ListMeta `json:"metadata,omitzero"`
 	Items           []InferenceIdentityBinding `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&InferenceIdentityBinding{}, &InferenceIdentityBindingList{})
-}

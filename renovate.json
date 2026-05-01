@@ -1,15 +1,51 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
-    "group:all"
+    "config:recommended"
   ],
   "automerge": false,
   "platformAutomerge": false,
   "automergeType": "pr",
   "packageRules": [
     {
-      "description": "Automerge patch and minor updates only",
+      "description": "Keep Go module updates tidy and review-gated",
+      "matchManagers": [
+        "gomod"
+      ],
+      "postUpdateOptions": [
+        "gomodTidy"
+      ],
+      "automerge": false,
+      "platformAutomerge": false
+    },
+    {
+      "description": "Group Kubernetes and controller-runtime together",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "/^k8s\\.io\\//",
+        "sigs.k8s.io/controller-runtime"
+      ],
+      "groupName": "kubernetes controller stack"
+    },
+    {
+      "description": "Group Go test framework updates together",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "github.com/onsi/ginkgo/v2",
+        "github.com/onsi/gomega"
+      ],
+      "groupName": "go test framework"
+    },
+    {
+      "description": "Automerge non-Go patch and minor updates only",
+      "matchManagers": [
+        "github-actions",
+        "dockerfile"
+      ],
       "matchUpdateTypes": [
         "patch",
         "minor"
@@ -19,10 +55,9 @@
       "automergeType": "pr"
     },
     {
-      "description": "Go version comes from go.mod via setup-go",
+      "description": "Go base image version is managed with the project toolchain",
       "matchManagers": [
-        "github-actions",
-        "docker"
+        "dockerfile"
       ],
       "matchDatasources": [
         "docker"
@@ -31,7 +66,7 @@
         "golang"
       ],
       "matchFileNames": [
-        ".github/workflows/*.yml"
+        "Dockerfile"
       ],
       "enabled": false
     }
