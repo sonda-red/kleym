@@ -157,7 +157,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 		if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
 			return ctrl.Result{}, err
 		}
-		r.recordEventf(binding, corev1.EventTypeWarning, stateErr.reason, stateErr.message)
+		r.recordEventf(binding, corev1.EventTypeWarning, stateErr.reason, "%s", stateErr.message)
 		// Infrastructure-not-ready (e.g. CRD missing) is transient: requeue on
 		// a timer so recovery does not depend on an unrelated watch event.
 		// Permanent errors (invalid ref, unsafe selector) stop here.
@@ -178,7 +178,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 			return ctrl.Result{}, err
 		}
 		if collisionResult.currentDetected {
-			r.recordEventf(binding, corev1.EventTypeWarning, "IdentityCollision", collisionResult.currentMessage)
+			r.recordEventf(binding, corev1.EventTypeWarning, "IdentityCollision", "%s", collisionResult.currentMessage)
 		}
 		if collisionResult.currentResolved {
 			r.recordEventf(binding, corev1.EventTypeNormal, "IdentityCollisionResolved", "identity collision resolved")
@@ -197,7 +197,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 			if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
 				return ctrl.Result{}, err
 			}
-			r.recordEventf(binding, corev1.EventTypeWarning, stateErr.reason, stateErr.message)
+			r.recordEventf(binding, corev1.EventTypeWarning, stateErr.reason, "%s", stateErr.message)
 			return ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}, nil
 		}
 		return ctrl.Result{}, err
@@ -428,7 +428,7 @@ func (r *InferenceIdentityBindingReconciler) applyCollisionState(
 		}
 
 		if !wasColliding && state.hasCollision {
-			r.recordEventf(state.binding, corev1.EventTypeWarning, "IdentityCollision", state.message)
+			r.recordEventf(state.binding, corev1.EventTypeWarning, "IdentityCollision", "%s", state.message)
 		}
 		if wasColliding && !state.hasCollision {
 			r.recordEventf(state.binding, corev1.EventTypeNormal, "IdentityCollisionResolved", "identity collision resolved")
