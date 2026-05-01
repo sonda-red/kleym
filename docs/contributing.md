@@ -97,6 +97,7 @@ Run `make lint` as well when you touch Go code, build logic, or CI-sensitive beh
 
 - Keep local and CI commands aligned. The main CI workflow runs separate `Lint` and `Test` jobs using the same commands contributors run locally.
 - If you change dependency declarations, review whether `go.mod`, `go.sum`, and generated artifacts still match.
+- Renovate runs `go mod tidy` for Go module updates. Go module PRs are review-gated because Kubernetes and controller-runtime updates can require source or generated-code changes.
 
 ### GitHub Actions And Automation Security
 
