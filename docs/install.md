@@ -7,7 +7,7 @@ This page covers the practical commands for running `kleym`, deploying it, testi
 
 ## Prerequisites
 
-- Go `1.25+`
+- Go `1.26+`
 - Docker
 - `kubectl`
 - Access to a Kubernetes cluster

@@ -20,7 +20,7 @@
   <a href="https://github.com/sonda-red/kleym/actions/workflows/docs.yml">
     <img src="https://github.com/sonda-red/kleym/actions/workflows/docs.yml/badge.svg" alt="Docs">
   </a>
-  <img src="https://img.shields.io/badge/go-1.25%2B-00ADD8?logo=go&logoColor=white" alt="Go 1.25+">
+  <img src="https://img.shields.io/badge/go-1.26%2B-00ADD8?logo=go&logoColor=white" alt="Go 1.26+">
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-Apache%202.0-black" alt="License: Apache-2.0">
   </a>
@@ -55,7 +55,7 @@
 
 Prerequisites:
 
-- Go `1.25+`
+- Go `1.26+`
 - Docker
 - `kubectl`
 - Access to a Kubernetes cluster with the Gateway API Inference Extension [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) CRDs

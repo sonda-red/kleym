@@ -34,7 +34,7 @@ Keep that review narrow. Read the issue or PR that motivated the change and any 
 
 ## Development Prerequisites
 
-- Go `1.25+`
+- Go `1.26+`
 - Docker
 - `kubectl`
 - Access to a Kubernetes cluster for deployment testing
