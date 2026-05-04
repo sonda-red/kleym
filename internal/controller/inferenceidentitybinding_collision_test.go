@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -12,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -35,7 +35,7 @@ func TestReconcilePerObjectiveCollisionMarksAllAndBlocksClusterSPIFFEID(t *testi
 		newPerObjectiveBinding("binding-b", "objective-b"),
 	}
 
-	fakeRecorder := record.NewFakeRecorder(32)
+	fakeRecorder := newFakeEventRecorder(32)
 	reconciler := &InferenceIdentityBindingReconciler{
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
@@ -74,7 +74,7 @@ func TestReconcilePerObjectiveCollisionResolutionClearsConflictAndResumes(t *tes
 		newPerObjectiveBinding("binding-b", "objective-b"),
 	}
 
-	fakeRecorder := record.NewFakeRecorder(64)
+	fakeRecorder := newFakeEventRecorder(64)
 	reconciler := &InferenceIdentityBindingReconciler{
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
@@ -457,4 +457,24 @@ func assertEventContains(t *testing.T, events <-chan string, expectedSubstring s
 			t.Fatalf("timed out waiting for event containing %q", expectedSubstring)
 		}
 	}
+}
+
+type fakeEventRecorder struct {
+	Events chan string
+}
+
+func newFakeEventRecorder(buffer int) *fakeEventRecorder {
+	return &fakeEventRecorder{Events: make(chan string, buffer)}
+}
+
+func (r *fakeEventRecorder) Eventf(
+	_ runtime.Object,
+	_ runtime.Object,
+	eventType string,
+	reason string,
+	action string,
+	note string,
+	args ...any,
+) {
+	r.Events <- fmt.Sprintf("%s %s %s %s", eventType, reason, action, fmt.Sprintf(note, args...))
 }
