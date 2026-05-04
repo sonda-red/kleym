@@ -14,6 +14,7 @@ Recommended starting points:
 - [Install](/install): local run, deploy, and test commands
 - [Concepts](/concepts): identity boundaries, selector safety, and scope
 - [API reference](/reference/api): fields, conditions, and managed resources
+- [Demo](/demo): reproducible binding-to-`ClusterSPIFFEID` walkthrough
 - [Examples](/examples): concrete manifests and expected outcomes
 - [Troubleshooting](/troubleshooting): condition-driven debugging
 - [Contributing](/contributing): workflow, validation, and repository conventions
