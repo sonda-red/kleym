@@ -27,8 +27,9 @@ Keep the search tight. Read the directly relevant discussion and any immediately
 
 - Do not do ticket work on `main` or another long-lived shared branch.
 - Before substantive edits, ensure you are on a dedicated branch for the work. If not, create or switch to one first.
-- Open or update a PR for ticket work and include an automatic closure keyword in the PR body when the issue number is known, for example `Fixes #123` or `Closes #123`.
-- If branch creation or PR creation is not possible in the current environment, say so explicitly in your handoff. Do not imply the issue will auto-close unless the PR body is actually set up.
+- Leave commits, pushes, and PR creation to the human unless explicitly asked.
+- If asked to open or update a PR, include an automatic closure keyword in the PR body when the issue number is known, for example `Fixes #123` or `Closes #123`.
+- If branch creation or requested PR creation is not possible in the current environment, say so explicitly in your handoff. Do not imply the issue will auto-close unless the PR body is actually set up.
 
 ## GitHub Security
 

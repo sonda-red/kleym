@@ -83,6 +83,7 @@ It does not:
 - issue certificates itself
 
 SPIRE and SPIRE Controller Manager remain responsible for issuing identities. `kleym` only determines which identities should exist and which workloads they should target.
+For downstream consumption patterns, read [reference/downstream-enforcement](/reference/downstream-enforcement/).
 
 Reference docs: [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/overview/), [SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/), and [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager).
 
