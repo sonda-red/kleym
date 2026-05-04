@@ -71,6 +71,10 @@ Compatibility matrix for GAIE inputs (by GVK):
 3. `inference.networking.x-k8s.io/v1alpha2, Kind=InferenceObjective` (currently required in most released GAIE versions).
 4. `inference.networking.k8s.io/v1, Kind=InferenceObjective` (compatible when present).
 
+When an objective sets `spec.poolRef.group`, the group must be one of the
+supported `InferencePool` groups in this matrix. Unsupported groups are refused
+with `InvalidRef=True` and reason `UnsupportedPoolGroup`.
+
 `kleym` CRD
 
 `InferenceIdentityBinding` expresses identity intent for a single [`InferenceObjective`][gaie-inferenceobjective].
@@ -78,9 +82,11 @@ Compatibility matrix for GAIE inputs (by GVK):
 `InferenceIdentityBinding` spec
 
 1. `targetRef` references an [`InferenceObjective`][gaie-inferenceobjective] in the same namespace.
-2. `spiffeIDTemplate` optionally overrides the computed template. Default is deterministic and includes trust domain, namespace, and objective name.
+2. `spiffeIDTemplate` optionally overrides the computed template. When omitted, the default is deterministic and mode-specific:
+   - `PoolOnly`: `spiffe://<trust-domain>/ns/<namespace>/pool/<pool-name>`.
+   - `PerObjective`: `spiffe://<trust-domain>/ns/<namespace>/objective/<objective-name>`.
 3. `selectorSource` is `"DerivedFromPool"`. `kleym` derives pod selection from the objective `poolRef` and validates it.
-4. `workloadSelectorTemplates` are required safety constraints. Every rendered [`ClusterSPIFFEID`][clusterspiffeid] must include at minimum the k8s namespace selector (`k8s:ns:<namespace>`) and k8s service account selector (`k8s:sa:<service-account>`). These safety selectors are always present, then intersected with the derived pool selection and, in `PerObjective` mode, the container discriminator.
+4. `workloadSelectorTemplates` are required safety constraints supplied by the binding author. Every rendered [`ClusterSPIFFEID`][clusterspiffeid] must include at minimum the k8s namespace selector (`k8s:ns:<namespace>`) and k8s service account selector (`k8s:sa:<service-account>`). `kleym` renders and validates these templates, then intersects them with the derived pool selection and, in `PerObjective` mode, the container discriminator.
 5. `mode` is `"PoolOnly"` or `"PerObjective"`. Default is `"PerObjective"`.
 6. `containerDiscriminator` (required when `mode` is `"PerObjective"`).
    - `type` is `"ContainerName"` (preferred) or `"ContainerImage"` (fallback). `ContainerName` maps to a SPIRE k8s workload selector `k8s:container-name:<value>`. `ContainerImage` maps to `k8s:container-image:<value>` and is weaker because a single image may serve multiple models.
@@ -99,8 +105,8 @@ Compatibility matrix for GAIE inputs (by GVK):
    - Startup fails only when none of the supported GAIE objective/pool GVKs are available.
 2. Watch `InferenceIdentityBinding`, plus discovered [`InferenceObjective`][gaie-inferenceobjective] and discovered [`InferencePool`][gaie-inferencepool] GVKs.
    - Example: if the cluster serves only `InferenceObjective` in `inference.networking.x-k8s.io/v1alpha2`, `kleym` watches that GVK and skips `inference.networking.k8s.io/v1` objective.
-3. Resolve `targetRef` to [`InferenceObjective`][gaie-inferenceobjective], then resolve `poolRef` to [`InferencePool`][gaie-inferencepool].
-4. Derive pod selection from [`InferencePool`][gaie-inferencepool], then intersect with the mandatory safety selectors (namespace and service account) and, in `PerObjective` mode, the container discriminator.
+3. Resolve `targetRef` to [`InferenceObjective`][gaie-inferenceobjective], then resolve `poolRef` to [`InferencePool`][gaie-inferencepool]. If `poolRef.group` is set, resolve only supported GAIE `InferencePool` groups.
+4. Derive pod selection from [`InferencePool`][gaie-inferencepool], then intersect with the rendered and validated safety selector templates and, in `PerObjective` mode, the container discriminator.
 5. Detect identity collisions: if two `InferenceIdentityBinding` resources in `PerObjective` mode would match the same pod set and the same `container-name` value, set the `Conflict` condition with reason `IdentityCollision` on both resources and refuse to reconcile either until the collision is resolved.
 6. Reconcile one or more [`ClusterSPIFFEID`][clusterspiffeid] resources in `spire.spiffe.io` using the computed SPIFFE IDs and validated selectors.
 7. Update status and emit events for conflicts, unsafe selection, identity collisions, and render failures.
