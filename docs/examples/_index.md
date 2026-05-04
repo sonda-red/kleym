@@ -5,6 +5,11 @@ weight: 40
 
 Concrete manifests and expected reconciliation outcomes for common `InferenceIdentityBinding` flows.
 
+Reusable reference inputs for e2e tests and demo docs live under
+`test/reference/inference-environment/`. Those manifests represent externally
+managed workload and GAIE resources that exist before `kleym` reconciles a
+binding.
+
 ## Before You Apply Examples
 
 These examples assume:

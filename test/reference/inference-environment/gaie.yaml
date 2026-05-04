@@ -1,0 +1,33 @@
+# Externally owned GAIE reference inputs. kleym resolves these objects when an
+# InferenceIdentityBinding targets reference-objective, but it does not create,
+# modify, or manage either resource.
+apiVersion: inference.networking.k8s.io/v1
+kind: InferencePool
+metadata:
+  name: reference-pool
+  namespace: kleym-reference-inference
+  labels:
+    app.kubernetes.io/name: reference-pool
+    app.kubernetes.io/part-of: kleym-reference-inference
+    kleym.sonda.red/reference: inference-environment
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: reference-model-server
+      app.kubernetes.io/part-of: kleym-reference-inference
+  targetPorts:
+    - number: 8000
+---
+apiVersion: inference.networking.x-k8s.io/v1alpha2
+kind: InferenceObjective
+metadata:
+  name: reference-objective
+  namespace: kleym-reference-inference
+  labels:
+    app.kubernetes.io/name: reference-objective
+    app.kubernetes.io/part-of: kleym-reference-inference
+    kleym.sonda.red/reference: inference-environment
+spec:
+  poolRef:
+    name: reference-pool
+  priority: 0
