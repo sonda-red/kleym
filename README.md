@@ -151,6 +151,7 @@ Docs live under [`docs/`](docs/), with the published site at <https://kleym.sond
 | [`docs/install.md`](docs/install.md) | Local run, deployment, and test commands |
 | [`docs/concepts.md`](docs/concepts.md) | Identity boundaries, selector safety, and scope |
 | [`docs/architecture.md`](docs/architecture.md) | End-to-end controller flow |
+| [`docs/demo.md`](docs/demo.md) | Reproducible binding-to-`ClusterSPIFFEID` walkthrough |
 | [`docs/examples/`](docs/examples/) | Concrete manifests and expected outcomes |
 | [`docs/reference/`](docs/reference/) | API surface, conditions, and managed resources |
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Condition-driven debugging and dependency checks |
