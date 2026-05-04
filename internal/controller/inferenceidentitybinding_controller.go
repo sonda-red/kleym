@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -105,7 +105,7 @@ var (
 type InferenceIdentityBindingReconciler struct {
 	client.Client
 	Scheme                 *runtime.Scheme
-	Recorder               record.EventRecorder
+	Recorder               events.EventRecorder
 	availableObjectiveGVKs []schema.GroupVersionKind
 	availablePoolGVKs      []schema.GroupVersionKind
 }
@@ -308,7 +308,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	setupLogger := logf.Log.WithName("setup").WithName("inferenceidentitybinding")
 
-	r.Recorder = mgr.GetEventRecorderFor("inferenceidentitybinding-controller")
+	r.Recorder = mgr.GetEventRecorder("inferenceidentitybinding-controller")
 
 	if err := r.setupFieldIndexes(mgr); err != nil {
 		return err
@@ -599,5 +599,5 @@ func (r *InferenceIdentityBindingReconciler) recordEventf(
 	if r.Recorder == nil {
 		return
 	}
-	r.Recorder.Eventf(object, eventType, reason, messageFormat, args...)
+	r.Recorder.Eventf(object, nil, eventType, reason, reason, messageFormat, args...)
 }
