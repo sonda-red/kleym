@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
@@ -32,10 +33,12 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	identities []renderedIdentity,
 ) error {
+	logger := logf.FromContext(ctx)
 	existing, err := r.listManagedClusterSPIFFEIDs(ctx, binding)
 	if err != nil {
 		return err
 	}
+	logger.V(1).Info("listed managed ClusterSPIFFEIDs", "count", len(existing))
 
 	existingByName := make(map[string]*unstructured.Unstructured, len(existing))
 	for _, item := range existing {
@@ -49,6 +52,12 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 
 		current, exists := existingByName[identity.Name]
 		if !exists {
+			logger.Info(
+				"creating managed ClusterSPIFFEID",
+				logKeyClusterSPIFFEID, identity.Name,
+				logKeyMode, identity.Mode,
+				logKeySpiffeID, identity.SpiffeID,
+			)
 			if err := r.Create(ctx, desired); err != nil && !apierrors.IsAlreadyExists(err) {
 				return err
 			}
@@ -56,17 +65,31 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 		}
 
 		if !clusterSPIFFEIDInSync(current, desired) {
+			logger.Info(
+				"updating drifted managed ClusterSPIFFEID",
+				logKeyClusterSPIFFEID, identity.Name,
+				logKeyMode, identity.Mode,
+				logKeySpiffeID, identity.SpiffeID,
+			)
 			mergeDesiredClusterSPIFFEID(current, desired)
 			if err := r.Update(ctx, current); err != nil {
 				return err
 			}
+			continue
 		}
+		logger.V(1).Info(
+			"managed ClusterSPIFFEID already in sync",
+			logKeyClusterSPIFFEID, identity.Name,
+			logKeyMode, identity.Mode,
+			logKeySpiffeID, identity.SpiffeID,
+		)
 	}
 
 	for name, object := range existingByName {
 		if _, keep := desiredNames[name]; keep {
 			continue
 		}
+		logger.Info("deleting stale managed ClusterSPIFFEID", logKeyClusterSPIFFEID, name)
 		if err := r.Delete(ctx, object); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -171,14 +194,20 @@ func (r *InferenceIdentityBindingReconciler) cleanupManagedClusterSPIFFEIDs(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 ) error {
+	logger := logf.FromContext(ctx)
 	objects, err := r.listManagedClusterSPIFFEIDs(ctx, binding)
 	if err != nil {
 		if meta.IsNoMatchError(err) {
+			logger.Info("skipping managed ClusterSPIFFEID cleanup because CRD is unavailable")
 			return nil
 		}
 		return err
 	}
+	if len(objects) == 0 {
+		logger.V(1).Info("no managed ClusterSPIFFEIDs to clean up")
+	}
 	for _, object := range objects {
+		logger.Info("deleting managed ClusterSPIFFEID during cleanup", logKeyClusterSPIFFEID, object.GetName())
 		if err := r.Delete(ctx, object); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
