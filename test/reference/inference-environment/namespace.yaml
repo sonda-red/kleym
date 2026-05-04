@@ -1,0 +1,10 @@
+# Externally owned reference namespace for tests and demos. kleym does not
+# create, modify, or manage this resource.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kleym-reference-inference
+  labels:
+    app.kubernetes.io/name: kleym-reference-inference
+    app.kubernetes.io/part-of: kleym
+    kleym.sonda.red/reference: inference-environment
