@@ -62,6 +62,14 @@ func (r *InferenceIdentityBindingReconciler) resolveInferencePool(
 	poolRef inferencePoolRef,
 ) (*unstructured.Unstructured, error) {
 	poolCandidates := candidatePoolGVKs(r.resolvePoolGVKs(), poolRef.Group)
+	if poolRef.Group != "" && len(poolCandidates) == 0 {
+		return nil, newStateError(
+			conditionTypeInvalidRef,
+			"UnsupportedPoolGroup",
+			fmt.Sprintf("poolRef.group %q is not a supported GAIE InferencePool group", poolRef.Group),
+		)
+	}
+
 	pool, crdMissing, err := r.resolveByCandidates(
 		ctx,
 		types.NamespacedName{Namespace: poolRef.Namespace, Name: poolRef.Name},
@@ -173,6 +181,10 @@ func candidatePoolGVKs(candidates []schema.GroupVersionKind, group string) []sch
 		return candidates
 	}
 
+	if !isSupportedPoolGroup(group) {
+		return nil
+	}
+
 	filtered := make([]schema.GroupVersionKind, 0, len(candidates))
 	for _, gvk := range candidates {
 		if gvk.Group == group {
@@ -183,10 +195,30 @@ func candidatePoolGVKs(candidates []schema.GroupVersionKind, group string) []sch
 		return filtered
 	}
 
-	return []schema.GroupVersionKind{
-		{Group: group, Version: "v1", Kind: "InferencePool"},
-		{Group: group, Version: "v1alpha2", Kind: "InferencePool"},
+	return supportedPoolGVKsForGroup(group)
+}
+
+// isSupportedPoolGroup keeps poolRef.group constrained to the GAIE groups
+// listed in docs/spec.md instead of probing arbitrary API groups.
+func isSupportedPoolGroup(group string) bool {
+	for _, gvk := range inferencePoolGVKs {
+		if gvk.Group == group {
+			return true
+		}
 	}
+	return false
+}
+
+// supportedPoolGVKsForGroup returns only documented InferencePool GVKs for a
+// supported group, preserving the compatibility matrix in docs/spec.md.
+func supportedPoolGVKsForGroup(group string) []schema.GroupVersionKind {
+	gvks := make([]schema.GroupVersionKind, 0, len(inferencePoolGVKs))
+	for _, gvk := range inferencePoolGVKs {
+		if gvk.Group == group {
+			gvks = append(gvks, gvk)
+		}
+	}
+	return gvks
 }
 
 func shouldCleanupManagedClusterSPIFFEIDs(conditionType string) bool {

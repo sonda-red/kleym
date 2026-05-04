@@ -84,6 +84,58 @@ func TestReconcileSetsInvalidRefWhenObjectivePoolRefIsInvalid(t *testing.T) {
 	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "InvalidPoolRef")
 }
 
+func TestReconcileRejectsUnsupportedPoolRefGroup(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scheme := newCollisionTestScheme(t)
+
+	objective := newTestObjective("objective-unsupported-pool-group")
+	objective.Object["spec"] = map[string]any{
+		"poolRef": map[string]any{
+			"name":  "pool-a",
+			"group": "example.com",
+		},
+	}
+
+	binding := newPerObjectiveBinding("binding-unsupported-pool-group", objective.GetName())
+	reconciler := &InferenceIdentityBindingReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+			WithObjects(objective, binding).
+			Build(),
+		Scheme: scheme,
+	}
+
+	_, err := reconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: binding.Name},
+	})
+	if err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeInvalidRef, metav1.ConditionTrue, "UnsupportedPoolGroup")
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "UnsupportedPoolGroup")
+}
+
+func TestCandidatePoolGVKsFallbackUsesOnlySupportedGVKsForGroup(t *testing.T) {
+	t.Parallel()
+
+	candidates := []schema.GroupVersionKind{
+		{Group: "inference.networking.x-k8s.io", Version: "v1alpha2", Kind: "InferencePool"},
+	}
+
+	filtered := candidatePoolGVKs(candidates, "inference.networking.k8s.io")
+
+	if len(filtered) != 1 {
+		t.Fatalf("expected one supported candidate, got %v", filtered)
+	}
+	if filtered[0] != inferencePoolGVKs[0] {
+		t.Fatalf("expected %v, got %v", inferencePoolGVKs[0], filtered[0])
+	}
+}
+
 func TestReconcileUsesDiscoveredObjectiveGVKsForResolution(t *testing.T) {
 	t.Parallel()
 
