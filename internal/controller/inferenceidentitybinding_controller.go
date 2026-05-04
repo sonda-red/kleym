@@ -62,6 +62,27 @@ const (
 	identityCollisionMessagePrefix      = "identity collision with bindings "
 	identityCollisionMessageSuffix      = ": PerObjective bindings must not share the same pod selector and container discriminator"
 	modeValuePerObjective               = string(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
+
+	logKeyBinding          = "binding"
+	logKeyNamespace        = "namespace"
+	logKeyName             = "name"
+	logKeyTargetRef        = "targetRef"
+	logKeyObjective        = "objective"
+	logKeyObjectiveGVK     = "objectiveGVK"
+	logKeyPool             = "pool"
+	logKeyPoolGVK          = "poolGVK"
+	logKeyPoolGroup        = "poolGroup"
+	logKeyMode             = "mode"
+	logKeySpiffeID         = "spiffeID"
+	logKeyClusterSPIFFEID  = "clusterspiffeid"
+	logKeySelectors        = "selectors"
+	logKeyPodSelector      = "podSelector"
+	logKeyCondition        = "condition"
+	logKeyReason           = "reason"
+	logKeyRequeueAfter     = "requeueAfter"
+	logKeyCollision        = "collision"
+	logKeyCollisionMessage = "collisionMessage"
+	logKeyPeerBinding      = "peerBinding"
 )
 
 var (
@@ -114,22 +135,52 @@ type InferenceIdentityBindingReconciler struct {
 // through to the next. Status is patched exactly once near the end of each path.
 //
 // See docs/design/reconciliation.md for the full flow diagram.
-func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := logf.FromContext(ctx).WithValues("inferenceIdentityBinding", req.NamespacedName)
+func (r *InferenceIdentityBindingReconciler) Reconcile(
+	ctx context.Context,
+	req ctrl.Request,
+) (result ctrl.Result, reconcileErr error) {
+	logger := logf.FromContext(ctx).WithValues(
+		logKeyBinding, req.String(),
+		logKeyNamespace, req.Namespace,
+		logKeyName, req.Name,
+	)
+	ctx = logf.IntoContext(ctx, logger)
+
+	logger.Info("starting InferenceIdentityBinding reconcile")
+	defer func() {
+		if reconcileErr != nil {
+			logger.Error(reconcileErr, "finished InferenceIdentityBinding reconcile")
+			return
+		}
+		logger.Info(
+			"finished InferenceIdentityBinding reconcile",
+			logKeyRequeueAfter, result.RequeueAfter,
+		)
+	}()
 
 	// Phase 1: Fetch the binding.
 	binding := &kleymv1alpha1.InferenceIdentityBinding{}
 	if err := r.Get(ctx, req.NamespacedName, binding); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			logger.V(1).Info("InferenceIdentityBinding not found")
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	logger = logger.WithValues(
+		logKeyTargetRef, binding.Spec.TargetRef.Name,
+		logKeyMode, effectiveMode(binding.Spec.Mode),
+	)
+	ctx = logf.IntoContext(ctx, logger)
 
 	// Phase 2: Handle deletion — clean up children, then remove finalizer.
 	if !binding.DeletionTimestamp.IsZero() {
+		logger.Info("handling deleted InferenceIdentityBinding")
 		return r.reconcileDelete(ctx, binding)
 	}
 
 	// Phase 3: Ensure finalizer is present (requeues implicitly via Update).
 	if !controllerutil.ContainsFinalizer(binding, inferenceIdentityBindingFinalizer) {
+		logger.Info("adding InferenceIdentityBinding finalizer")
 		controllerutil.AddFinalizer(binding, inferenceIdentityBindingFinalizer)
 		if err := r.Update(ctx, binding); err != nil {
 			return ctrl.Result{}, err
@@ -157,11 +208,21 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 		if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
 			return ctrl.Result{}, err
 		}
+		logger.Info(
+			"applied failure status",
+			logKeyCondition, stateErr.conditionType,
+			logKeyReason, stateErr.reason,
+		)
 		r.recordEventf(binding, corev1.EventTypeWarning, stateErr.reason, "%s", stateErr.message)
 		// Infrastructure-not-ready (e.g. CRD missing) is transient: requeue on
 		// a timer so recovery does not depend on an unrelated watch event.
 		// Permanent errors (invalid ref, unsafe selector) stop here.
 		if isInfrastructureNotReadyReason(stateErr.reason) {
+			logger.Info(
+				"requeueing after transient infrastructure readiness failure",
+				logKeyReason, stateErr.reason,
+				logKeyRequeueAfter, infraNotReadyRequeueAfter,
+			)
 			return ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}, nil
 		}
 		return ctrl.Result{}, nil
@@ -183,7 +244,12 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 		if collisionResult.currentResolved {
 			r.recordEventf(binding, corev1.EventTypeNormal, "IdentityCollisionResolved", "identity collision resolved")
 		}
-		logger.V(1).Info("skipping ClusterSPIFFEID reconciliation due to per-objective identity collision")
+		logger.Info(
+			"skipping ClusterSPIFFEID reconciliation due to per-objective identity collision",
+			logKeyCondition, conditionTypeConflict,
+			logKeyReason, "IdentityCollision",
+			logKeyCollisionMessage, collisionResult.currentMessage,
+		)
 		return ctrl.Result{}, nil
 	}
 
@@ -197,7 +263,17 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 			if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
 				return ctrl.Result{}, err
 			}
+			logger.Info(
+				"applied failure status",
+				logKeyCondition, stateErr.conditionType,
+				logKeyReason, stateErr.reason,
+			)
 			r.recordEventf(binding, corev1.EventTypeWarning, stateErr.reason, "%s", stateErr.message)
+			logger.Info(
+				"requeueing after transient infrastructure readiness failure",
+				logKeyReason, stateErr.reason,
+				logKeyRequeueAfter, infraNotReadyRequeueAfter,
+			)
 			return ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}, nil
 		}
 		return ctrl.Result{}, err
@@ -207,6 +283,11 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 	if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
 		return ctrl.Result{}, err
 	}
+	logger.Info(
+		"applied success status",
+		logKeyCondition, conditionTypeReady,
+		logKeyReason, "Reconciled",
+	)
 
 	if collisionResult.currentResolved {
 		r.recordEventf(binding, corev1.EventTypeNormal, "IdentityCollisionResolved", "identity collision resolved")
@@ -214,7 +295,11 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 
 	primaryIdentity := desiredState.identities[0]
 	r.recordEventf(binding, corev1.EventTypeNormal, "Reconciled", "reconciled ClusterSPIFFEID %q", primaryIdentity.Name)
-	logger.V(1).Info("reconciled successfully", "clusterspiffeid", primaryIdentity.Name)
+	logger.Info(
+		"reconciled successfully",
+		logKeyClusterSPIFFEID, primaryIdentity.Name,
+		logKeySpiffeID, primaryIdentity.SpiffeID,
+	)
 
 	return ctrl.Result{}, nil
 }
@@ -223,7 +308,6 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(ctx context.Context, req 
 func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	setupLogger := logf.Log.WithName("setup").WithName("inferenceidentitybinding")
 
-	//nolint:staticcheck // We intentionally use the legacy recorder interface required by this reconciler.
 	r.Recorder = mgr.GetEventRecorderFor("inferenceidentitybinding-controller")
 
 	if err := r.setupFieldIndexes(mgr); err != nil {
@@ -315,7 +399,9 @@ func (r *InferenceIdentityBindingReconciler) reconcileDelete(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 ) (ctrl.Result, error) {
+	logger := logf.FromContext(ctx)
 	if !controllerutil.ContainsFinalizer(binding, inferenceIdentityBindingFinalizer) {
+		logger.V(1).Info("deleted InferenceIdentityBinding has no finalizer")
 		return ctrl.Result{}, nil
 	}
 
@@ -329,9 +415,15 @@ func (r *InferenceIdentityBindingReconciler) reconcileDelete(
 			return ctrl.Result{}, err
 		}
 	} else if len(remaining) > 0 {
+		logger.Info(
+			"waiting for managed ClusterSPIFFEIDs to disappear before removing finalizer",
+			"remaining", len(remaining),
+			logKeyRequeueAfter, deleteVerificationRequeueAfter,
+		)
 		return ctrl.Result{RequeueAfter: deleteVerificationRequeueAfter}, nil
 	}
 
+	logger.Info("removing InferenceIdentityBinding finalizer")
 	controllerutil.RemoveFinalizer(binding, inferenceIdentityBindingFinalizer)
 	if err := r.Update(ctx, binding); err != nil {
 		return ctrl.Result{}, err
@@ -345,29 +437,64 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	wasCurrentColliding bool,
 ) (desiredBindingState, error) {
+	logger := logf.FromContext(ctx)
 	objective, err := r.resolveInferenceObjective(ctx, binding.Namespace, binding.Spec.TargetRef.Name)
 	if err != nil {
 		return desiredBindingState{}, err
 	}
+	logger.Info(
+		"resolved target InferenceObjective",
+		logKeyObjective, namespacedBindingKey(objective.GetNamespace(), objective.GetName()),
+		logKeyObjectiveGVK, objective.GroupVersionKind().String(),
+	)
 
 	poolRef, err := extractPoolRef(objective, binding.Namespace)
 	if err != nil {
 		return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidPoolRef", err.Error())
 	}
+	logger.Info(
+		"resolved objective poolRef",
+		logKeyPool, namespacedBindingKey(poolRef.Namespace, poolRef.Name),
+		logKeyPoolGroup, poolRef.Group,
+	)
 
 	pool, err := r.resolveInferencePool(ctx, poolRef)
 	if err != nil {
 		return desiredBindingState{}, err
 	}
+	logger.Info(
+		"resolved target InferencePool",
+		logKeyPool, namespacedBindingKey(pool.GetNamespace(), pool.GetName()),
+		logKeyPoolGVK, pool.GroupVersionKind().String(),
+	)
 
 	identity, err := r.renderIdentity(binding, objective, pool)
 	if err != nil {
 		return desiredBindingState{}, err
 	}
+	logger.Info(
+		"rendered identity from inference intent",
+		logKeyMode, identity.Mode,
+		logKeySpiffeID, identity.SpiffeID,
+		logKeyClusterSPIFFEID, identity.Name,
+		logKeySelectors, identity.Selectors,
+		logKeyPodSelector, identity.PodSelector,
+		logKeyObjective, identity.ObjectiveRef,
+		logKeyPool, identity.PoolRef,
+	)
 
 	collisionSet, err := r.computePerObjectiveCollisionSet(ctx, binding, identity, wasCurrentColliding)
 	if err != nil {
 		return desiredBindingState{}, err
+	}
+	if collisionSet.currentHasCollision {
+		logger.Info(
+			"computed per-objective identity collision",
+			logKeyCollision, true,
+			logKeyCollisionMessage, collisionSet.currentMessage,
+		)
+	} else {
+		logger.V(1).Info("computed per-objective identity collision state", logKeyCollision, false)
 	}
 
 	return desiredBindingState{
@@ -381,7 +508,13 @@ func (r *InferenceIdentityBindingReconciler) applyStateError(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	stateErr *reconcileStateError,
 ) error {
+	logger := logf.FromContext(ctx)
 	if shouldCleanupManagedClusterSPIFFEIDs(stateErr.conditionType) {
+		logger.Info(
+			"cleaning up managed ClusterSPIFFEIDs after reconcile failure",
+			logKeyCondition, stateErr.conditionType,
+			logKeyReason, stateErr.reason,
+		)
 		if err := r.cleanupManagedClusterSPIFFEIDs(ctx, binding); err != nil {
 			return err
 		}
@@ -397,6 +530,7 @@ func (r *InferenceIdentityBindingReconciler) applyCollisionState(
 	collisionSet perObjectiveCollisionSet,
 	wasCurrentColliding bool,
 ) (collisionApplyResult, error) {
+	logger := logf.FromContext(ctx)
 	currentBindingKey := namespacedBindingKey(binding.Namespace, binding.Name)
 	result := collisionApplyResult{
 		currentHasCollision: collisionSet.currentHasCollision,
@@ -426,6 +560,12 @@ func (r *InferenceIdentityBindingReconciler) applyCollisionState(
 		}); err != nil {
 			return collisionApplyResult{}, err
 		}
+		logger.Info(
+			"applied peer collision status",
+			logKeyPeerBinding, bindingKey,
+			logKeyCollision, state.hasCollision,
+			logKeyCollisionMessage, state.message,
+		)
 
 		if !wasColliding && state.hasCollision {
 			r.recordEventf(state.binding, corev1.EventTypeWarning, "IdentityCollision", "%s", state.message)
@@ -436,6 +576,11 @@ func (r *InferenceIdentityBindingReconciler) applyCollisionState(
 	}
 
 	if result.currentHasCollision {
+		logger.Info(
+			"cleaning up managed ClusterSPIFFEIDs for colliding binding",
+			logKeyCondition, conditionTypeConflict,
+			logKeyReason, "IdentityCollision",
+		)
 		if err := r.cleanupManagedClusterSPIFFEIDs(ctx, binding); err != nil {
 			return collisionApplyResult{}, err
 		}
