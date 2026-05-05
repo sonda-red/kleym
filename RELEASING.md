@@ -60,7 +60,7 @@ Each release includes:
 ## What Does Not Trigger a Release
 
 - Merging to `main` — releases are only created by the workflow_dispatch trigger.
-- Pushing a tag manually — the workflow does not listen for tag pushes.
+- Pushing a tag manually — the workflow does not run from pushed tags.
 - Dependency-only PRs (`chore(deps)`) — these are included in the next release only when you choose to run the workflow.
 
 Do not create tags locally or via the GitHub UI. The release workflow is the sole creator of tags.

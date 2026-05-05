@@ -155,7 +155,6 @@ Docs live under [`docs/`](docs/), with the published site at <https://kleym.sond
 | [`docs/examples/`](docs/examples/) | Concrete manifests and expected outcomes |
 | [`docs/reference/`](docs/reference/) | API surface, conditions, and managed resources |
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Condition-driven debugging and dependency checks |
-| [`docs/versioning.md`](docs/versioning.md) | Docs version snapshot workflow |
 | [`docs/spec.md`](docs/spec.md) | Authoritative product and API behavior |
 | [`docs/design/`](docs/design/) | Internal design notes |
 | [`docs/contributing.md`](docs/contributing.md) | Contributor workflow and validation expectations |
@@ -172,12 +171,6 @@ Build the static docs site:
 
 ```sh
 make docs-build
-```
-
-Build root and configured version snapshots:
-
-```sh
-make docs-build-versioned
 ```
 
 ## License

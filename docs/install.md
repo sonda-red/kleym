@@ -90,16 +90,8 @@ Build the static site locally:
 make docs-build
 ```
 
-Build the default site plus configured version snapshots:
-
-```sh
-make docs-build-versioned
-```
-
 Override the port if you need something other than `1313`:
 
 ```sh
 make docs-serve DOCS_PORT=8080
 ```
-
-Version snapshots are defined in `.docs-versions`.

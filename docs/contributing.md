@@ -10,7 +10,7 @@ weight: 110
 - [`spec.md`](spec) is the authoritative product and API behavior document.
 - `README.md` is the project entry point and quickstart.
 - `AGENTS.md` is the minimal repository contract for coding agents.
-- `RELEASING.md` describes the tag-based release procedure.
+- `RELEASING.md` describes the manual release procedure.
 
 If code and docs disagree, fix the disagreement instead of silently choosing one.
 
@@ -57,7 +57,6 @@ The repository bootstraps local tool binaries under `bin/` through `make` target
 - `make help`: list supported targets
 - `make docs-build`: build the docs site with Hugo + Hextra
 - `make docs-serve`: serve docs locally with Hugo
-- `make docs-build-versioned`: build root docs and configured `/versions/*` snapshots
 - `make run`: run the controller locally against the current kubeconfig
 - `make build`: build the manager binary
 - `make test`: run non-e2e tests with envtest setup
@@ -134,17 +133,11 @@ To build the static site:
 make docs-build
 ```
 
-To build versioned output paths configured in `.docs-versions`:
-
-```sh
-make docs-build-versioned
-```
-
 Docs-related pull requests and pushes to `main` run a dedicated docs workflow that executes `make docs-build`.
 
 ## CI And Releases
 
 - CI workflows run on GitHub-hosted runners (`ubuntu-latest`) and must not depend on local or self-hosted infrastructure.
 - `.github/workflows/ci.yml` runs separate `Lint` and `Test` jobs on pull requests and pushes to `main`
-- `.github/workflows/release.yml` runs on `v*` tag pushes, verifies the tag is on `main`, builds artifacts and images, and creates a GitHub Release
-- Follow Conventional Commits for PR titles. See `RELEASING.md` for the tag-based release procedure
+- `.github/workflows/release.yml` runs by manual `workflow_dispatch` from the GitHub Actions UI, builds artifacts and images, creates the release tag, and creates a GitHub Release
+- Follow Conventional Commits for PR titles. See `RELEASING.md` for the manual release procedure
