@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"slices"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,6 +56,160 @@ func TestRenderIdentityRejectsUnsafeSelectors(t *testing.T) {
 	}
 	if stateErr.conditionType != conditionTypeUnsafeSelector {
 		t.Fatalf("expected condition %q, got %q", conditionTypeUnsafeSelector, stateErr.conditionType)
+	}
+}
+
+func TestRenderIdentityRejectsNonStringPoolMatchLabelValues(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]any{
+		"array":  []any{"model-server"},
+		"bool":   true,
+		"number": float64(1),
+		"object": map[string]any{"name": "model-server"},
+	}
+
+	for name, value := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			reconciler := &InferenceIdentityBindingReconciler{}
+			binding := &kleymv1alpha1.InferenceIdentityBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "binding-non-string-label",
+					Namespace: "default",
+				},
+				Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+					TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-non-string-label"},
+					WorkloadSelectorTemplates: []string{
+						"k8s:ns:default",
+						"k8s:sa:inference-sa",
+					},
+					Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+				},
+			}
+			objective := &unstructured.Unstructured{
+				Object: map[string]any{
+					"metadata": map[string]any{"name": "objective-non-string-label"},
+				},
+			}
+			pool := &unstructured.Unstructured{
+				Object: map[string]any{
+					"metadata": map[string]any{"name": "pool-non-string-label"},
+					"spec": map[string]any{
+						"selector": map[string]any{
+							"matchLabels": map[string]any{
+								"app": value,
+							},
+						},
+					},
+				},
+			}
+
+			_, err := reconciler.renderIdentity(binding, objective, pool)
+			if err == nil {
+				t.Fatalf("expected invalid pool selector error, got nil")
+			}
+
+			var stateErr reconcileStateError
+			if !errorsAsStateError(err, &stateErr) {
+				t.Fatalf("expected reconcileStateError, got %T", err)
+			}
+			if stateErr.conditionType != conditionTypeUnsafeSelector {
+				t.Fatalf("expected condition %q, got %q", conditionTypeUnsafeSelector, stateErr.conditionType)
+			}
+			if stateErr.reason != "InvalidPoolSelector" {
+				t.Fatalf("expected reason %q, got %q", "InvalidPoolSelector", stateErr.reason)
+			}
+		})
+	}
+}
+
+func TestRenderIdentityRendersStringPoolMatchLabels(t *testing.T) {
+	t.Parallel()
+
+	reconciler := &InferenceIdentityBindingReconciler{}
+	binding := &kleymv1alpha1.InferenceIdentityBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "binding-string-labels",
+			Namespace: "default",
+		},
+		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+			TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-string-labels"},
+			WorkloadSelectorTemplates: []string{
+				"k8s:ns:default",
+				"k8s:sa:inference-sa",
+			},
+			Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+		},
+	}
+	objective := &unstructured.Unstructured{
+		Object: map[string]any{
+			"metadata": map[string]any{"name": "objective-string-labels"},
+		},
+	}
+	pool := &unstructured.Unstructured{
+		Object: map[string]any{
+			"metadata": map[string]any{"name": "pool-string-labels"},
+			"spec": map[string]any{
+				"selector": map[string]any{
+					"matchLabels": map[string]any{
+						"app":  "model-server",
+						"role": "decode",
+					},
+				},
+			},
+		},
+	}
+
+	identity, err := reconciler.renderIdentity(binding, objective, pool)
+	if err != nil {
+		t.Fatalf("renderIdentity returned error: %v", err)
+	}
+
+	expectedSelectors := []string{
+		"k8s:pod-label:app:model-server",
+		"k8s:pod-label:role:decode",
+	}
+	for _, expectedSelector := range expectedSelectors {
+		if !slices.Contains(identity.Selectors, expectedSelector) {
+			t.Fatalf("expected selector %q, selectors: %v", expectedSelector, identity.Selectors)
+		}
+	}
+}
+
+func TestDeriveSelectorsFromPoolKeepsFlatStringMapCompatibility(t *testing.T) {
+	t.Parallel()
+
+	pool := &unstructured.Unstructured{
+		Object: map[string]any{
+			"metadata": map[string]any{"name": "pool-flat-selector"},
+			"spec": map[string]any{
+				"selector": map[string]any{
+					"app":  "model-server",
+					"role": "prefill",
+				},
+			},
+		},
+	}
+
+	podSelector, derivedSelectors, err := deriveSelectorsFromPool(pool)
+	if err != nil {
+		t.Fatalf("deriveSelectorsFromPool returned error: %v", err)
+	}
+
+	if _, ok := podSelector["matchLabels"].(map[string]any); !ok {
+		t.Fatalf("expected flat selector to normalize into matchLabels, got %v", podSelector)
+	}
+
+	expectedSelectors := []string{
+		"k8s:pod-label:app:model-server",
+		"k8s:pod-label:role:prefill",
+	}
+	for _, expectedSelector := range expectedSelectors {
+		if !slices.Contains(derivedSelectors, expectedSelector) {
+			t.Fatalf("expected selector %q, selectors: %v", expectedSelector, derivedSelectors)
+		}
 	}
 }
 
