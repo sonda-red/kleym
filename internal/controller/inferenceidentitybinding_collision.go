@@ -35,7 +35,7 @@ import (
 //
 // Two bindings collide when they produce identical (podSelector, selectors,
 // containerDiscriminatorType, containerDiscriminatorValue) tuples — meaning
-// SPIRE would assign the same identity to the same container twice.
+// distinct objective identities would target the same container selection.
 //
 // Algorithm:
 //  1. Gather candidate bindings that could collide with the current one.
