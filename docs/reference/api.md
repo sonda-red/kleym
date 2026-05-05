@@ -34,7 +34,7 @@ External SPIFFE/SPIRE references:
 | `targetRef.name` | Yes | References an `InferenceObjective` in the same namespace. |
 | `spiffeIDTemplate` | No | Overrides the computed SPIFFE ID when provided. |
 | `selectorSource` | Yes | Current enum: `DerivedFromPool`. |
-| `workloadSelectorTemplates` | Yes | Non-empty set of rendered SPIRE workload selector strings. |
+| `workloadSelectorTemplates` | Yes | Non-empty set of user-supplied SPIRE workload selector templates. |
 | `mode` | No | `PoolOnly` or `PerObjective`. Defaults to `PerObjective`. |
 | `containerDiscriminator.type` | Conditionally | Required in `PerObjective`. Current enum: `ContainerName`, `ContainerImage`. |
 | `containerDiscriminator.value` | Conditionally | Required in `PerObjective`. |
@@ -70,5 +70,8 @@ The current controller resolves `InferenceObjective` and `InferencePool` from th
 - `inference.networking.x-k8s.io/v1alpha2`
 
 For objectives, `kleym` currently reads `spec.poolRef`.
+
+If `spec.poolRef.group` is set, it must match one of the supported GAIE
+InferencePool groups listed above.
 
 For pools, `kleym` currently reads `spec.selector`.

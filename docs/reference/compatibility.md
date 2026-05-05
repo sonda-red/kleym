@@ -50,8 +50,9 @@ release.
 `spec.selector.matchExpressions` are not supported.
 
 When `spec.poolRef.group` is set, the controller constrains pool resolution to
-that group using `v1` and `v1alpha2` `InferencePool` candidates. Groups outside
-the documented GVKs are best-effort lookup only, not a compatibility guarantee.
+that group using supported `InferencePool` candidates. Groups outside the
+documented GVKs are rejected as invalid `poolRef` values instead of being
+looked up best-effort.
 
 | Startup case | Behavior |
 | --- | --- |
