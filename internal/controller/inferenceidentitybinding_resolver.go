@@ -135,6 +135,9 @@ func extractPoolRef(objective *unstructured.Unstructured, defaultNamespace strin
 			return inferencePoolRef{}, fmt.Errorf("objective spec.poolRef.group must be a string")
 		}
 		group = strings.TrimSpace(groupValue)
+		if group != "" && !isSupportedInferencePoolGroup(group) {
+			return inferencePoolRef{}, fmt.Errorf("objective spec.poolRef.group %q is not a supported GAIE InferencePool group", group)
+		}
 	}
 
 	namespace := defaultNamespace
@@ -183,10 +186,24 @@ func candidatePoolGVKs(candidates []schema.GroupVersionKind, group string) []sch
 		return filtered
 	}
 
-	return []schema.GroupVersionKind{
-		{Group: group, Version: "v1", Kind: "InferencePool"},
-		{Group: group, Version: "v1alpha2", Kind: "InferencePool"},
+	return supportedPoolGVKsForGroup(group)
+}
+
+func isSupportedInferencePoolGroup(group string) bool {
+	return len(supportedPoolGVKsForGroup(group)) > 0
+}
+
+// supportedPoolGVKsForGroup returns static supported pool GVKs so a supported
+// group with a missing CRD is reported as infrastructure-not-ready instead of
+// being treated as an arbitrary best-effort API lookup.
+func supportedPoolGVKsForGroup(group string) []schema.GroupVersionKind {
+	supported := make([]schema.GroupVersionKind, 0, len(inferencePoolGVKs))
+	for _, gvk := range inferencePoolGVKs {
+		if gvk.Group == group {
+			supported = append(supported, gvk)
+		}
 	}
+	return supported
 }
 
 func shouldCleanupManagedClusterSPIFFEIDs(conditionType string) bool {

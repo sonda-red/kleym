@@ -84,6 +84,52 @@ func TestReconcileSetsInvalidRefWhenObjectivePoolRefIsInvalid(t *testing.T) {
 	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "InvalidPoolRef")
 }
 
+func TestReconcileSetsInvalidRefWhenPoolRefGroupIsUnsupported(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scheme := newCollisionTestScheme(t)
+	unsupportedPoolGVK := schema.GroupVersionKind{
+		Group:   "inference.example.com",
+		Version: "v1",
+		Kind:    "InferencePool",
+	}
+	registerUnstructuredGVK(scheme, unsupportedPoolGVK)
+
+	pool := newTestPool()
+	pool.SetGroupVersionKind(unsupportedPoolGVK)
+	pool.SetName("pool-unsupported")
+
+	objective := newTestObjective("objective-unsupported-pool-group")
+	objective.Object["spec"] = map[string]any{
+		"poolRef": map[string]any{
+			"name":  pool.GetName(),
+			"group": unsupportedPoolGVK.Group,
+		},
+	}
+
+	binding := newPerObjectiveBinding("binding-unsupported-pool-group", objective.GetName())
+	reconciler := &InferenceIdentityBindingReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+			WithObjects(pool, objective, binding).
+			Build(),
+		Scheme: scheme,
+	}
+
+	_, err := reconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: binding.Name},
+	})
+	if err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeInvalidRef, metav1.ConditionTrue, "InvalidPoolRef")
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "InvalidPoolRef")
+	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 0)
+}
+
 func TestReconcileUsesDiscoveredObjectiveGVKsForResolution(t *testing.T) {
 	t.Parallel()
 
