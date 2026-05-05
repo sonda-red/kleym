@@ -26,7 +26,7 @@ If reconciliation fails, `Ready=False` and the triggering condition becomes `Tru
 | Condition | Reason | Typical cause | What to fix |
 | --- | --- | --- | --- |
 | `InvalidRef` | `TargetObjectiveNotFound` | `spec.targetRef.name` does not resolve to an `InferenceObjective` in the same namespace. | Check the objective name, namespace, and installation of the objective CRD. |
-| `InvalidRef` | `InvalidPoolRef` | The referenced objective has an invalid or cross-namespace `poolRef`. | Fix the objective so `spec.poolRef` points to a valid pool in the same namespace. |
+| `InvalidRef` | `InvalidPoolRef` | The referenced objective has an invalid, cross-namespace, or unsupported-group `poolRef`. | Fix the objective so `spec.poolRef` points to a valid pool in the same namespace and a supported GAIE group. |
 | `InvalidRef` | `TargetPoolNotFound` | The objective points to an `InferencePool` that does not exist. | Create the pool or correct the objective's `poolRef`. |
 | `InvalidRef` | `InferenceObjectiveCRDMissing` | The GAIE `InferenceObjective` CRD is not installed in the cluster. | Install the required GAIE CRDs before reconciling bindings. |
 | `InvalidRef` | `InferencePoolCRDMissing` | The GAIE `InferencePool` CRD is not installed in the cluster. | Install the required GAIE CRDs before reconciling bindings. |
