@@ -226,7 +226,11 @@ func deriveSelectorsFromPool(pool *unstructured.Unstructured) (map[string]any, [
 
 	derivedSelectors := make([]string, 0, len(matchLabels))
 	for key, value := range matchLabels {
-		valueText := strings.TrimSpace(fmt.Sprintf("%v", value))
+		valueText, ok := value.(string)
+		if !ok {
+			return nil, nil, fmt.Errorf("pool spec.selector.matchLabels[%q] must be a string", key)
+		}
+		valueText = strings.TrimSpace(valueText)
 		if key == "" || valueText == "" {
 			return nil, nil, fmt.Errorf("pool selector labels must contain non-empty keys and values")
 		}
