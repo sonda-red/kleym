@@ -12,6 +12,9 @@
       "matchManagers": [
         "gomod"
       ],
+      "matchFileNames": [
+        "go.mod"
+      ],
       "postUpdateOptions": [
         "gomodTidy"
       ],

@@ -1,8 +1,13 @@
 baseURL: "https://kleym.sonda.red/"
 title: "kleym"
+languageCode: "en"
+defaultContentLanguage: "en"
 
 enableRobotsTXT: true
 enableGitInfo: true
+
+pagination:
+  pagerSize: 20
 
 contentDir: docs
 assetDir: docs/assets
@@ -22,25 +27,43 @@ markup:
   goldmark:
     renderer:
       unsafe: true
+  highlight:
+    noClasses: false
+    style: swapoff
 
 menu:
   main:
-    - identifier: docs
-      name: Documentation
-      pageRef: /
+    - name: Home
+      url: "https://sonda.red/"
       weight: 1
-    - name: About
-      pageRef: /about
+    - name: Projects
+      identifier: projects
+      url: "https://sonda.red/projects/"
       weight: 2
-    - name: Search
+    - name: Notes
+      url: "https://sonda.red/notes/"
       weight: 3
+    - name: About
+      url: "https://sonda.red/about/"
+      weight: 4
+    - name: kleym
+      parent: projects
+      url: "https://kleym.sonda.red/"
+      weight: 1
+    - name: Search
+      weight: 5
       params:
         type: search
     - name: GitHub
-      weight: 4
-      url: "https://github.com/sonda-red/kleym"
+      weight: 6
+      url: "https://github.com/sonda-red"
       params:
         icon: github
+    - name: LinkedIn
+      weight: 7
+      url: "https://linkedin.com/in/daskalovk"
+      params:
+        icon: linkedin
 
   sidebar:
     - name: More
@@ -48,7 +71,7 @@ menu:
         type: separator
       weight: 1
     - name: About
-      pageRef: /about
+      pageRef: /
       weight: 2
     - name: Releases (GitHub)
       url: "https://github.com/sonda-red/kleym/releases"
@@ -56,12 +79,16 @@ menu:
 
 params:
   description: "Kubernetes operator that compiles inference identity intent into deterministic SPIFFE identities."
+  keywords: "kubernetes,platform engineering,workload identity,spiffe,spire,mlops,inference,operators,gateway api inference extension"
 
   navbar:
     displayTitle: true
     displayLogo: true
     logo:
       path: images/sondrd-64.png
+      link: /
+      width: 28
+      height: 28
     width: wide
 
   theme:
@@ -70,7 +97,7 @@ params:
 
   footer:
     enable: true
-    displayCopyright: false
+    displayCopyright: true
     displayPoweredBy: false
     width: wide
 
@@ -80,6 +107,9 @@ params:
   search:
     enable: true
     type: flexsearch
+    flexsearch:
+      index: content
+      tokenize: forward
 
   editURL:
     enable: true
@@ -87,6 +117,12 @@ params:
 
   page:
     width: wide
+
+  toc:
+    displayTags: true
+
+  imageZoom:
+    enable: true
 
   highlight:
     copy:
