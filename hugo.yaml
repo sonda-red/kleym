@@ -34,11 +34,11 @@ markup:
 menu:
   main:
     - name: Home
-      url: "https://sonda.red/"
+      pageRef: /
       weight: 1
     - name: Projects
       identifier: projects
-      url: "https://sonda.red/projects/"
+      url: /projects/
       weight: 2
     - name: Notes
       url: "https://sonda.red/notes/"
@@ -48,7 +48,7 @@ menu:
       weight: 4
     - name: kleym
       parent: projects
-      url: "https://kleym.sonda.red/"
+      pageRef: /
       weight: 1
     - name: Search
       weight: 5
@@ -56,7 +56,7 @@ menu:
         type: search
     - name: GitHub
       weight: 6
-      url: "https://github.com/sonda-red"
+      url: "https://github.com/sonda-red/kleym"
       params:
         icon: github
     - name: LinkedIn
@@ -70,12 +70,9 @@ menu:
       params:
         type: separator
       weight: 1
-    - name: About
-      pageRef: /
-      weight: 2
     - name: Releases (GitHub)
       url: "https://github.com/sonda-red/kleym/releases"
-      weight: 3
+      weight: 2
 
 params:
   description: "Kubernetes operator that compiles inference identity intent into deterministic SPIFFE identities."
