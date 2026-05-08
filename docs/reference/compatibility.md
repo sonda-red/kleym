@@ -70,8 +70,8 @@ looked up best-effort.
 | `spec.spiffeIDTemplate` | Rendered. |
 | `spec.podSelector` | Rendered from the referenced pool. |
 | `spec.workloadSelectorTemplates` | Rendered safety selectors, pool-derived selectors, and optional container discriminator. |
-| `spec.fallback` | Not rendered. Requires design decision. |
-| `spec.hint` | Not rendered. Requires design decision. |
+| `spec.fallback` | Rendered as `false` for managed identities. |
+| `spec.hint` | Rendered as the originating binding reference `<namespace>/<binding-name>`. |
 | JWT-SVID-related fields | Not rendered. Requires user story and SPIRE Controller Manager/SPIRE version gate. |
 
 Managed `ClusterSPIFFEID` objects are labeled with:

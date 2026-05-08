@@ -105,6 +105,11 @@ Compatibility matrix for GAIE inputs (by GVK):
 4. Derive pod selection from [`InferencePool`][gaie-inferencepool], then intersect it with the validated user-supplied safety selectors (namespace and service account) and, in `PerObjective` mode, the container discriminator.
 5. Detect identity collisions: if two `InferenceIdentityBinding` resources in `PerObjective` mode would match the same pod set and the same `container-name` value, set the `Conflict` condition with reason `IdentityCollision` on both resources and refuse to reconcile either until the collision is resolved.
 6. Reconcile one or more [`ClusterSPIFFEID`][clusterspiffeid] resources in `spire.spiffe.io` using the computed SPIFFE IDs and validated selectors.
+   - `spec.spiffeIDTemplate`: the fully rendered SPIFFE ID
+   - `spec.podSelector`: the validated pod selector from the referenced pool
+   - `spec.workloadSelectorTemplates`: rendered safety selectors, pool-derived selectors, and optional container discriminator
+   - `spec.hint`: the originating binding reference (`<namespace>/<binding-name>`) for traceability
+   - `spec.fallback`: always `false` (kleym manages explicit per-objective identities, not fallback entries)
 7. Update status and emit events for conflicts, unsafe selection, identity collisions, and render failures.
 8. Treat infrastructure-not-ready states such as missing required CRDs as transient by retrying reconciliation on a timer so recovery does not depend on unrelated watch events.
 9. On `InferenceIdentityBinding` deletion, remove managed [`ClusterSPIFFEID`][clusterspiffeid] children first and keep the binding finalizer until a follow-up list confirms no managed children remain.
