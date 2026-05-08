@@ -38,10 +38,10 @@ Keep that review narrow. Read the issue or PR that motivated the change and any 
 - Docker
 - `kubectl`
 - Access to a Kubernetes cluster for deployment testing
-- `kind` for local e2e testing
+- Docker for local Kind-backed e2e testing; the e2e targets bootstrap `kind` and Chainsaw under `bin/`
 - Hugo Extended `0.146+` for docs preview/build
 
-The repository bootstraps local tool binaries under `bin/` through `make` targets, so global installs of `controller-gen`, `kustomize`, `setup-envtest`, and `golangci-lint` are not required.
+The repository bootstraps local tool binaries under `bin/` through `make` targets, so global installs of `controller-gen`, `kustomize`, `setup-envtest`, `golangci-lint`, `kind`, and Chainsaw are not required.
 
 ## Repository Map
 
@@ -50,6 +50,7 @@ The repository bootstraps local tool binaries under `bin/` through `make` target
 - `internal/controller`: reconciliation logic and controller-focused tests
 - `config/`: CRD, RBAC, manager deployment, samples, and kustomize overlays
 - `test/e2e`: Kind-backed end-to-end coverage
+- `test/chainsaw`: Chainsaw scenarios for declarative cluster reconciliation checks
 - `.github/workflows`: CI, release, and maintenance automation
 
 ## Common Commands
@@ -62,6 +63,7 @@ The repository bootstraps local tool binaries under `bin/` through `make` target
 - `make test`: run non-e2e tests with envtest setup
 - `make lint`: run `golangci-lint`
 - `make test-e2e`: run Kind-backed end-to-end tests
+- `make test-e2e-chainsaw`: run Kind-backed Chainsaw tests
 - `make install`: install CRDs into the current cluster
 - `make deploy IMG=<registry>/kleym:<tag>`: deploy the controller image to the current cluster
 - `make build-installer`: render `dist/install.yaml`
@@ -115,6 +117,7 @@ Run `make lint` as well when you touch Go code, build logic, or CI-sensitive beh
 - Prefer the smallest command set that proves the change.
 - Use `make test` for normal API and controller work.
 - Use `make test-e2e` for cluster behavior, Kind setup, deployment flows, or bugs that only reproduce against a live control plane.
+- Use `make test-e2e-chainsaw` for binding-to-`ClusterSPIFFEID` reconciliation coverage that can be expressed as Kubernetes resources and assertions.
 - If you skip a relevant test, say so in your handoff.
 
 ## Docs Workflow
@@ -139,5 +142,6 @@ Docs-related pull requests and pushes to `main` run a dedicated docs workflow th
 
 - CI workflows run on GitHub-hosted runners (`ubuntu-latest`) and must not depend on local or self-hosted infrastructure.
 - `.github/workflows/ci.yml` runs separate `Lint` and `Test` jobs on pull requests and pushes to `main`
+- `.github/workflows/chainsaw-e2e.yml` runs the Kind-backed Chainsaw reconciliation check on pull requests, pushes to `main`, and manual dispatch
 - `.github/workflows/release.yml` runs by manual `workflow_dispatch` from the GitHub Actions UI, builds artifacts and images, creates the release tag, and creates a GitHub Release
 - Follow Conventional Commits for PR titles. See `RELEASING.md` for the manual release procedure
