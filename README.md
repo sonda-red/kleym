@@ -60,7 +60,7 @@ Prerequisites:
 - `kubectl`
 - Access to a Kubernetes cluster with the Gateway API Inference Extension [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) CRDs
 - SPIRE Controller Manager with the `ClusterSPIFFEID` CRD
-- `kind` for `make test-e2e`
+- Docker for Kind-backed e2e; the e2e targets bootstrap `kind` and Chainsaw under `bin/`
 
 Run the controller locally:
 
@@ -80,6 +80,7 @@ Run validation:
 ```sh
 make test
 make lint
+make test-e2e-chainsaw KEEP_KIND=true
 ```
 
 ## Reconcile Flow

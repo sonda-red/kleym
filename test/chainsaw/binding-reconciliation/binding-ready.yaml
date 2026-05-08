@@ -1,0 +1,33 @@
+apiVersion: kleym.sonda.red/v1alpha1
+kind: InferenceIdentityBinding
+metadata:
+  name: binding
+  namespace: kleym-reference-inference
+status:
+  computedSpiffeIDs:
+    - mode: PerObjective
+      spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/objective/reference-objective
+  renderedSelectors:
+    - spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/objective/reference-objective
+      selectors:
+        - k8s:container-name:model-server
+        - k8s:ns:kleym-reference-inference
+        - k8s:pod-label:app.kubernetes.io/name:reference-model-server
+        - k8s:pod-label:app.kubernetes.io/part-of:kleym-reference-inference
+        - k8s:sa:reference-inference
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+    - type: Conflict
+      status: "False"
+      reason: Resolved
+    - type: InvalidRef
+      status: "False"
+      reason: Resolved
+    - type: UnsafeSelector
+      status: "False"
+      reason: Resolved
+    - type: RenderFailure
+      status: "False"
+      reason: Resolved

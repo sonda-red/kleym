@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: binding-reconciliation
+spec:
+  description: Verifies that reference PerObjective and PoolOnly bindings reconcile to stable managed ClusterSPIFFEIDs.
+  timeouts:
+    apply: 30s
+    assert: 2m
+    cleanup: 45s
+    delete: 30s
+    exec: 2m
+  steps:
+    - name: apply-reference-environment
+      try:
+        - script:
+            workDir: ../../..
+            content: kubectl apply -k test/reference/inference-environment
+
+    - name: apply-binding
+      try:
+        - apply:
+            file: binding.yaml
+        - assert:
+            file: binding-ready.yaml
+        - assert:
+            file: clusterspiffeid.yaml
+
+    - name: reapply-binding
+      try:
+        - apply:
+            file: binding.yaml
+        - assert:
+            file: binding-ready.yaml
+        - assert:
+            file: clusterspiffeid.yaml
+
+    - name: delete-binding
+      try:
+        - delete:
+            file: binding.yaml
+        - script:
+            content: |
+              kubectl wait --for=delete inferenceidentitybinding/binding \
+                -n kleym-reference-inference \
+                --timeout=60s
+              kubectl wait --for=delete clusterspiffeid/kleym-kleym-reference-inference-binding-objective-3b2d9110 \
+                --timeout=60s
+
+    - name: apply-pool-binding
+      try:
+        - apply:
+            file: pool-binding.yaml
+        - assert:
+            file: pool-binding-ready.yaml
+        - assert:
+            file: pool-clusterspiffeid.yaml
+
+    - name: reapply-pool-binding
+      try:
+        - apply:
+            file: pool-binding.yaml
+        - assert:
+            file: pool-binding-ready.yaml
+        - assert:
+            file: pool-clusterspiffeid.yaml
+
+    - name: delete-pool-binding
+      try:
+        - delete:
+            file: pool-binding.yaml
+        - script:
+            content: |
+              kubectl wait --for=delete inferenceidentitybinding/pool-binding \
+                -n kleym-reference-inference \
+                --timeout=60s
+              kubectl wait --for=delete clusterspiffeid/kleym-kleym-reference-inference-pool-binding-pool-e2d8bd8d \
+                --timeout=60s
+        - script:
+            workDir: ../../..
+            content: kubectl delete -k test/reference/inference-environment --ignore-not-found=true
