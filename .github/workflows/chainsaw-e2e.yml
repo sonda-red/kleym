@@ -1,0 +1,53 @@
+name: Chainsaw E2E
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: chainsaw-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  chainsaw:
+    name: Kind + Chainsaw
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.head_ref, 'renovate/') }}
+    env:
+      GOFLAGS: -buildvcs=false -p=2
+      GOMAXPROCS: "2"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Run Chainsaw e2e tests
+        run: make test-e2e-chainsaw
+
+      - name: Upload Chainsaw report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: chainsaw-e2e-report
+          path: bin/chainsaw-reports
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Cleanup Kind cluster
+        if: always()
+        run: make cleanup-test-e2e || true

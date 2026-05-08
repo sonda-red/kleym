@@ -1,0 +1,13 @@
+apiVersion: kleym.sonda.red/v1alpha1
+kind: InferenceIdentityBinding
+metadata:
+  name: pool-binding
+  namespace: kleym-reference-inference
+spec:
+  targetRef:
+    name: reference-objective
+  selectorSource: DerivedFromPool
+  workloadSelectorTemplates:
+    - k8s:ns:kleym-reference-inference
+    - k8s:sa:reference-inference
+  mode: PoolOnly
