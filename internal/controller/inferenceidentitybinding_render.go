@@ -26,6 +26,7 @@ import (
 	"text/template"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
@@ -239,9 +240,17 @@ func deriveSelectorsFromPool(pool *unstructured.Unstructured) (map[string]any, [
 		if !ok {
 			return nil, nil, fmt.Errorf("pool spec.selector.matchLabels[%q] must be a string", key)
 		}
-		valueText = strings.TrimSpace(valueText)
-		if key == "" || valueText == "" {
-			return nil, nil, fmt.Errorf("pool selector labels must contain non-empty keys and values")
+		if key == "" {
+			return nil, nil, fmt.Errorf("pool selector labels must contain non-empty keys")
+		}
+		if valueText == "" {
+			return nil, nil, fmt.Errorf("pool selector labels must contain non-empty values")
+		}
+		if errs := validation.IsQualifiedName(key); len(errs) > 0 {
+			return nil, nil, fmt.Errorf("pool spec.selector.matchLabels key %q is invalid: %s", key, strings.Join(errs, "; "))
+		}
+		if errs := validation.IsValidLabelValue(valueText); len(errs) > 0 {
+			return nil, nil, fmt.Errorf("pool spec.selector.matchLabels[%q] value %q is invalid: %s", key, valueText, strings.Join(errs, "; "))
 		}
 		derivedSelectors = append(derivedSelectors, fmt.Sprintf("k8s:pod-label:%s:%s", key, valueText))
 	}
