@@ -35,10 +35,12 @@ It rejects:
 
 - empty selectors
 - empty label keys or values
+- label keys or values that do not satisfy Kubernetes label syntax
+- label values with leading or trailing whitespace
 - `matchExpressions`
 - pool selectors that cannot be decoded into a stable label map
 
-That restriction is deliberate. `matchExpressions` are flexible, but they are harder to translate into precise SPIRE selector templates without widening the selected workload set.
+Those restrictions are deliberate. The controller renders pool labels directly into SPIRE workload selectors, so it rejects malformed label input instead of normalizing it into a selector the pool did not specify. `matchExpressions` are flexible, but they are harder to translate into precise SPIRE selector templates without widening the selected workload set.
 
 ## Why Templates Are Still Allowed
 

@@ -46,7 +46,9 @@ release.
 | `InferenceObjective` | `inference.networking.x-k8s.io/v1alpha2`; `inference.networking.k8s.io/v1` when served | `spec.poolRef` |
 | `InferencePool` | `inference.networking.k8s.io/v1`; `inference.networking.x-k8s.io/v1alpha2` | `spec.selector.matchLabels`; flat string label maps are normalized for compatibility |
 
-`InferencePool` selectors must render deterministically. Non-empty
+`InferencePool` selectors must render deterministically. Accepted label keys
+and values must satisfy Kubernetes label syntax; malformed labels are rejected
+instead of being rendered into SPIRE workload selectors. Non-empty
 `spec.selector.matchExpressions` are not supported.
 
 When `spec.poolRef.group` is set, the controller constrains pool resolution to
