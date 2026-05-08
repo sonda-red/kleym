@@ -125,6 +125,75 @@ func TestRenderIdentityRejectsNonStringPoolMatchLabelValues(t *testing.T) {
 	}
 }
 
+func TestRenderIdentityRejectsInvalidPoolMatchLabelSyntax(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]map[string]any{
+		"invalid-key-prefix":        {"Example.com/app": "model-server"},
+		"invalid-key-name":          {"app/name/extra": "model-server"},
+		"leading-whitespace-key":    {" app": "model-server"},
+		"leading-whitespace-value":  {"app": " model-server"},
+		"trailing-whitespace-value": {"app": "model-server "},
+		"whitespace-only-value":     {"app": " "},
+		"invalid-value-character":   {"app": "model/server"},
+		"invalid-value-start":       {"app": "-model"},
+		"invalid-value-end":         {"app": "model-"},
+	}
+
+	for name, labels := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			reconciler := &InferenceIdentityBindingReconciler{}
+			binding := &kleymv1alpha1.InferenceIdentityBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "binding-invalid-label-syntax",
+					Namespace: "default",
+				},
+				Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+					TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-invalid-label-syntax"},
+					WorkloadSelectorTemplates: []string{
+						"k8s:ns:default",
+						"k8s:sa:inference-sa",
+					},
+					Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+				},
+			}
+			objective := &unstructured.Unstructured{
+				Object: map[string]any{
+					"metadata": map[string]any{"name": "objective-invalid-label-syntax"},
+				},
+			}
+			pool := &unstructured.Unstructured{
+				Object: map[string]any{
+					"metadata": map[string]any{"name": "pool-invalid-label-syntax"},
+					"spec": map[string]any{
+						"selector": map[string]any{
+							"matchLabels": labels,
+						},
+					},
+				},
+			}
+
+			_, err := reconciler.renderIdentity(binding, objective, pool)
+			if err == nil {
+				t.Fatalf("expected invalid pool selector error, got nil")
+			}
+
+			var stateErr reconcileStateError
+			if !errorsAsStateError(err, &stateErr) {
+				t.Fatalf("expected reconcileStateError, got %T", err)
+			}
+			if stateErr.conditionType != conditionTypeUnsafeSelector {
+				t.Fatalf("expected condition %q, got %q", conditionTypeUnsafeSelector, stateErr.conditionType)
+			}
+			if stateErr.reason != "InvalidPoolSelector" {
+				t.Fatalf("expected reason %q, got %q", "InvalidPoolSelector", stateErr.reason)
+			}
+		})
+	}
+}
+
 func TestRenderIdentityRendersStringPoolMatchLabels(t *testing.T) {
 	t.Parallel()
 
@@ -154,8 +223,8 @@ func TestRenderIdentityRendersStringPoolMatchLabels(t *testing.T) {
 			"spec": map[string]any{
 				"selector": map[string]any{
 					"matchLabels": map[string]any{
-						"app":  "model-server",
-						"role": "decode",
+						"app":                                "model-server",
+						"inference.networking.x-k8s.io/role": "decode.v1",
 					},
 				},
 			},
@@ -169,7 +238,7 @@ func TestRenderIdentityRendersStringPoolMatchLabels(t *testing.T) {
 
 	expectedSelectors := []string{
 		"k8s:pod-label:app:model-server",
-		"k8s:pod-label:role:decode",
+		"k8s:pod-label:inference.networking.x-k8s.io/role:decode.v1",
 	}
 	for _, expectedSelector := range expectedSelectors {
 		if !slices.Contains(identity.Selectors, expectedSelector) {
