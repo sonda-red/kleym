@@ -120,6 +120,8 @@ func desiredClusterSPIFFEID(
 		"spiffeIDTemplate":          identity.SpiffeID,
 		"podSelector":               identity.PodSelector,
 		"workloadSelectorTemplates": selectorTemplates,
+		"fallback":                  identity.Fallback,
+		"hint":                      identity.Hint,
 	}
 
 	return object

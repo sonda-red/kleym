@@ -139,7 +139,16 @@ func (r *InferenceIdentityBindingReconciler) renderIdentity(
 		PodSelector:  podSelector,
 		ObjectiveRef: objective.GetName(),
 		PoolRef:      pool.GetName(),
+		Hint:         buildClusterSPIFFEIDHint(binding),
+		Fallback:     false,
 	}, nil
+}
+
+// buildClusterSPIFFEIDHint builds a stable ClusterSPIFFEID entry hint from
+// the originating binding. This makes managed SPIRE entries easier to trace
+// back to the source InferenceIdentityBinding.
+func buildClusterSPIFFEIDHint(binding *kleymv1alpha1.InferenceIdentityBinding) string {
+	return binding.Namespace + "/" + binding.Name
 }
 
 func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
