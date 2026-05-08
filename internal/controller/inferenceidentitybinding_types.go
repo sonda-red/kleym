@@ -63,6 +63,8 @@ type renderedIdentity struct {
 	PodSelector  map[string]any
 	ObjectiveRef string
 	PoolRef      string
+	Hint         string
+	Fallback     bool
 }
 
 type renderTemplateData struct {

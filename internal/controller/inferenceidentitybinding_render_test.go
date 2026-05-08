@@ -327,6 +327,73 @@ func TestRenderIdentityUsesCustomSPIFFEIDTemplateOverride(t *testing.T) {
 	}
 }
 
+func TestRenderIdentityIncludesHintAndFallback(t *testing.T) {
+	t.Parallel()
+
+	reconciler := &InferenceIdentityBindingReconciler{}
+	binding := &kleymv1alpha1.InferenceIdentityBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "binding-hint-fallback",
+			Namespace: "default",
+		},
+		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+			TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-hint"},
+			WorkloadSelectorTemplates: []string{
+				"k8s:ns:default",
+				"k8s:sa:inference-sa",
+			},
+			Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+		},
+	}
+	objective := &unstructured.Unstructured{
+		Object: map[string]any{
+			"metadata": map[string]any{"name": "objective-hint"},
+		},
+	}
+	pool := &unstructured.Unstructured{
+		Object: map[string]any{
+			"metadata": map[string]any{"name": "pool-hint"},
+			"spec": map[string]any{
+				"selector": map[string]any{
+					"matchLabels": map[string]any{
+						"app": "model-server",
+					},
+				},
+			},
+		},
+	}
+
+	identity, err := reconciler.renderIdentity(binding, objective, pool)
+	if err != nil {
+		t.Fatalf("renderIdentity returned error: %v", err)
+	}
+	desired := desiredClusterSPIFFEID(binding, identity)
+
+	spec, found, err := unstructured.NestedMap(desired.Object, "spec")
+	if err != nil {
+		t.Fatalf("failed to inspect desired ClusterSPIFFEID spec: %v", err)
+	}
+	if !found {
+		t.Fatal("desired ClusterSPIFFEID spec missing")
+	}
+
+	hint, ok := spec["hint"].(string)
+	if !ok {
+		t.Fatalf("expected spec.hint to be string, got %T", spec["hint"])
+	}
+	if hint != "default/binding-hint-fallback" {
+		t.Fatalf("spec.hint = %q, want %q", hint, "default/binding-hint-fallback")
+	}
+
+	fallback, ok := spec["fallback"].(bool)
+	if !ok {
+		t.Fatalf("expected spec.fallback to be bool, got %T", spec["fallback"])
+	}
+	if fallback != false {
+		t.Fatalf("spec.fallback = %v, want false", fallback)
+	}
+}
+
 func TestExtractPoolRefRejectsCrossNamespace(t *testing.T) {
 	t.Parallel()
 

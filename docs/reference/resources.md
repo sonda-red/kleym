@@ -21,6 +21,8 @@ Each managed object currently includes:
 - `spec.spiffeIDTemplate`: the fully rendered SPIFFE ID
 - `spec.podSelector`: the selector derived from the referenced pool
 - `spec.workloadSelectorTemplates`: rendered safety selectors, pool-derived selectors, and the optional per-objective container selector
+- `spec.fallback`: false for all managed identities
+- `spec.hint`: the originating binding reference in the form `<namespace>/<binding-name>`
 
 Managed `ClusterSPIFFEID` objects are labeled with:
 
