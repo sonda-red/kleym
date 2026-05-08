@@ -76,9 +76,13 @@ test: manifests generate fmt vet setup-envtest ## Run tests.
 # E2E tests use Kind and load the manager image locally.
 # Set CERT_MANAGER_INSTALL_SKIP=true when the cluster already has cert-manager.
 KIND_CLUSTER ?= kleym-test-e2e
+E2E_IMG ?= example.com/kleym:e2e
+KEEP_KIND ?= false
+CHAINSAW_TEST_DIR ?= test/chainsaw
+CHAINSAW_REPORT_DIR ?= $(LOCALBIN)/chainsaw-reports
 
 .PHONY: setup-test-e2e
-setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
+setup-test-e2e: kind ## Set up a Kind cluster for e2e tests if it does not exist
 	@command -v $(KIND) >/dev/null 2>&1 || { \
 		echo "Kind is not installed. Please install Kind manually."; \
 		exit 1; \
@@ -94,7 +98,39 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 .PHONY: test-e2e
 test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
 	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2e/ -v -ginkgo.v
-	$(MAKE) cleanup-test-e2e
+	@if [ "$(KEEP_KIND)" != "true" ]; then $(MAKE) cleanup-test-e2e; fi
+
+.PHONY: install-e2e-crds
+install-e2e-crds: install ## Install minimal external CRDs required by e2e tests.
+	"$(KUBECTL)" apply -f internal/controller/testdata/crds/spire.spiffe.io_clusterspiffeids.yaml
+	"$(KUBECTL)" apply -f internal/controller/testdata/crds/inference.networking.k8s.io_inferencepools.yaml
+	"$(KUBECTL)" apply -f internal/controller/testdata/crds/inference.networking.x-k8s.io_inferenceobjectives.yaml
+	"$(KUBECTL)" wait --for condition=Established crd/clusterspiffeids.spire.spiffe.io --timeout=60s
+	"$(KUBECTL)" wait --for condition=Established crd/inferencepools.inference.networking.k8s.io --timeout=60s
+	"$(KUBECTL)" wait --for condition=Established crd/inferenceobjectives.inference.networking.x-k8s.io --timeout=60s
+
+.PHONY: test-e2e-chainsaw
+test-e2e-chainsaw: setup-test-e2e chainsaw manifests generate fmt vet ## Run Chainsaw e2e tests against a Kind cluster.
+	@manager_kustomization="config/manager/kustomization.yaml"; \
+	saved_manager_kustomization="$$(mktemp)"; \
+	cp "$$manager_kustomization" "$$saved_manager_kustomization"; \
+	cleanup() { \
+		cp "$$saved_manager_kustomization" "$$manager_kustomization"; \
+		rm -f "$$saved_manager_kustomization"; \
+		if [ "$(KEEP_KIND)" != "true" ]; then $(MAKE) cleanup-test-e2e; fi; \
+	}; \
+	trap cleanup EXIT; \
+	$(MAKE) docker-build IMG=$(E2E_IMG); \
+	"$(KIND)" load docker-image "$(E2E_IMG)" --name "$(KIND_CLUSTER)"; \
+	$(MAKE) install-e2e-crds; \
+	$(MAKE) deploy IMG=$(E2E_IMG); \
+	"$(KUBECTL)" rollout status deployment/kleym-controller-manager -n kleym-system --timeout=120s; \
+	mkdir -p "$(CHAINSAW_REPORT_DIR)"; \
+	"$(CHAINSAW)" test "$(CHAINSAW_TEST_DIR)" \
+		--fail-fast \
+		--report-format JUNIT-TEST \
+		--report-path "$(CHAINSAW_REPORT_DIR)" \
+		--report-name chainsaw-e2e
 
 .PHONY: cleanup-test-e2e
 cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
@@ -206,16 +242,19 @@ $(LOCALBIN):
 
 ## Tool Binaries
 KUBECTL ?= kubectl
-KIND ?= kind
+KIND ?= $(LOCALBIN)/kind
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
+CHAINSAW ?= $(LOCALBIN)/chainsaw
 LINT_GOFLAGS ?= -buildvcs=false -p=2
 LINT_GOCACHE ?= $(LOCALBIN)/.cache/go-build
 LINT_GOLANGCI_LINT_CACHE ?= $(LOCALBIN)/.cache/golangci-lint
 
 ## Tool Versions
+KIND_VERSION ?= v0.30.0
+CHAINSAW_VERSION ?= v0.2.13
 KUSTOMIZE_VERSION ?= v5.7.1
 CONTROLLER_TOOLS_VERSION ?= v0.19.0
 
@@ -230,6 +269,33 @@ ENVTEST_K8S_VERSION ?= $(shell v='$(call gomodver,k8s.io/api)'; \
   printf '%s\n' "$$v" | sed -E 's/^v?[0-9]+\.([0-9]+).*/1.\1/')
 
 GOLANGCI_LINT_VERSION ?= v2.11.4
+.PHONY: kind
+kind: $(KIND) ## Download kind locally if necessary.
+$(KIND): $(LOCALBIN)
+	$(call go-install-tool,$(KIND),sigs.k8s.io/kind,$(KIND_VERSION))
+
+.PHONY: chainsaw
+chainsaw: $(CHAINSAW) ## Download Chainsaw locally if necessary.
+$(CHAINSAW): $(LOCALBIN)
+	@[ -f "$(CHAINSAW)-$(CHAINSAW_VERSION)" ] && [ "$$(readlink -- "$(CHAINSAW)" 2>/dev/null)" = "$(CHAINSAW)-$(CHAINSAW_VERSION)" ] || { \
+	set -e; \
+	os="$$(uname | tr '[:upper:]' '[:lower:]')"; \
+	arch="$$(uname -m)"; \
+	case "$$arch" in \
+		x86_64|amd64) arch=amd64 ;; \
+		aarch64|arm64) arch=arm64 ;; \
+		*) echo "Unsupported Chainsaw architecture: $$arch"; exit 1 ;; \
+	esac; \
+	tmp="$$(mktemp -d)"; \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	url="https://github.com/kyverno/chainsaw/releases/download/$(CHAINSAW_VERSION)/chainsaw_$${os}_$${arch}.tar.gz"; \
+	echo "Downloading $${url}"; \
+	curl -L --max-time 120 -o "$$tmp/chainsaw.tar.gz" "$$url"; \
+	tar -xzf "$$tmp/chainsaw.tar.gz" -C "$$tmp"; \
+	install -m 0755 "$$tmp/chainsaw" "$(CHAINSAW)-$(CHAINSAW_VERSION)"; \
+	}; \
+	ln -sf "$$(realpath "$(CHAINSAW)-$(CHAINSAW_VERSION)")" "$(CHAINSAW)"
+
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
 $(KUSTOMIZE): $(LOCALBIN)
