@@ -48,11 +48,173 @@ Deploy the controller image:
 make deploy IMG=<registry>/kleym:<tag>
 ```
 
-Render the consolidated installer manifest:
+Render the local consolidated installer manifest into `dist/install.yaml`:
 
 ```sh
 make build-installer
 ```
+
+`dist/install.yaml` is generated output and is not committed to the repository.
+
+For Kustomize, Flux, or Argo CD installs, use the root `deployment/`
+kustomization described below.
+
+## GitOps Install
+
+Use the root `deployment/` kustomization when Flux or Argo CD should manage the
+kleym operator.
+
+The path installs the kleym CRD, namespace, RBAC, controller Deployment, and
+metrics Service. It does not install external dependency CRDs: Gateway API
+Inference Extension CRDs and SPIRE Controller Manager, including the
+`ClusterSPIFFEID` CRD, must already be installed.
+
+Install the latest operator manifests directly from `main`:
+
+```sh
+kubectl apply -k https://github.com/sonda-red/kleym//deployment?ref=main
+```
+
+For release-pinned installs, pin both the manifest ref and controller image tag
+with a Kustomize overlay:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- https://github.com/sonda-red/kleym//deployment?ref=vX.Y.Z
+images:
+- name: ghcr.io/sonda-red/kleym
+  newTag: vX.Y.Z
+```
+
+Apply that overlay:
+
+```sh
+kubectl apply -k .
+```
+
+Flux example using latest manifests from `main`:
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: kleym
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://github.com/sonda-red/kleym
+  ref:
+    branch: main
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: kleym
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./deployment
+  prune: false
+  sourceRef:
+    kind: GitRepository
+    name: kleym
+  wait: true
+```
+
+Argo CD example using latest manifests from `main`:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kleym
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/sonda-red/kleym.git
+    targetRevision: main
+    path: deployment
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kleym-system
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+```
+
+The examples leave pruning disabled because deleting a CRD also deletes its
+custom resources.
+
+Pinned Flux example using release manifests and a matching controller image tag:
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: kleym
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://github.com/sonda-red/kleym
+  ref:
+    tag: vX.Y.Z
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: kleym
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./deployment
+  prune: false
+  sourceRef:
+    kind: GitRepository
+    name: kleym
+  images:
+  - name: ghcr.io/sonda-red/kleym
+    newTag: vX.Y.Z
+  wait: true
+```
+
+Pinned Argo CD example using release manifests and a matching controller image
+tag:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kleym
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/sonda-red/kleym.git
+    targetRevision: vX.Y.Z
+    path: deployment
+    kustomize:
+      images:
+      - ghcr.io/sonda-red/kleym:vX.Y.Z
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kleym-system
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+```
+
+A raw commit SHA pins manifest content at that commit. Use an image override
+when the controller image must also be pinned.
+
+Helm is not needed for this installation path. The manifests are static, GitOps
+tools can pin the manifest ref and image tag directly, and Flux or Argo CD can
+consume the kustomization without a chart. A chart should be revisited when
+kleym needs a larger templated install surface for operator-specific options.
 
 ## Test
 
