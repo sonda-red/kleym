@@ -20,12 +20,17 @@ kleym uses workflow-dispatch publishing. The release workflow is triggered manua
 5. The workflow:
    - Validates the version format and that the tag does not already exist.
    - Runs tests.
-   - Builds `dist/install.yaml` and `dist/kleym-crds.yaml`.
+   - Builds generated release artifacts under `dist/`: `install.yaml` and
+     `kleym-crds.yaml`.
    - Builds and pushes a multi-arch container image to GHCR (`ghcr.io/sonda-red/kleym:vX.Y.Z` and `latest`).
    - Creates an annotated git tag and pushes it.
    - Creates a GitHub Release with auto-generated release notes from merged PR titles.
 
-6. Consume `install.yaml` or the GHCR image from the release.
+6. Consume the generated `install.yaml` release asset, the GHCR image, or the
+   root GitOps kustomization from the release. GitOps users can pin the root
+   kustomization to the release tag, for example
+   `https://github.com/sonda-red/kleym//deployment?ref=vX.Y.Z`, and override the
+   controller image tag to the same `vX.Y.Z` version.
 
 ## Why workflow_dispatch
 
@@ -49,13 +54,19 @@ Dependency-only updates use `chore(deps)` and do not trigger a release unless yo
 
 ## Release Artifacts
 
-Each release includes:
+Each release includes generated artifacts. They are uploaded to the GitHub
+Release and are not committed to the repository.
 
 | Artifact | Description |
 |----------|-------------|
 | `install.yaml` | Full operator deployment manifest (CRDs + controller + RBAC) |
 | `kleym-crds.yaml` | CRD-only bundle for standalone CRD installation |
 | GHCR image | `ghcr.io/sonda-red/kleym:vX.Y.Z` and `latest` |
+
+The repository also exposes the `deployment/` kustomization for GitOps
+controllers. On `main` it tracks latest content and the `latest` controller
+image. For release-pinned GitOps installs, pin the Git ref to the release tag
+and override the controller image tag to the same `vX.Y.Z` version.
 
 ## What Does Not Trigger a Release
 

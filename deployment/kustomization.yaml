@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Root GitOps entry point for installing the kleym operator.
+# Keep this pointed at config/default so generated CRDs, RBAC, and controller
+# deployment changes flow here without duplicating manifests in this directory.
+resources:
+- ../config/default

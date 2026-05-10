@@ -75,6 +75,16 @@ make install
 make deploy IMG=ghcr.io/sonda-red/kleym:latest
 ```
 
+Install the latest kleym operator from the root GitOps path:
+
+```sh
+kubectl apply -k https://github.com/sonda-red/kleym//deployment?ref=main
+```
+
+For release-pinned installs, pin the manifest ref and controller image tag
+together. See [`docs/install.md`](docs/install.md) for Kustomize, Flux, and Argo
+CD examples.
+
 Run validation:
 
 ```sh
