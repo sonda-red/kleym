@@ -366,7 +366,10 @@ func newPerObjectiveBindingWithServiceAccount(
 			Name:      name,
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{
+			PoolRef: kleymv1alpha1.InferencePoolTargetRef{
+				Name: "pool-a",
+			},
+			ObjectiveRef: &kleymv1alpha1.InferenceObjectiveTargetRef{
 				Name: objectiveName,
 			},
 			SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
@@ -390,8 +393,8 @@ func newPoolOnlyBinding(name, objectiveName string) *kleymv1alpha1.InferenceIden
 			Name:      name,
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{
-				Name: objectiveName,
+			PoolRef: kleymv1alpha1.InferencePoolTargetRef{
+				Name: "pool-a",
 			},
 			SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
 			WorkloadSelectorTemplates: []string{

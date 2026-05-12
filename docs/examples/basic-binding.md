@@ -7,11 +7,10 @@ This example shows the simplest `PoolOnly` flow.
 
 `kleym` currently consumes only a small slice of the referenced Gateway API Inference Extension (GAIE) objects:
 
-- from the objective: `spec.poolRef`
 - from the pool: `spec.selector`
 
-Your installed GAIE version may require additional fields on those objects. The snippets below focus on the fields that matter to `kleym`.
-For full GAIE schema details, see [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/).
+Your installed GAIE version may require additional fields on that object. The snippets below focus on the fields that matter to `kleym`.
+For full GAIE schema details, see [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/).
 Reference docs: [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/overview/), [SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/), and [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md).
 
 ## Input
@@ -26,24 +25,14 @@ spec:
   selector:
     matchLabels:
       app: model-server
----
-apiVersion: inference.networking.k8s.io/v1
-kind: InferenceObjective
+apiVersion: kleym.sonda.red/v1alpha1
+kind: InferenceIdentityBinding
 metadata:
-  name: objective-a
+  name: pool-a
   namespace: default
 spec:
   poolRef:
     name: pool-a
----
-apiVersion: kleym.sonda.red/v1alpha1
-kind: InferenceIdentityBinding
-metadata:
-  name: objective-a-pool
-  namespace: default
-spec:
-  targetRef:
-    name: objective-a
   selectorSource: DerivedFromPool
   workloadSelectorTemplates:
     - k8s:ns:default
@@ -70,7 +59,7 @@ kind: ClusterSPIFFEID
 metadata:
   labels:
     kleym.sonda.red/managed-by: kleym
-    kleym.sonda.red/binding-name: objective-a-pool
+    kleym.sonda.red/binding-name: pool-a
     kleym.sonda.red/binding-namespace: default
 spec:
   spiffeIDTemplate: spiffe://kleym.sonda.red/ns/default/pool/pool-a

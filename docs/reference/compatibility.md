@@ -43,23 +43,24 @@ release.
 
 | Object | Supported GVKs | Consumed fields |
 | --- | --- | --- |
-| `InferenceObjective` | `inference.networking.x-k8s.io/v1alpha2`; `inference.networking.k8s.io/v1` when served | `spec.poolRef` |
 | `InferencePool` | `inference.networking.k8s.io/v1`; `inference.networking.x-k8s.io/v1alpha2` | `spec.selector.matchLabels`; flat string label maps are normalized for compatibility |
+| `InferenceObjective` | `inference.networking.x-k8s.io/v1alpha2`; `inference.networking.k8s.io/v1` when served | `spec.poolRef`; only required for `PerObjective` or when `objectiveRef` is set |
 
 `InferencePool` selectors must render deterministically. Accepted label keys
 and values must satisfy Kubernetes label syntax; malformed labels are rejected
 instead of being rendered into SPIRE workload selectors. Non-empty
 `spec.selector.matchExpressions` are not supported.
 
-When `spec.poolRef.group` is set, the controller constrains pool resolution to
-that group using supported `InferencePool` candidates. Groups outside the
-documented GVKs are rejected as invalid `poolRef` values instead of being
+When `poolRef.group`, `objectiveRef.group`, or objective `spec.poolRef.group` is
+set, the controller constrains resolution to that group using supported GAIE
+candidates. Groups outside the documented GVKs are rejected instead of being
 looked up best-effort.
 
 | Startup case | Behavior |
 | --- | --- |
 | Some supported GAIE GVKs are unavailable | Log and skip unavailable GVKs. |
-| No supported objective or pool GVK is served | Startup fails. |
+| No supported pool GVK is served | Startup fails. |
+| No supported objective GVK is served | `PoolOnly` bindings can reconcile; `PerObjective` waits for objective CRDs. |
 | A supported GVK is installed after startup | Restart the controller to register new watches. |
 | Binding references a missing objective or pool | Reconcile fails with `InvalidRef`. |
 

@@ -9,8 +9,8 @@ This page covers the main ideas behind `kleym`: the external resources it depend
 
 `kleym` intentionally reads only a narrow part of Gateway API Inference Extension (GAIE), but those objects are external dependencies and define the source of truth for intent.
 
-- [`InferenceObjective` (GAIE API type)](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/): model-level serving intent. `kleym` resolves the objective named by `spec.targetRef.name` and reads its `spec.poolRef`.
-- [`InferencePool` (GAIE API type)](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/): serving pool intent. `kleym` resolves the objective's `poolRef` and derives selector input from `spec.selector`.
+- [`InferencePool` (GAIE API type)](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/): serving pool intent. `kleym` resolves the pool named by `spec.poolRef.name` and derives selector input from `spec.selector`.
+- [`InferenceObjective` (GAIE API type)](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/): optional model-level serving intent. `kleym` resolves it from `spec.objectiveRef.name` for `PerObjective` bindings and validates that its `spec.poolRef` points at the binding pool.
 - [GAIE API types index](https://gateway-api-inference-extension.sigs.k8s.io/api-types/): canonical reference for GAIE resource schemas and status fields.
 - [GAIE GA migration guide](https://gateway-api-inference-extension.sigs.k8s.io/guides/ga-migration/): background on migration from `InferenceModel` to `InferenceObjective`.
 
@@ -22,12 +22,13 @@ This page covers the main ideas behind `kleym`: the external resources it depend
 
 It tells the controller:
 
-- which `InferenceObjective` should receive an identity
+- which `InferencePool` anchors the workload identity
+- which `InferenceObjective` should receive an identity when `PerObjective` is used
 - whether identity should be scoped to the whole pool or to one objective
 - which safety selectors must always be present
 - how to narrow a per-objective identity down to one container when needed
 
-`kleym` then resolves the objective's `poolRef`, derives workload selection from the referenced `InferencePool`, and writes one or more `ClusterSPIFFEID` resources.
+`kleym` then resolves the referenced `InferencePool`, optionally validates the objective subject, derives workload selection from the pool, and writes one or more `ClusterSPIFFEID` resources.
 
 ## Identity Modes
 
@@ -36,7 +37,7 @@ It tells the controller:
 | Mode | Meaning | Typical use |
 | --- | --- | --- |
 | `PoolOnly` | One identity for the serving pool. | The whole pool is one workload boundary and model-level separation is not needed. |
-| `PerObjective` | One identity per `InferenceObjective`. | Multiple objectives share a pool but still need distinct identities. |
+| `PerObjective` | One identity per referenced `InferenceObjective`. | Multiple objectives share a pool but still need distinct identities. |
 
 `PoolOnly` answers "which serving pool is this pod part of?"
 

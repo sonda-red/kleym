@@ -4,7 +4,9 @@ metadata:
   name: binding
   namespace: kleym-reference-inference
 spec:
-  targetRef:
+  poolRef:
+    name: reference-pool
+  objectiveRef:
     name: reference-objective
   selectorSource: DerivedFromPool
   workloadSelectorTemplates:

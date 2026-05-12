@@ -23,7 +23,7 @@ It is an identity registration compiler. The project is intentionally narrow:
 
 ## Overview
 
-- primary inputs: [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/)
+- primary input: [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/); optional objective subject: [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/)
 - primary output: deterministic `ClusterSPIFFEID` resources
 - identity modes: `PoolOnly` and `PerObjective`
 - safety model: namespace and service account selectors are always present; unsafe or ambiguous state is refused

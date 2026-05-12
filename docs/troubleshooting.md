@@ -25,14 +25,16 @@ If reconciliation fails, `Ready=False` and the triggering condition becomes `Tru
 
 | Condition | Reason | Typical cause | What to fix |
 | --- | --- | --- | --- |
-| `InvalidRef` | `TargetObjectiveNotFound` | `spec.targetRef.name` does not resolve to an `InferenceObjective` in the same namespace. | Check the objective name, namespace, and installation of the objective CRD. |
-| `InvalidRef` | `InvalidPoolRef` | The referenced objective has an invalid, cross-namespace, or unsupported-group `poolRef`. | Fix the objective so `spec.poolRef` points to a valid pool in the same namespace and a supported GAIE group. |
-| `InvalidRef` | `TargetPoolNotFound` | The objective points to an `InferencePool` that does not exist. | Create the pool or correct the objective's `poolRef`. |
-| `InvalidRef` | `InferenceObjectiveCRDMissing` | The GAIE `InferenceObjective` CRD is not installed in the cluster. | Install the required GAIE CRDs before reconciling bindings. |
+| `InvalidRef` | `TargetObjectiveNotFound` | `spec.objectiveRef.name` does not resolve to an `InferenceObjective` in the same namespace. | Check the objective name, namespace, and installation of the objective CRD. |
+| `InvalidRef` | `InvalidPoolRef` | The binding has an invalid or unsupported-group `poolRef`. | Fix `spec.poolRef` so it points to a valid pool in the same namespace and a supported GAIE group. |
+| `InvalidRef` | `InvalidObjectiveRef` | The objective reference is invalid or its `spec.poolRef` does not point at the binding pool. | Fix `spec.objectiveRef` or the objective's `spec.poolRef` so both point at the same pool. |
+| `InvalidRef` | `TargetPoolNotFound` | The binding points to an `InferencePool` that does not exist. | Create the pool or correct `spec.poolRef`. |
+| `InvalidRef` | `InferenceObjectiveCRDMissing` | The GAIE `InferenceObjective` CRD is not installed and the binding needs an objective. | Install the objective CRD or use `PoolOnly` without `objectiveRef`. |
 | `InvalidRef` | `InferencePoolCRDMissing` | The GAIE `InferencePool` CRD is not installed in the cluster. | Install the required GAIE CRDs before reconciling bindings. |
 | `UnsafeSelector` | `InvalidPoolSelector` | The pool selector cannot be normalized into the narrow selector shape `kleym` accepts, or its label keys or values are malformed. | Use a deterministic `matchLabels`-style selector with valid Kubernetes label keys and values. Do not rely on whitespace trimming. |
 | `UnsafeSelector` | `UnsafeSelector` | The rendered selector set is missing namespace or service account safety constraints, or would widen beyond the tenant boundary. | Ensure the binding renders the required namespace and service account selectors and that the pool-derived selector is safe. |
 | `Conflict` | `IdentityCollision` | Two `PerObjective` bindings resolve to the same workload slice, usually the same pool plus the same container discriminator. | Give each objective a distinct discriminator, change the pool mapping, or use `PoolOnly` if model-level separation is not required. |
+| `RenderFailure` | `MissingObjectiveRef` | The effective mode is `PerObjective` but no objective subject was provided. | Add `objectiveRef` or switch to `PoolOnly`. |
 | `RenderFailure` | `MissingContainerDiscriminator` | The effective mode is `PerObjective` but no discriminator was provided. | Add `containerDiscriminator` or switch to `PoolOnly`. |
 | `RenderFailure` | `InvalidContainerDiscriminator` | The discriminator type or value is invalid. | Use a supported discriminator type with a non-empty value. |
 | `RenderFailure` | `SelectorTemplateRenderFailed` | A workload selector template could not be rendered. | Fix the selector template values so they render to valid SPIRE workload selectors. |
@@ -43,7 +45,7 @@ If reconciliation fails, `Ready=False` and the triggering condition becomes `Tru
 
 ## Missing CRDs
 
-`kleym` depends on external CRDs as inputs and outputs.
+`kleym` depends on external CRDs as inputs and outputs. `InferencePool` is required for all bindings; `InferenceObjective` is only required for `PerObjective` or when `objectiveRef` is set.
 
 `GVK` means `GroupVersionKind` (`<api-group>/<version>, Kind=<kind>`). In this context:
 
@@ -71,7 +73,7 @@ During startup, `kleym` discovers supported GAIE GVKs and logs a warning for eac
 ```
 
 These warnings are expected when your cluster intentionally serves only part of the compatibility matrix.
-Example: cluster has `InferenceObjective` only in `inference.networking.x-k8s.io/v1alpha2`, so startup logs a skip warning for `inference.networking.k8s.io/v1, Kind=InferenceObjective`.
+Example: cluster has `InferencePool` only in `inference.networking.k8s.io/v1`, so startup logs skip messages for the other supported GAIE GVKs but can still reconcile `PoolOnly` bindings.
 
 You can confirm what is actually served via:
 

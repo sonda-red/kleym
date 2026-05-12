@@ -1,6 +1,6 @@
-# Externally owned GAIE reference inputs. kleym resolves these objects when an
-# InferenceIdentityBinding targets reference-objective, but it does not create,
-# modify, or manage either resource.
+# Externally owned GAIE reference inputs. kleym resolves the pool directly and
+# optionally validates the objective subject, but it does not create, modify, or
+# manage either resource.
 apiVersion: inference.networking.k8s.io/v1
 kind: InferencePool
 metadata:

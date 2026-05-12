@@ -58,7 +58,8 @@ Expected observation: the reference namespace, service account, workload,
 
 ## Apply The Binding
 
-Apply an `InferenceIdentityBinding` that targets the reference objective:
+Apply an `InferenceIdentityBinding` that anchors to the reference pool and uses
+the reference objective as the per-objective subject:
 
 ```sh
 kubectl apply -f - <<'EOF'
@@ -68,7 +69,9 @@ metadata:
   name: reference-objective-binding
   namespace: kleym-reference-inference
 spec:
-  targetRef:
+  poolRef:
+    name: reference-pool
+  objectiveRef:
     name: reference-objective
   selectorSource: DerivedFromPool
   workloadSelectorTemplates:

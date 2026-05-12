@@ -56,6 +56,13 @@ func (r *InferenceIdentityBindingReconciler) renderIdentity(
 			fmt.Sprintf("unsupported mode %q", mode),
 		)
 	}
+	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective && objective == nil {
+		return renderedIdentity{}, newStateError(
+			conditionTypeRenderFailure,
+			"MissingObjectiveRef",
+			"objectiveRef is required when mode is PerObjective",
+		)
+	}
 
 	podSelector, poolDerivedSelectors, err := deriveSelectorsFromPool(pool)
 	if err != nil {
@@ -66,10 +73,15 @@ func (r *InferenceIdentityBindingReconciler) renderIdentity(
 		)
 	}
 
+	objectiveName := ""
+	if objective != nil {
+		objectiveName = objective.GetName()
+	}
+
 	templateData := renderTemplateData{
 		Namespace:     binding.Namespace,
 		BindingName:   binding.Name,
-		ObjectiveName: objective.GetName(),
+		ObjectiveName: objectiveName,
 		PoolName:      pool.GetName(),
 		Mode:          string(mode),
 	}
@@ -138,7 +150,7 @@ func (r *InferenceIdentityBindingReconciler) renderIdentity(
 		SpiffeID:     spiffeID,
 		Selectors:    selectors,
 		PodSelector:  podSelector,
-		ObjectiveRef: objective.GetName(),
+		ObjectiveRef: objectiveName,
 		PoolRef:      pool.GetName(),
 		Hint:         buildClusterSPIFFEIDHint(binding),
 		Fallback:     false,
@@ -156,12 +168,7 @@ func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 ) (renderedIdentity, error) {
-	objective, err := r.resolveInferenceObjective(ctx, binding.Namespace, binding.Spec.TargetRef.Name)
-	if err != nil {
-		return renderedIdentity{}, err
-	}
-
-	poolRef, err := extractPoolRef(objective, binding.Namespace)
+	poolRef, err := bindingPoolRef(binding)
 	if err != nil {
 		return renderedIdentity{}, err
 	}
@@ -169,6 +176,21 @@ func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
 	pool, err := r.resolveInferencePool(ctx, poolRef)
 	if err != nil {
 		return renderedIdentity{}, err
+	}
+
+	var objective *unstructured.Unstructured
+	objectiveRef, hasObjectiveRef, err := bindingObjectiveRef(binding)
+	if err != nil {
+		return renderedIdentity{}, err
+	}
+	if hasObjectiveRef {
+		objective, err = r.resolveInferenceObjective(ctx, objectiveRef)
+		if err != nil {
+			return renderedIdentity{}, err
+		}
+		if err := validateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
+			return renderedIdentity{}, err
+		}
 	}
 
 	return r.renderIdentity(binding, objective, pool)

@@ -11,9 +11,9 @@ This page records the current status condition set exposed by `InferenceIdentity
 | --- | --- | --- |
 | `Ready` | The binding reconciled successfully. | `Reconciled` |
 | `Conflict` | A per-objective collision blocks reconciliation. | `IdentityCollision` |
-| `InvalidRef` | `targetRef`, `poolRef`, or a required CRD could not be resolved. | `TargetObjectiveNotFound`, `TargetPoolNotFound`, `InvalidPoolRef`, `InferenceObjectiveCRDMissing`, `InferencePoolCRDMissing` |
+| `InvalidRef` | `poolRef`, `objectiveRef`, or a required CRD could not be resolved or validated. | `TargetObjectiveNotFound`, `TargetPoolNotFound`, `InvalidPoolRef`, `InvalidObjectiveRef`, `InferenceObjectiveCRDMissing`, `InferencePoolCRDMissing` |
 | `UnsafeSelector` | The rendered selector set is missing required safety constraints or the pool selector cannot be rendered safely. | `UnsafeSelector`, `InvalidPoolSelector` |
-| `RenderFailure` | Rendering failed after reference resolution succeeded. | `SelectorTemplateRenderFailed`, `MissingContainerDiscriminator`, `InvalidContainerDiscriminator`, `SPIFFEIDRenderFailed`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing`, `UnsupportedMode` |
+| `RenderFailure` | Rendering failed after reference resolution succeeded. | `SelectorTemplateRenderFailed`, `MissingContainerDiscriminator`, `MissingObjectiveRef`, `InvalidContainerDiscriminator`, `SPIFFEIDRenderFailed`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing`, `UnsupportedMode` |
 
 ## Current Status Behavior
 

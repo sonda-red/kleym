@@ -152,7 +152,7 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 			Name:      bindingName,
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			TargetRef:      kleymv1alpha1.InferenceObjectiveTargetRef{Name: objectiveName},
+			PoolRef:        kleymv1alpha1.InferencePoolTargetRef{Name: poolName, Group: "inference.networking.x-k8s.io"},
 			SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
 			WorkloadSelectorTemplates: []string{
 				"k8s:ns:default",
@@ -226,7 +226,7 @@ func TestSetupWithManagerFailsWithoutAnySupportedGAIEGVKs(t *testing.T) {
 	if setupErr == nil {
 		t.Fatalf("SetupWithManager returned nil, want startup error without GAIE CRDs")
 	}
-	if !strings.Contains(setupErr.Error(), "no supported GAIE GVKs are available") {
+	if !strings.Contains(setupErr.Error(), "no supported GAIE InferencePool GVKs are available") {
 		t.Fatalf("unexpected setup error: %v", setupErr)
 	}
 }

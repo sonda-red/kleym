@@ -18,8 +18,8 @@ This flow uses Gateway API Inference Extension (GAIE) objects as upstream inputs
                          │
                    Ensure finalizer
                          │
-    InferenceObjective ──▶ Resolve targetRef → Objective
-    InferencePool ───────▶ Extract and resolve poolRef → Pool
+    InferencePool ───────▶ Resolve poolRef → Pool
+    InferenceObjective ──▶ Resolve objectiveRef when present
                          │
                   Derive selectors from pool
                   Add container discriminator (PerObjective)
@@ -46,8 +46,8 @@ This flow uses Gateway API Inference Extension (GAIE) objects as upstream inputs
 ## Responsibility Boundaries
 
 - `InferenceIdentityBinding` expresses identity intent.
-- `InferenceObjective` tells `kleym` which serving pool an objective uses.
 - `InferencePool` provides the workload provenance `kleym` turns into selector input.
+- `InferenceObjective` is an optional model-level subject that must point at the same pool when used.
 - `kleym` validates the references, enforces selector safety, detects deterministic collisions, and renders `ClusterSPIFFEID`.
 - SPIRE Controller Manager applies the `ClusterSPIFFEID` objects and manages SPIRE registration state.
 - SPIRE Server and Agent remain responsible for issuance and rotation.

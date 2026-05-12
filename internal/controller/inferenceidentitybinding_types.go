@@ -55,6 +55,12 @@ type inferencePoolRef struct {
 	Namespace string
 }
 
+type inferenceObjectiveRef struct {
+	Name      string
+	Group     string
+	Namespace string
+}
+
 type renderedIdentity struct {
 	Name         string
 	Mode         kleymv1alpha1.InferenceIdentityBindingMode

@@ -20,7 +20,7 @@ func TestRenderIdentityRejectsUnsafeSelectors(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-a"},
+			PoolRef: kleymv1alpha1.InferencePoolTargetRef{Name: "pool-a"},
 			WorkloadSelectorTemplates: []string{
 				"k8s:ns:default",
 			},
@@ -80,7 +80,7 @@ func TestRenderIdentityRejectsNonStringPoolMatchLabelValues(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-					TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-non-string-label"},
+					PoolRef: kleymv1alpha1.InferencePoolTargetRef{Name: "pool-non-string-label"},
 					WorkloadSelectorTemplates: []string{
 						"k8s:ns:default",
 						"k8s:sa:inference-sa",
@@ -151,7 +151,7 @@ func TestRenderIdentityRejectsInvalidPoolMatchLabelSyntax(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-					TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-invalid-label-syntax"},
+					PoolRef: kleymv1alpha1.InferencePoolTargetRef{Name: "pool-invalid-label-syntax"},
 					WorkloadSelectorTemplates: []string{
 						"k8s:ns:default",
 						"k8s:sa:inference-sa",
@@ -204,7 +204,7 @@ func TestRenderIdentityRendersStringPoolMatchLabels(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-string-labels"},
+			PoolRef: kleymv1alpha1.InferencePoolTargetRef{Name: "pool-string-labels"},
 			WorkloadSelectorTemplates: []string{
 				"k8s:ns:default",
 				"k8s:sa:inference-sa",
@@ -292,7 +292,8 @@ func TestRenderIdentityPerObjectiveAddsContainerSelector(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-b"},
+			PoolRef:      kleymv1alpha1.InferencePoolTargetRef{Name: "pool-b"},
+			ObjectiveRef: &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-b"},
 			WorkloadSelectorTemplates: []string{
 				"k8s:ns:default",
 				"k8s:sa:inference-sa",
@@ -354,7 +355,8 @@ func TestRenderIdentityUsesCustomSPIFFEIDTemplateOverride(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			TargetRef:        kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-custom"},
+			PoolRef:          kleymv1alpha1.InferencePoolTargetRef{Name: "pool-custom"},
+			ObjectiveRef:     &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-custom"},
 			SpiffeIDTemplate: &customTemplate,
 			WorkloadSelectorTemplates: []string{
 				"k8s:ns:default",
@@ -406,7 +408,7 @@ func TestRenderIdentityIncludesHintAndFallback(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-hint"},
+			PoolRef: kleymv1alpha1.InferencePoolTargetRef{Name: "pool-hint"},
 			WorkloadSelectorTemplates: []string{
 				"k8s:ns:default",
 				"k8s:sa:inference-sa",

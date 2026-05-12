@@ -49,8 +49,8 @@ That keeps names DNS-safe while allowing the SPIFFE ID to remain the real identi
 | Resource | Role |
 | --- | --- |
 | `InferenceIdentityBinding` | Primary namespaced API owned by `kleym`. |
-| [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) | Target object resolved from `spec.targetRef.name`. |
-| [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) | Selector source resolved from the objective's `spec.poolRef`. |
+| [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) | Required selector source resolved from `spec.poolRef.name`. |
+| [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) | Optional objective subject resolved from `spec.objectiveRef.name` and validated against `spec.poolRef`. |
 | [`ClusterSPIFFEID`](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md) | Managed output resource written by the reconciler. |
 
 ## Read And Watch Behavior
@@ -58,5 +58,5 @@ That keeps names DNS-safe while allowing the SPIFFE ID to remain the real identi
 The controller:
 
 - watches `InferenceIdentityBinding`
-- watches supported `InferenceObjective` objects and maps them back to matching bindings
-- watches supported `InferencePool` objects and maps them back to bindings whose objectives reference those pools
+- watches supported `InferencePool` objects and maps them back to bindings whose `spec.poolRef.name` references those pools
+- watches supported `InferenceObjective` objects and maps them back to bindings whose optional `spec.objectiveRef.name` references those objectives

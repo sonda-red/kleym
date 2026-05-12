@@ -10,7 +10,7 @@ These manifests are helpful when you want to verify the base `kleym` flow
 without bringing a full inference stack, gateway, route, or policy layer:
 
 1. Apply this reference environment.
-2. Apply an `InferenceIdentityBinding` that targets `reference-objective`.
+2. Apply an `InferenceIdentityBinding` that anchors to `reference-pool` and optionally uses `reference-objective`.
 3. Check that `kleym` renders the expected managed `ClusterSPIFFEID`.
 
 The resources in this directory model inputs that already exist in the cluster.
@@ -41,7 +41,7 @@ Tests and demos can rely on these values:
 | Container name | `model-server` |
 | Container port | `8000` |
 
-An `InferenceIdentityBinding` that targets this reference environment should be
+An `InferenceIdentityBinding` that uses this reference environment should be
 applied by the test or demo layer, not by this directory. For `PerObjective`
 mode, use `containerDiscriminator.type: ContainerName` and
 `containerDiscriminator.value: model-server`.
