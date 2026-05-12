@@ -72,10 +72,10 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/kleym:${{ inputs.version }}
-            ghcr.io/${{ github.repository_owner }}/kleym:latest
-          cache-from: type=gha,scope=kleym-buildkit
-          cache-to: type=gha,mode=min,scope=kleym-buildkit,ignore-error=true
+            ghcr.io/${{ github.repository_owner }}/kleym-operator:${{ inputs.version }}
+            ghcr.io/${{ github.repository_owner }}/kleym-operator:latest
+          cache-from: type=gha,scope=kleym-operator-buildkit
+          cache-to: type=gha,mode=min,scope=kleym-operator-buildkit,ignore-error=true
           platforms: linux/amd64,linux/arm64
 
       - name: Create tag and GitHub Release

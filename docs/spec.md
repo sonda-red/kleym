@@ -3,15 +3,15 @@ title: Spec
 weight: 80
 ---
 
-`kleym` is a Kubernetes operator that makes inference workloads legible to workload identity by translating inference intent into deterministic Secure Production Identity Framework for Everyone (SPIFFE) identities. It compiles that intent into SPIFFE Runtime Environment (SPIRE) Controller Manager resources, primarily [`ClusterSPIFFEID`][clusterspiffeid].
+`kleym-operator` makes inference workloads legible to workload identity by translating inference intent into deterministic Secure Production Identity Framework for Everyone (SPIFFE) identities. It compiles that intent into SPIFFE Runtime Environment (SPIRE) Controller Manager resources, primarily [`ClusterSPIFFEID`][clusterspiffeid].
 
-Scope boundary: `kleym` is an identity registration compiler. It stops at identity registration and selector provenance. Inference deployment, traffic routing, and policy evaluation stay in the inference stack, gateway, mesh, or external policy engines. `kleym` does not configure Envoy, Envoy Gateway, kgateway, ext authz, ext proc, OPA, Cedar, OAuth, or OIDC.
+Scope boundary: Kleym is an identity registration compiler project. The current implementation is `kleym-operator`, which stops at identity registration and selector provenance. Inference deployment, traffic routing, and policy evaluation stay in the inference stack, gateway, mesh, or external policy engines. `kleym-operator` does not configure Envoy, Envoy Gateway, kgateway, ext authz, ext proc, OPA, Cedar, OAuth, or OIDC.
 
 Reference docs: [SPIFFE overview][spiffe-overview], [SPIRE concepts][spire-concepts], and [SPIRE Controller Manager][spire-controller-manager].
 
 ## Core Problem
 
-Inference stacks can be deployed reliably, but identity registration remains manual, inconsistent, and hard to standardize across teams. Gateway API Inference Extension (GAIE) defines inference-specific objects and clearer responsibility boundaries, but it does not define identity semantics. `kleym` bridges this gap by deriving stable SPIFFE ID templates and tenant safe selectors from GAIE resources.
+Inference stacks can be deployed reliably, but identity registration remains manual, inconsistent, and hard to standardize across teams. Gateway API Inference Extension (GAIE) defines inference-specific objects and clearer responsibility boundaries, but it does not define identity semantics. `kleym-operator` bridges this gap by deriving stable SPIFFE ID templates and tenant safe selectors from GAIE resources.
 
 ## Core Value
 
@@ -23,14 +23,14 @@ Inference stacks can be deployed reliably, but identity registration remains man
 
 1. SPIRE Server and SPIRE Agent.
 2. SPIRE Controller Manager and its [`ClusterSPIFFEID`][clusterspiffeid] CRD.
-3. `kleym` writes [`ClusterSPIFFEID`][clusterspiffeid] and does not write SPIRE entries directly.
+3. `kleym-operator` writes [`ClusterSPIFFEID`][clusterspiffeid] and does not write SPIRE entries directly.
 
 ## Supported Downstream Pattern
 
 1. SPIRE issues X.509 SVIDs and/or JWT SVIDs.
 2. Envoy consumes identity through SDS or through components adjacent to the SPIRE Workload API.
 3. External auth policy maps SPIFFE ID to route or model authorization.
-4. Audit logging happens at the gateway or policy layer, not in `kleym`.
+4. Audit logging happens at the gateway or policy layer, not in `kleym-operator`.
 
 ## Preferred Inference Signal
 
@@ -39,7 +39,7 @@ GAIE objects are the primary signal.
 1. [`InferenceObjective`][gaie-inferenceobjective] is the primary model level object and references an [`InferencePool`][gaie-inferencepool] via `poolRef`.
 2. [`InferencePool`][gaie-inferencepool] defines the serving pod pool for inference traffic.
 3. [`InferenceModel`][gaie-inferencemodel-legacy] is treated as legacy.
-4. At startup, `kleym` discovers which supported GAIE GVKs are served by the cluster and watches only that subset.
+4. At startup, `kleym-operator` discovers which supported GAIE GVKs are served by the cluster and watches only that subset.
    - `GVK` means `GroupVersionKind` (`<api-group>/<version>, Kind=<kind>`), for example:
      - `inference.networking.x-k8s.io/v1alpha2, Kind=InferenceObjective`
      - `inference.networking.k8s.io/v1, Kind=InferencePool`
@@ -49,16 +49,16 @@ GAIE objects are the primary signal.
 1. Pool identity (`PoolOnly`). One SPIFFE identity representing the serving pool pods.
 2. Objective identity (`PerObjective`). One SPIFFE identity per [`InferenceObjective`][gaie-inferenceobjective], representing the model endpoint at the GAIE layer even when multiple objectives share the same pool.
 
-`PoolOnly` and `PerObjective` are the only identity boundaries in `kleym`.
+`PoolOnly` and `PerObjective` are the only identity boundaries in `kleym-operator`.
 
 ### Container Level Enforcement
 
-One model per container makes model identity enforceable. SPIRE Kubernetes workload attestation supports container scoped selectors such as container name and container image, so `kleym` can bind an objective identity to a specific container inside a pod rather than the pod as a whole. This is the mechanism that gives `PerObjective` mode meaningful discrimination when multiple objectives share a pool.
+One model per container makes model identity enforceable. SPIRE Kubernetes workload attestation supports container scoped selectors such as container name and container image, so `kleym-operator` can bind an objective identity to a specific container inside a pod rather than the pod as a whole. This is the mechanism that gives `PerObjective` mode meaningful discrimination when multiple objectives share a pool.
 
 ## Constraint
 
 Multiple [`ClusterSPIFFEID`][clusterspiffeid] resources can select the same pod set, which can result in multiple identities applying to the same pods. Some workloads only support one SVID reliably. Clusters that require per objective identities may need to restrict or disable any default identity that would collide.
-Some downstream consumers and sidecars behave as single identity consumers. Multiple matching [`ClusterSPIFFEID`][clusterspiffeid] objects may be valid from SPIRE's perspective but still operationally unsafe for a given serving stack. `kleym` only prevents deterministic collision cases it can prove. Cluster operators remain responsible for disabling overlapping default identities outside `kleym`.
+Some downstream consumers and sidecars behave as single identity consumers. Multiple matching [`ClusterSPIFFEID`][clusterspiffeid] objects may be valid from SPIRE's perspective but still operationally unsafe for a given serving stack. `kleym-operator` only prevents deterministic collision cases it can prove. Cluster operators remain responsible for disabling overlapping default identities outside Kleym.
 
 ## MVP API Surface
 
@@ -71,7 +71,7 @@ Compatibility matrix for GAIE inputs (by GVK):
 3. `inference.networking.x-k8s.io/v1alpha2, Kind=InferenceObjective` (currently required in most released GAIE versions).
 4. `inference.networking.k8s.io/v1, Kind=InferenceObjective` (compatible when present).
 
-`kleym` CRD
+Kleym CRD
 
 `InferenceIdentityBinding` expresses identity intent for a single [`InferenceObjective`][gaie-inferenceobjective].
 
@@ -81,7 +81,7 @@ Compatibility matrix for GAIE inputs (by GVK):
 2. `spiffeIDTemplate` optionally overrides the computed template. Defaults are deterministic and mode-scoped:
    - `PoolOnly`: `spiffe://kleym.sonda.red/ns/<namespace>/pool/<pool-name>`
    - `PerObjective`: `spiffe://kleym.sonda.red/ns/<namespace>/objective/<objective-name>`
-3. `selectorSource` is `"DerivedFromPool"`. `kleym` derives pod selection from the objective `poolRef` and validates it.
+3. `selectorSource` is `"DerivedFromPool"`. `kleym-operator` derives pod selection from the objective `poolRef` and validates it.
 4. `workloadSelectorTemplates` are required user-supplied safety constraints. The controller renders these templates, then requires every rendered [`ClusterSPIFFEID`][clusterspiffeid] selector set to include at minimum the k8s namespace selector (`k8s:ns:<namespace>`) and k8s service account selector (`k8s:sa:<service-account>`). These selectors are validated, then intersected with the derived pool selection and, in `PerObjective` mode, the container discriminator.
 5. `mode` is `"PoolOnly"` or `"PerObjective"`. Default is `"PerObjective"`.
 6. `containerDiscriminator` (required when `mode` is `"PerObjective"`).
@@ -100,7 +100,7 @@ Compatibility matrix for GAIE inputs (by GVK):
 1. Discover supported GAIE objective and pool GVKs served by the cluster (`GVK = GroupVersionKind`); watch only discovered GVKs.
    - Startup fails only when none of the supported GAIE objective/pool GVKs are available.
 2. Watch `InferenceIdentityBinding`, plus discovered [`InferenceObjective`][gaie-inferenceobjective] and discovered [`InferencePool`][gaie-inferencepool] GVKs.
-   - Example: if the cluster serves only `InferenceObjective` in `inference.networking.x-k8s.io/v1alpha2`, `kleym` watches that GVK and skips `inference.networking.k8s.io/v1` objective.
+   - Example: if the cluster serves only `InferenceObjective` in `inference.networking.x-k8s.io/v1alpha2`, `kleym-operator` watches that GVK and skips `inference.networking.k8s.io/v1` objective.
 3. Resolve `targetRef` to [`InferenceObjective`][gaie-inferenceobjective], then resolve `poolRef` to a supported [`InferencePool`][gaie-inferencepool] GVK. If `poolRef.group` is set, it must be one of the documented supported GAIE InferencePool groups.
 4. Derive pod selection from [`InferencePool`][gaie-inferencepool], then intersect it with the validated user-supplied safety selectors (namespace and service account) and, in `PerObjective` mode, the container discriminator.
 5. Detect identity collisions: if two `InferenceIdentityBinding` resources in `PerObjective` mode would match the same pod set and the same `container-name` value, set the `Conflict` condition with reason `IdentityCollision` on both resources and refuse to reconcile either until the collision is resolved.
@@ -109,7 +109,7 @@ Compatibility matrix for GAIE inputs (by GVK):
    - `spec.podSelector`: the validated pod selector from the referenced pool
    - `spec.workloadSelectorTemplates`: rendered safety selectors, pool-derived selectors, and optional container discriminator
    - `spec.hint`: the originating binding reference (`<namespace>/<binding-name>`) for traceability
-   - `spec.fallback`: always `false` (kleym manages explicit per-objective identities, not fallback entries)
+   - `spec.fallback`: always `false` (`kleym-operator` manages explicit per-objective identities, not fallback entries)
 7. Update status and emit events for conflicts, unsafe selection, identity collisions, and render failures.
 8. Treat infrastructure-not-ready states such as missing required CRDs as transient by retrying reconciliation on a timer so recovery does not depend on unrelated watch events.
 9. On `InferenceIdentityBinding` deletion, remove managed [`ClusterSPIFFEID`][clusterspiffeid] children first and keep the binding finalizer until a follow-up list confirms no managed children remain.
@@ -122,7 +122,7 @@ Compatibility matrix for GAIE inputs (by GVK):
 
 ## Multiple Objectives to One Pod Set
 
-GAIE commonly maps multiple objectives to one pool. In `kleym`, the pool defines where it runs and the objective defines what it is. `kleym` can produce distinct objective identities while selectors still target the same pods.
+GAIE commonly maps multiple objectives to one pool. In Kleym, the pool defines where it runs and the objective defines what it is. `kleym-operator` can produce distinct objective identities while selectors still target the same pods.
 
 When two objectives share a pool, the container discriminator is what keeps their identities distinct. Each objective must point to a different container name within the pod. If two objectives resolve to the same pod set and the same `container-name`, reconciliation is refused on both with reason `IdentityCollision` until the conflict is corrected, for example by assigning each model to its own container.
 
@@ -131,7 +131,7 @@ When two objectives share a pool, the container discriminator is what keeps thei
 1. In a cluster with existing GAIE [`InferencePool`][gaie-inferencepool] and [`InferenceObjective`][gaie-inferenceobjective] resources, creating an `InferenceIdentityBinding` creates stable [`ClusterSPIFFEID`][clusterspiffeid] resources and remains stable under resync.
 2. Multiple objectives referencing one pool produce distinct SPIFFE IDs without unsafe selector expansion.
 3. Overly broad or malicious selector expansion is rejected with clear status conditions.
-4. `kleym` does not create or modify inference deployments, pools, routes, [`Gateway`][gateway-api-gateway], [`HTTPRoute`][gateway-api-httproute], or schedulers.
+4. `kleym-operator` does not create or modify inference deployments, pools, routes, [`Gateway`][gateway-api-gateway], [`HTTPRoute`][gateway-api-httproute], or schedulers.
 
 ## Licensing
 

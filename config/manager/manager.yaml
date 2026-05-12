@@ -2,33 +2,33 @@ apiVersion: v1
 kind: Namespace
 metadata:
   labels:
-    control-plane: controller-manager
     app.kubernetes.io/name: kleym
+    app.kubernetes.io/component: operator
     app.kubernetes.io/managed-by: kustomize
   name: system
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: controller-manager
+  name: operator
   namespace: system
   labels:
-    control-plane: controller-manager
     app.kubernetes.io/name: kleym
+    app.kubernetes.io/component: operator
     app.kubernetes.io/managed-by: kustomize
 spec:
   selector:
     matchLabels:
-      control-plane: controller-manager
       app.kubernetes.io/name: kleym
+      app.kubernetes.io/component: operator
   replicas: 1
   template:
     metadata:
       annotations:
-        kubectl.kubernetes.io/default-container: manager
+        kubectl.kubernetes.io/default-container: operator
       labels:
-        control-plane: controller-manager
         app.kubernetes.io/name: kleym
+        app.kubernetes.io/component: operator
     spec:
       securityContext:
         # Projects are configured by default to adhere to the "restricted" Pod Security Standards.
@@ -39,12 +39,12 @@ spec:
           type: RuntimeDefault
       containers:
       - command:
-        - /manager
+        - /kleym-operator
         args:
           - --leader-elect
           - --health-probe-bind-address=:8081
         image: controller:latest
-        name: manager
+        name: operator
         ports: []
         securityContext:
           readOnlyRootFilesystem: true
@@ -73,5 +73,5 @@ spec:
             memory: 64Mi
         volumeMounts: []
       volumes: []
-      serviceAccountName: controller-manager
+      serviceAccountName: operator
       terminationGracePeriodSeconds: 10

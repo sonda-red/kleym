@@ -1,5 +1,5 @@
 # Image URL to use all building/pushing image targets
-IMG ?= ghcr.io/sonda-red/kleym:latest
+IMG ?= ghcr.io/sonda-red/kleym-operator:latest
 DOCS_PORT ?= 1313
 HUGO ?= hugo
 
@@ -73,10 +73,10 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell "$(ENVTEST)" use $(ENVTEST_K8S_VERSION) --bin-dir "$(LOCALBIN)" -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
-# E2E tests use Kind and load the manager image locally.
+# E2E tests use Kind and load the operator image locally.
 # Set CERT_MANAGER_INSTALL_SKIP=true when the cluster already has cert-manager.
 KIND_CLUSTER ?= kleym-test-e2e
-E2E_IMG ?= example.com/kleym:e2e
+E2E_IMG ?= example.com/kleym-operator:e2e
 KEEP_KIND ?= false
 CHAINSAW_TEST_DIR ?= test/chainsaw
 CHAINSAW_REPORT_DIR ?= $(LOCALBIN)/chainsaw-reports
@@ -111,20 +111,20 @@ install-e2e-crds: install ## Install minimal external CRDs required by e2e tests
 
 .PHONY: test-e2e-chainsaw
 test-e2e-chainsaw: setup-test-e2e chainsaw manifests generate fmt vet ## Run Chainsaw e2e tests against a Kind cluster.
-	@manager_kustomization="config/manager/kustomization.yaml"; \
-	saved_manager_kustomization="$$(mktemp)"; \
-	cp "$$manager_kustomization" "$$saved_manager_kustomization"; \
+	@operator_kustomization="config/manager/kustomization.yaml"; \
+	saved_operator_kustomization="$$(mktemp)"; \
+	cp "$$operator_kustomization" "$$saved_operator_kustomization"; \
 	cleanup() { \
-		cp "$$saved_manager_kustomization" "$$manager_kustomization"; \
-		rm -f "$$saved_manager_kustomization"; \
+		cp "$$saved_operator_kustomization" "$$operator_kustomization"; \
+		rm -f "$$saved_operator_kustomization"; \
 		if [ "$(KEEP_KIND)" != "true" ]; then $(MAKE) cleanup-test-e2e; fi; \
 	}; \
 	trap cleanup EXIT; \
-	$(MAKE) docker-build IMG=$(E2E_IMG); \
+	$(MAKE) docker-build-operator IMG=$(E2E_IMG); \
 	"$(KIND)" load docker-image "$(E2E_IMG)" --name "$(KIND_CLUSTER)"; \
 	$(MAKE) install-e2e-crds; \
 	$(MAKE) deploy IMG=$(E2E_IMG); \
-	"$(KUBECTL)" rollout status deployment/kleym-controller-manager -n kleym-system --timeout=120s; \
+	"$(KUBECTL)" rollout status deployment/kleym-operator -n kleym-system --timeout=120s; \
 	mkdir -p "$(CHAINSAW_REPORT_DIR)"; \
 	"$(CHAINSAW)" test "$(CHAINSAW_TEST_DIR)" \
 		--fail-fast \
@@ -152,34 +152,40 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 
 ##@ Build
 
+.PHONY: build-operator
+build-operator: manifests generate fmt vet ## Build the kleym-operator binary.
+	go build -o bin/kleym-operator ./cmd/kleym-operator
+
 .PHONY: build
-build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+build: build-operator ## Compatibility alias for build-operator.
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/main.go
+	go run ./cmd/kleym-operator
 
-# If you wish to build the manager image targeting other platforms you can use the --platform flag.
+# If you wish to build the operator image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
-.PHONY: docker-build
-docker-build: ## Build docker image with the manager.
+.PHONY: docker-build-operator
+docker-build-operator: ## Build the kleym-operator image.
 	$(CONTAINER_TOOL) build -t ${IMG} .
 
+.PHONY: docker-build
+docker-build: docker-build-operator ## Compatibility alias for docker-build-operator.
+
 .PHONY: docker-push
-docker-push: ## Push docker image with the manager.
+docker-push: ## Push docker image with the operator.
 	$(CONTAINER_TOOL) push ${IMG}
 
-# PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
-# architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
+# PLATFORMS defines the target platforms for the operator image be built to provide support to multiple
+# architectures. (i.e. make docker-buildx IMG=myregistry/kleym-operator:0.0.1). To use this option you need to:
 # - be able to use docker buildx. More info: https://docs.docker.com/build/buildx/
 # - have enabled BuildKit. More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 # - be able to push the image to your registry (i.e. if you do not set a valid value via IMG=<myregistry/image:<tag>> then the export will fail)
 # To adequately provide solutions that are compatible with multiple platforms, you should consider using this option.
 PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 .PHONY: docker-buildx
-docker-buildx: ## Build and push docker image for the manager for cross-platform support
+docker-buildx: ## Build and push docker image for the operator for cross-platform support
 	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	- $(CONTAINER_TOOL) buildx create --name kleym-builder
@@ -197,7 +203,7 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 VERSION ?= latest
 .PHONY: release-artifacts
 release-artifacts: kustomize ## Build install.yaml and CRD bundle for a release.
-	$(MAKE) build-installer IMG=ghcr.io/sonda-red/kleym:$(VERSION)
+	$(MAKE) build-installer IMG=ghcr.io/sonda-red/kleym-operator:$(VERSION)
 	"$(KUSTOMIZE)" build config/crd > dist/kleym-crds.yaml
 
 .PHONY: release-plan

@@ -4,4 +4,4 @@ resources:
 - manager.yaml
 images:
 - name: controller
-  newName: ghcr.io/sonda-red/kleym
+  newName: ghcr.io/sonda-red/kleym-operator

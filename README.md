@@ -26,12 +26,14 @@
   </a>
 </p>
 
-`kleym` is a Kubernetes operator for clusters that use the [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/). It reads inference intent from resources such as [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/), then compiles that intent into deterministic SPIFFE identities and materializes them as SPIRE Controller Manager `ClusterSPIFFEID` resources.
+Kleym is the project. `kleym-operator` is the Kubernetes controller binary and operator image. `kleym` is reserved for a future CLI, but the CLI is not implemented yet.
+
+The `kleym-operator` controller is for clusters that use the [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/). It reads inference intent from resources such as [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/), then compiles that intent into deterministic SPIFFE identities and materializes them as SPIRE Controller Manager `ClusterSPIFFEID` resources.
 
 ## Where kleym fits
 
 - The [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/) describes inference workloads and request objectives in Kubernetes.
-- `kleym` turns that intent into workload identity registrations with tenant-safe selectors.
+- `kleym-operator` turns that intent into workload identity registrations with tenant-safe selectors.
 - SPIRE Controller Manager applies those registrations so SPIRE can issue identities to the matching workloads.
 
 ## Why kleym
@@ -42,12 +44,12 @@
 
 ## Scope boundary
 
-`kleym` is an identity registration compiler. It does not deploy inference workloads, route inference traffic, or evaluate request policy.
+Kleym is an identity registration compiler project. The current implementation is `kleym-operator`, which does not deploy inference workloads, route inference traffic, or evaluate request policy.
 
 ## How it works
 
 - `InferenceIdentityBinding` declares identity intent for one `InferenceObjective`.
-- `kleym` resolves that objective and its referenced `InferencePool`.
+- `kleym-operator` resolves that objective and its referenced `InferencePool`.
 - The controller renders deterministic selectors and SPIFFE IDs from those inputs.
 - Managed `ClusterSPIFFEID` resources are reconciled for SPIRE Controller Manager.
 
@@ -72,7 +74,7 @@ Install CRDs and deploy the controller:
 
 ```sh
 make install
-make deploy IMG=ghcr.io/sonda-red/kleym:latest
+make deploy IMG=ghcr.io/sonda-red/kleym-operator:latest
 ```
 
 Install the latest kleym operator from the root GitOps path:
@@ -108,7 +110,7 @@ flowchart TD
         P["InferencePool"]
     end
 
-    subgraph Reconcile["kleym Reconcile"]
+    subgraph Reconcile["kleym-operator Reconcile"]
         D1{"Deleted?"}
         D1Y["Clean up ClusterSPIFFEIDs\nRemove finalizer"]
         F["Ensure finalizer"]

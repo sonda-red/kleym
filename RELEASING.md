@@ -22,7 +22,7 @@ kleym uses workflow-dispatch publishing. The release workflow is triggered manua
    - Runs tests.
    - Builds generated release artifacts under `dist/`: `install.yaml` and
      `kleym-crds.yaml`.
-   - Builds and pushes a multi-arch container image to GHCR (`ghcr.io/sonda-red/kleym:vX.Y.Z` and `latest`).
+   - Builds and pushes a multi-arch container image to GHCR (`ghcr.io/sonda-red/kleym-operator:vX.Y.Z` and `latest`).
    - Creates an annotated git tag and pushes it.
    - Creates a GitHub Release with auto-generated release notes from merged PR titles.
 
@@ -61,7 +61,7 @@ Release and are not committed to the repository.
 |----------|-------------|
 | `install.yaml` | Full operator deployment manifest (CRDs + controller + RBAC) |
 | `kleym-crds.yaml` | CRD-only bundle for standalone CRD installation |
-| GHCR image | `ghcr.io/sonda-red/kleym:vX.Y.Z` and `latest` |
+| GHCR image | `ghcr.io/sonda-red/kleym-operator:vX.Y.Z` and `latest` |
 
 The repository also exposes the `deployment/` kustomization for GitOps
 controllers. On `main` it tracks latest content and the `latest` controller
