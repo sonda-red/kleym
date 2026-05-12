@@ -12,7 +12,7 @@ This page records the stable API facts exposed by the current scaffold. Behavior
 - Kind: `InferenceIdentityBinding`
 - Scope: namespaced
 
-`InferenceIdentityBinding` expresses identity intent for a single `InferenceObjective` and drives reconciliation of managed `ClusterSPIFFEID` resources.
+`InferenceIdentityBinding` expresses identity intent for a single `InferencePool` and, in `PerObjective` mode, an `InferenceObjective` subject. It drives reconciliation of managed `ClusterSPIFFEID` resources.
 
 External Gateway API Inference Extension (GAIE) schema references:
 
@@ -31,7 +31,10 @@ External SPIFFE/SPIRE references:
 
 | Field | Required | Notes |
 | --- | --- | --- |
-| `targetRef.name` | Yes | References an `InferenceObjective` in the same namespace. |
+| `poolRef.name` | Yes | References an `InferencePool` in the same namespace. |
+| `poolRef.group` | No | Constrains pool resolution to a supported GAIE InferencePool group. |
+| `objectiveRef.name` | Conditionally | Required in `PerObjective`; references an `InferenceObjective` in the same namespace. |
+| `objectiveRef.group` | No | Constrains objective resolution to a supported GAIE InferenceObjective group. |
 | `spiffeIDTemplate` | No | Overrides the computed SPIFFE ID when provided. |
 | `selectorSource` | Yes | Current enum: `DerivedFromPool`. |
 | `workloadSelectorTemplates` | Yes | Non-empty set of user-supplied SPIRE workload selector templates. |
@@ -43,6 +46,7 @@ Current validation rules enforced by the CRD:
 
 - `containerDiscriminator` must be empty when `mode` is `PoolOnly`.
 - `containerDiscriminator` is required when `mode` is `PerObjective`, including the defaulted case.
+- `objectiveRef` is required when `mode` is `PerObjective`, including the defaulted case.
 - `workloadSelectorTemplates` must contain at least one entry.
 
 ## Status Fields
@@ -69,9 +73,10 @@ The current controller resolves `InferenceObjective` and `InferencePool` from th
 - `inference.networking.k8s.io/v1`
 - `inference.networking.x-k8s.io/v1alpha2`
 
-For objectives, `kleym` currently reads `spec.poolRef`.
-
-If `spec.poolRef.group` is set, it must match one of the supported GAIE
-InferencePool groups listed above.
-
 For pools, `kleym` currently reads `spec.selector`.
+
+For objectives, `kleym` currently reads `spec.poolRef` only when `objectiveRef`
+is set or required by `PerObjective`.
+
+If `poolRef.group`, `objectiveRef.group`, or objective `spec.poolRef.group` is
+set, it must match one of the supported GAIE groups listed above.

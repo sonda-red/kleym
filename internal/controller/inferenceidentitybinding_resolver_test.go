@@ -44,6 +44,129 @@ func TestReconcileSetsInvalidRefWhenPoolCannotBeResolved(t *testing.T) {
 	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "TargetPoolNotFound")
 }
 
+func TestReconcilePoolOnlyDoesNotRequireObjective(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scheme := newCollisionTestScheme(t)
+
+	binding := newPoolOnlyBinding("binding-pool-only", "")
+	reconciler := &InferenceIdentityBindingReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+			WithObjects(newTestPool(), binding).
+			Build(),
+		Scheme: scheme,
+	}
+
+	_, err := reconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: binding.Name},
+	})
+	if err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionTrue, "Reconciled")
+	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 1)
+}
+
+func TestReconcilePerObjectiveRequiresObjectiveRef(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scheme := newCollisionTestScheme(t)
+
+	binding := newPoolOnlyBinding("binding-missing-objective-ref", "")
+	binding.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePerObjective
+	binding.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
+		Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
+		Value: "main",
+	}
+	reconciler := &InferenceIdentityBindingReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+			WithObjects(newTestPool(), binding).
+			Build(),
+		Scheme: scheme,
+	}
+
+	_, err := reconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: binding.Name},
+	})
+	if err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeRenderFailure, metav1.ConditionTrue, "MissingObjectiveRef")
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "MissingObjectiveRef")
+	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 0)
+}
+
+func TestReconcilePerObjectiveFailsWhenObjectiveRefMissing(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scheme := newCollisionTestScheme(t)
+
+	binding := newPerObjectiveBinding("binding-missing-objective", "missing-objective")
+	reconciler := &InferenceIdentityBindingReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+			WithObjects(newTestPool(), binding).
+			Build(),
+		Scheme: scheme,
+	}
+
+	_, err := reconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: binding.Name},
+	})
+	if err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeInvalidRef, metav1.ConditionTrue, "TargetObjectiveNotFound")
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "TargetObjectiveNotFound")
+	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 0)
+}
+
+func TestReconcileSetsInvalidRefWhenObjectivePointsAtDifferentPool(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scheme := newCollisionTestScheme(t)
+
+	objective := newTestObjective("objective-mismatch")
+	objective.Object["spec"] = map[string]any{
+		"poolRef": map[string]any{
+			"name": "pool-other",
+		},
+	}
+
+	binding := newPerObjectiveBinding("binding-objective-pool-mismatch", objective.GetName())
+	reconciler := &InferenceIdentityBindingReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+			WithObjects(newTestPool(), objective, binding).
+			Build(),
+		Scheme: scheme,
+	}
+
+	_, err := reconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: binding.Name},
+	})
+	if err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeInvalidRef, metav1.ConditionTrue, "InvalidObjectiveRef")
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "InvalidObjectiveRef")
+	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 0)
+}
+
 func TestReconcileSetsInvalidRefWhenObjectivePoolRefIsInvalid(t *testing.T) {
 	t.Parallel()
 
@@ -68,7 +191,7 @@ func TestReconcileSetsInvalidRefWhenObjectivePoolRefIsInvalid(t *testing.T) {
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
-			WithObjects(objective, binding).
+			WithObjects(newTestPool(), objective, binding).
 			Build(),
 		Scheme: scheme,
 	}
@@ -80,11 +203,11 @@ func TestReconcileSetsInvalidRefWhenObjectivePoolRefIsInvalid(t *testing.T) {
 		t.Fatalf("Reconcile returned error: %v", err)
 	}
 
-	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeInvalidRef, metav1.ConditionTrue, "InvalidPoolRef")
-	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "InvalidPoolRef")
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeInvalidRef, metav1.ConditionTrue, "InvalidObjectiveRef")
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "InvalidObjectiveRef")
 }
 
-func TestReconcileSetsInvalidRefWhenPoolRefGroupIsUnsupported(t *testing.T) {
+func TestReconcileSetsInvalidRefWhenObjectivePoolRefGroupIsUnsupported(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -113,7 +236,7 @@ func TestReconcileSetsInvalidRefWhenPoolRefGroupIsUnsupported(t *testing.T) {
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
-			WithObjects(pool, objective, binding).
+			WithObjects(newTestPool(), pool, objective, binding).
 			Build(),
 		Scheme: scheme,
 	}
@@ -125,8 +248,8 @@ func TestReconcileSetsInvalidRefWhenPoolRefGroupIsUnsupported(t *testing.T) {
 		t.Fatalf("Reconcile returned error: %v", err)
 	}
 
-	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeInvalidRef, metav1.ConditionTrue, "InvalidPoolRef")
-	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "InvalidPoolRef")
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeInvalidRef, metav1.ConditionTrue, "InvalidObjectiveRef")
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "InvalidObjectiveRef")
 	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 0)
 }
 
@@ -158,6 +281,7 @@ func TestReconcileUsesDiscoveredObjectiveGVKsForResolution(t *testing.T) {
 	}
 
 	binding := newPerObjectiveBinding("binding-filtered-objective", "objective-shared")
+	binding.Spec.PoolRef = kleymv1alpha1.InferencePoolTargetRef{Name: "pool-x"}
 
 	reconciler := &InferenceIdentityBindingReconciler{
 		Client: fake.NewClientBuilder().
@@ -181,6 +305,6 @@ func TestReconcileUsesDiscoveredObjectiveGVKsForResolution(t *testing.T) {
 		t.Fatalf("Reconcile returned error: %v", err)
 	}
 
-	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeInvalidRef, metav1.ConditionTrue, "TargetPoolNotFound")
-	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "TargetPoolNotFound")
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeInvalidRef, metav1.ConditionTrue, "InvalidObjectiveRef")
+	assertConditionStatus(t, ctx, reconciler.Client, binding.Name, conditionTypeReady, metav1.ConditionFalse, "InvalidObjectiveRef")
 }

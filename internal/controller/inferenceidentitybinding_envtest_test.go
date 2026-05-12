@@ -106,7 +106,7 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 		binding := &kleymv1alpha1.InferenceIdentityBinding{
 			ObjectMeta: metav1.ObjectMeta{Namespace: testNamespace, Name: bindingName},
 			Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-				TargetRef:      kleymv1alpha1.InferenceObjectiveTargetRef{Name: objectiveName},
+				PoolRef:        kleymv1alpha1.InferencePoolTargetRef{Name: poolName},
 				SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
 				WorkloadSelectorTemplates: []string{
 					"k8s:sa:inference-sa",
@@ -149,7 +149,7 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 		binding := &kleymv1alpha1.InferenceIdentityBinding{
 			ObjectMeta: metav1.ObjectMeta{Namespace: testNamespace, Name: bindingName},
 			Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-				TargetRef:      kleymv1alpha1.InferenceObjectiveTargetRef{Name: objectiveName},
+				PoolRef:        kleymv1alpha1.InferencePoolTargetRef{Name: poolName},
 				SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
 				WorkloadSelectorTemplates: []string{
 					"k8s:ns:default",
@@ -229,6 +229,8 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 
 		bindingA := newPerObjectiveBinding(bindingAName, objectiveAName)
 		bindingB := newPerObjectiveBinding(bindingBName, objectiveBName)
+		bindingA.Spec.PoolRef.Name = poolName
+		bindingB.Spec.PoolRef.Name = poolName
 		Expect(k8sClient.Create(ctx, bindingA)).To(Succeed())
 		Expect(k8sClient.Create(ctx, bindingB)).To(Succeed())
 		DeferCleanup(func() {

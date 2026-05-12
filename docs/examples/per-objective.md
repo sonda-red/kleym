@@ -37,7 +37,9 @@ metadata:
   name: objective-a
   namespace: default
 spec:
-  targetRef:
+  poolRef:
+    name: pool-a
+  objectiveRef:
     name: objective-a
   selectorSource: DerivedFromPool
   workloadSelectorTemplates:
@@ -98,7 +100,9 @@ metadata:
   name: objective-b
   namespace: default
 spec:
-  targetRef:
+  poolRef:
+    name: pool-a
+  objectiveRef:
     name: objective-b
   selectorSource: DerivedFromPool
   workloadSelectorTemplates:

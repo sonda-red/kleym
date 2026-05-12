@@ -78,8 +78,8 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 						Namespace: "default",
 					},
 					Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-						TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{
-							Name: "example-target",
+						PoolRef: kleymv1alpha1.InferencePoolTargetRef{
+							Name: "example-pool",
 						},
 						SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
 						WorkloadSelectorTemplates: []string{
@@ -133,9 +133,9 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			resource := &kleymv1alpha1.InferenceIdentityBinding{}
 			Expect(k8sClient.Get(ctx, typeNamespacedName, resource)).To(Succeed())
 
-			By("updating the resource TargetRef.Name value")
-			targetRefName := "bar"
-			resource.Spec.TargetRef.Name = targetRefName
+			By("updating the resource PoolRef.Name value")
+			poolRefName := "bar"
+			resource.Spec.PoolRef.Name = poolRefName
 			Expect(k8sClient.Update(ctx, resource)).To(Succeed())
 
 			By("reconciling the updated resource")
@@ -196,8 +196,8 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 					Namespace: "default",
 				},
 				Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-					TargetRef: kleymv1alpha1.InferenceObjectiveTargetRef{
-						Name: "example-target",
+					PoolRef: kleymv1alpha1.InferencePoolTargetRef{
+						Name: "example-pool",
 					},
 					SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
 					WorkloadSelectorTemplates: []string{
@@ -211,6 +211,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 		It("should allow PerObjective mode with a containerDiscriminator", func() {
 			resource := newResource("test-resource-perobjective")
 			resource.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePerObjective
+			resource.Spec.ObjectiveRef = &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "example-objective"}
 			resource.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
 				Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
 				Value: "main",
@@ -240,6 +241,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 
 		It("should default omitted mode to PerObjective and allow a containerDiscriminator", func() {
 			resource := newResource("test-resource-default-perobjective")
+			resource.Spec.ObjectiveRef = &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "example-objective"}
 			resource.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
 				Type:  kleymv1alpha1.ContainerDiscriminatorTypeImage,
 				Value: "example/image:latest",
@@ -256,6 +258,19 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: resource.Name, Namespace: resource.Namespace}, fetched)).To(Succeed())
 			Expect(fetched.Spec.Mode).To(BeEquivalentTo(kleymv1alpha1.InferenceIdentityBindingModePerObjective))
 			Expect(fetched.Spec.ContainerDiscriminator).NotTo(BeNil())
+		})
+
+		It("should reject omitted objectiveRef when mode defaults to PerObjective", func() {
+			resource := newResource("test-resource-missing-objective")
+			resource.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
+				Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
+				Value: "main",
+			}
+
+			err := k8sClient.Create(ctx, resource)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsInvalid(err)).To(BeTrue())
+			Expect(err.Error()).To(ContainSubstring("objectiveRef is required when mode is PerObjective"))
 		})
 
 		It("should reject containerDiscriminator when mode is PoolOnly", func() {

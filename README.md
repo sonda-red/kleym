@@ -48,8 +48,8 @@ Kleym is an identity registration compiler project. The current implementation i
 
 ## How it works
 
-- `InferenceIdentityBinding` declares identity intent for one `InferenceObjective`.
-- `kleym-operator` resolves that objective and its referenced `InferencePool`.
+- `InferenceIdentityBinding` declares identity intent for one `InferencePool` and, when needed, one `InferenceObjective`.
+- `kleym-operator` resolves the pool directly and validates any objective subject against that pool.
 - The controller renders deterministic selectors and SPIFFE IDs from those inputs.
 - Managed `ClusterSPIFFEID` resources are reconciled for SPIRE Controller Manager.
 
@@ -60,7 +60,7 @@ Prerequisites:
 - Go `1.26+`
 - Docker
 - `kubectl`
-- Access to a Kubernetes cluster with the Gateway API Inference Extension [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) CRDs
+- Access to a Kubernetes cluster with the Gateway API Inference Extension [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) CRD, plus [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) when using `PerObjective`
 - SPIRE Controller Manager with the `ClusterSPIFFEID` CRD
 - Docker for Kind-backed e2e; the e2e targets bootstrap `kind` and Chainsaw under `bin/`
 
@@ -114,7 +114,7 @@ flowchart TD
         D1{"Deleted?"}
         D1Y["Clean up ClusterSPIFFEIDs\nRemove finalizer"]
         F["Ensure finalizer"]
-        RESOLVE["Resolve targetRef → Objective\nExtract and resolve poolRef → Pool"]
+        RESOLVE["Resolve poolRef → Pool\nOptionally resolve objectiveRef"]
         RENDER["Derive selectors from pool\nAdd container discriminator (PerObjective)\nValidate safety selectors\nRender SPIFFE ID"]
         COL{"Collision?"}
         COLY["Set Conflict status\nClean up ClusterSPIFFEIDs"]

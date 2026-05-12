@@ -54,7 +54,8 @@ const (
 
 	noIdentityCollisionMessage = "No identity collision detected"
 
-	fieldIndexTargetRefName             = "spec.targetRef.name"
+	fieldIndexObjectiveRefName          = "spec.objectiveRef.name"
+	fieldIndexPoolRefName               = "spec.poolRef.name"
 	fieldIndexEffectiveMode             = "spec.effectiveMode"
 	fieldIndexContainerDiscriminatorKey = "spec.containerDiscriminatorKey"
 	infraNotReadyRequeueAfter           = 30 * time.Second
@@ -66,7 +67,7 @@ const (
 	logKeyBinding          = "binding"
 	logKeyNamespace        = "namespace"
 	logKeyName             = "name"
-	logKeyTargetRef        = "targetRef"
+	logKeyObjectiveRef     = "objectiveRef"
 	logKeyObjective        = "objective"
 	logKeyObjectiveGVK     = "objectiveGVK"
 	logKeyPool             = "pool"
@@ -167,7 +168,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	logger = logger.WithValues(
-		logKeyTargetRef, binding.Spec.TargetRef.Name,
+		logKeyPool, binding.Spec.PoolRef.Name,
 		logKeyMode, effectiveMode(binding.Spec.Mode),
 	)
 	ctx = logf.IntoContext(ctx, logger)
@@ -332,9 +333,9 @@ func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) 
 		return err
 	}
 
-	if len(availableObjectiveGVKs) == 0 && len(availablePoolGVKs) == 0 {
+	if len(availablePoolGVKs) == 0 {
 		return fmt.Errorf(
-			"no supported GAIE GVKs are available: objective candidates=%v, pool candidates=%v",
+			"no supported GAIE InferencePool GVKs are available: objective candidates=%v, pool candidates=%v",
 			inferenceObjectiveGVKs,
 			inferencePoolGVKs,
 		)
@@ -438,22 +439,14 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 	wasCurrentColliding bool,
 ) (desiredBindingState, error) {
 	logger := logf.FromContext(ctx)
-	objective, err := r.resolveInferenceObjective(ctx, binding.Namespace, binding.Spec.TargetRef.Name)
-	if err != nil {
-		return desiredBindingState{}, err
-	}
-	logger.Info(
-		"resolved target InferenceObjective",
-		logKeyObjective, namespacedBindingKey(objective.GetNamespace(), objective.GetName()),
-		logKeyObjectiveGVK, objective.GroupVersionKind().String(),
-	)
 
-	poolRef, err := extractPoolRef(objective, binding.Namespace)
+	mode := effectiveMode(binding.Spec.Mode)
+	poolRef, err := bindingPoolRef(binding)
 	if err != nil {
 		return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidPoolRef", err.Error())
 	}
 	logger.Info(
-		"resolved objective poolRef",
+		"resolved binding poolRef",
 		logKeyPool, namespacedBindingKey(poolRef.Namespace, poolRef.Name),
 		logKeyPoolGroup, poolRef.Group,
 	)
@@ -467,6 +460,34 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 		logKeyPool, namespacedBindingKey(pool.GetNamespace(), pool.GetName()),
 		logKeyPoolGVK, pool.GroupVersionKind().String(),
 	)
+
+	var objective *unstructured.Unstructured
+	objectiveRef, hasObjectiveRef, err := bindingObjectiveRef(binding)
+	if err != nil {
+		return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidObjectiveRef", err.Error())
+	}
+	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective && !hasObjectiveRef {
+		return desiredBindingState{}, newStateError(
+			conditionTypeRenderFailure,
+			"MissingObjectiveRef",
+			"objectiveRef is required when mode is PerObjective",
+		)
+	}
+	if hasObjectiveRef {
+		objective, err = r.resolveInferenceObjective(ctx, objectiveRef)
+		if err != nil {
+			return desiredBindingState{}, err
+		}
+		logger.Info(
+			"resolved target InferenceObjective",
+			logKeyObjectiveRef, objectiveRef.Name,
+			logKeyObjective, namespacedBindingKey(objective.GetNamespace(), objective.GetName()),
+			logKeyObjectiveGVK, objective.GroupVersionKind().String(),
+		)
+		if err := validateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
+			return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidObjectiveRef", err.Error())
+		}
+	}
 
 	identity, err := r.renderIdentity(binding, objective, pool)
 	if err != nil {

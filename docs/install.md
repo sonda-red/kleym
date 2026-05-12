@@ -11,7 +11,7 @@ This page covers the practical commands for running `kleym-operator`, deploying 
 - Docker
 - `kubectl`
 - Access to a Kubernetes cluster
-- Gateway API Inference Extension (GAIE) CRDs for [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/)
+- Gateway API Inference Extension (GAIE) CRD for [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/), plus [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) when using `PerObjective`
 - SPIFFE Runtime Environment (SPIRE) Controller Manager with the [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md)
 - Docker for Kind-backed e2e; the e2e targets bootstrap `kind` and Chainsaw under `bin/`
 - Hugo Extended `0.146+` for docs preview/build

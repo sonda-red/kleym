@@ -23,7 +23,7 @@ func TestMapObjectiveToBindingsTargetsOnlyMatchingBindings(t *testing.T) {
 	reconciler := &InferenceIdentityBindingReconciler{
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
-			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexTargetRefName, bindingTargetRefNameIndexValue).
+			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexObjectiveRefName, bindingObjectiveRefNameIndexValue).
 			WithObjects(
 				newPerObjectiveBinding("binding-a", "objective-a"),
 				newPerObjectiveBinding("binding-b", "objective-b"),
@@ -46,15 +46,20 @@ func TestMapPoolToBindingsTargetsOnlyBindingsForReferencingObjectives(t *testing
 
 	ctx := context.Background()
 	scheme := newCollisionTestScheme(t)
+	bindingA := newPerObjectiveBinding("binding-a", "objective-a")
+	bindingA.Spec.PoolRef.Name = "pool-a"
+	bindingB := newPerObjectiveBinding("binding-b", "objective-b")
+	bindingB.Spec.PoolRef.Name = "pool-b"
+
 	reconciler := &InferenceIdentityBindingReconciler{
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
-			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexTargetRefName, bindingTargetRefNameIndexValue).
+			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexPoolRefName, bindingPoolRefNameIndexValue).
 			WithObjects(
 				newObjectiveWithPool("objective-a", "pool-a", ""),
 				newObjectiveWithPool("objective-b", "pool-b", ""),
-				newPerObjectiveBinding("binding-a", "objective-a"),
-				newPerObjectiveBinding("binding-b", "objective-b"),
+				bindingA,
+				bindingB,
 			).
 			Build(),
 		Scheme: scheme,
@@ -75,17 +80,30 @@ func TestMapPoolToBindingsRespectsPoolRefGroup(t *testing.T) {
 
 	ctx := context.Background()
 	scheme := newCollisionTestScheme(t)
+	defaultBinding := newPerObjectiveBinding("binding-default", "objective-default")
+	defaultBinding.Spec.PoolRef = kleymv1alpha1.InferencePoolTargetRef{Name: "pool-shared"}
+	k8sBinding := newPerObjectiveBinding("binding-k8s", "objective-k8s")
+	k8sBinding.Spec.PoolRef = kleymv1alpha1.InferencePoolTargetRef{
+		Name:  "pool-shared",
+		Group: "inference.networking.k8s.io",
+	}
+	xBinding := newPerObjectiveBinding("binding-x", "objective-x")
+	xBinding.Spec.PoolRef = kleymv1alpha1.InferencePoolTargetRef{
+		Name:  "pool-shared",
+		Group: "inference.networking.x-k8s.io",
+	}
+
 	reconciler := &InferenceIdentityBindingReconciler{
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
-			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexTargetRefName, bindingTargetRefNameIndexValue).
+			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexPoolRefName, bindingPoolRefNameIndexValue).
 			WithObjects(
 				newObjectiveWithPool("objective-default", "pool-shared", ""),
 				newObjectiveWithPool("objective-k8s", "pool-shared", "inference.networking.k8s.io"),
 				newObjectiveWithPool("objective-x", "pool-shared", "inference.networking.x-k8s.io"),
-				newPerObjectiveBinding("binding-default", "objective-default"),
-				newPerObjectiveBinding("binding-k8s", "objective-k8s"),
-				newPerObjectiveBinding("binding-x", "objective-x"),
+				defaultBinding,
+				k8sBinding,
+				xBinding,
 			).
 			Build(),
 		Scheme: scheme,

@@ -308,8 +308,11 @@ func bindingMatchesField(
 	value string,
 ) bool {
 	switch field {
-	case fieldIndexTargetRefName:
-		return strings.TrimSpace(binding.Spec.TargetRef.Name) == value
+	case fieldIndexObjectiveRefName:
+		return binding.Spec.ObjectiveRef != nil &&
+			strings.TrimSpace(binding.Spec.ObjectiveRef.Name) == value
+	case fieldIndexPoolRefName:
+		return strings.TrimSpace(binding.Spec.PoolRef.Name) == value
 	case fieldIndexEffectiveMode:
 		return string(effectiveMode(binding.Spec.Mode)) == value
 	case fieldIndexContainerDiscriminatorKey:

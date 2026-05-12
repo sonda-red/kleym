@@ -59,12 +59,35 @@ const (
 // Spec helpers
 // -------------------------------------------------------------------------
 
-// InferenceObjectiveTargetRef is a reference to an InferenceObjective in the same namespace.
+// InferencePoolTargetRef anchors a binding to the serving pool that supplies
+// selector provenance. GAIE objectives are optional at request time, but pool
+// selection is the stable workload boundary; see docs/spec.md.
+type InferencePoolTargetRef struct {
+	// name of the InferencePool resource to bind to.
+	// +required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// group optionally constrains pool resolution to one GAIE API group.
+	// Omit this when the cluster only serves one supported InferencePool group.
+	// +optional
+	// +kubebuilder:validation:Enum=inference.networking.k8s.io;inference.networking.x-k8s.io
+	Group string `json:"group,omitempty"`
+}
+
+// InferenceObjectiveTargetRef is an optional reference to an InferenceObjective
+// in the same namespace. It exists for PerObjective identity subjects while
+// keeping PoolOnly identity independent of GAIE's alpha objective API.
 type InferenceObjectiveTargetRef struct {
 	// name of the InferenceObjective resource to bind to.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
+
+	// group optionally constrains objective resolution to one GAIE API group.
+	// +optional
+	// +kubebuilder:validation:Enum=inference.networking.k8s.io;inference.networking.x-k8s.io
+	Group string `json:"group,omitempty"`
 }
 
 // ContainerDiscriminator specifies how to discriminate between containers
@@ -87,11 +110,17 @@ type ContainerDiscriminator struct {
 // InferenceIdentityBindingSpec defines the desired state of InferenceIdentityBinding.
 // +kubebuilder:validation:XValidation:rule="!has(self.mode) || self.mode != 'PoolOnly' || !has(self.containerDiscriminator)",message="containerDiscriminator must be empty when mode is PoolOnly"
 // +kubebuilder:validation:XValidation:rule="has(self.containerDiscriminator) || (has(self.mode) && self.mode == 'PoolOnly')",message="containerDiscriminator is required when mode is PerObjective (including default mode)"
+// +kubebuilder:validation:XValidation:rule="has(self.objectiveRef) || (has(self.mode) && self.mode == 'PoolOnly')",message="objectiveRef is required when mode is PerObjective (including default mode)"
 type InferenceIdentityBindingSpec struct {
 
-	// targetRef specifies the reference to the InferenceObjective in the same namespace.
+	// poolRef specifies the required InferencePool workload anchor in the same namespace.
 	// +required
-	TargetRef InferenceObjectiveTargetRef `json:"targetRef"`
+	PoolRef InferencePoolTargetRef `json:"poolRef"`
+
+	// objectiveRef optionally specifies an InferenceObjective in the same namespace.
+	// It is required for PerObjective mode and, when present, must point at poolRef.
+	// +optional
+	ObjectiveRef *InferenceObjectiveTargetRef `json:"objectiveRef,omitempty"`
 
 	// spiffeIDTemplate optionally overrides the SPIFFE ID template for this binding.
 	// If not specified, the default template from the controller configuration will be used.
@@ -171,7 +200,7 @@ type InferenceIdentityBindingStatus struct {
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
-	// computedSpiffeIDs lists the SPIFFE IDs produced from the SpiffeIDTemplate and TargetRef.
+	// computedSpiffeIDs lists the SPIFFE IDs produced from the SpiffeIDTemplate and references.
 	// +optional
 	ComputedSpiffeIDs []ComputedSpiffeIDStatus `json:"computedSpiffeIDs,omitempty"`
 

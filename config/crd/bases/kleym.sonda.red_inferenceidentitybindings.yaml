@@ -69,6 +69,44 @@ spec:
                 - PoolOnly
                 - PerObjective
                 type: string
+              objectiveRef:
+                description: |-
+                  objectiveRef optionally specifies an InferenceObjective in the same namespace.
+                  It is required for PerObjective mode and, when present, must point at poolRef.
+                properties:
+                  group:
+                    description: group optionally constrains objective resolution
+                      to one GAIE API group.
+                    enum:
+                    - inference.networking.k8s.io
+                    - inference.networking.x-k8s.io
+                    type: string
+                  name:
+                    description: name of the InferenceObjective resource to bind to.
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
+              poolRef:
+                description: poolRef specifies the required InferencePool workload
+                  anchor in the same namespace.
+                properties:
+                  group:
+                    description: |-
+                      group optionally constrains pool resolution to one GAIE API group.
+                      Omit this when the cluster only serves one supported InferencePool group.
+                    enum:
+                    - inference.networking.k8s.io
+                    - inference.networking.x-k8s.io
+                    type: string
+                  name:
+                    description: name of the InferencePool resource to bind to.
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
               selectorSource:
                 description: selectorSource defines how the workload selectors are
                   derived.
@@ -81,17 +119,6 @@ spec:
                   If not specified, the default template from the controller configuration will be used.
                 minLength: 1
                 type: string
-              targetRef:
-                description: targetRef specifies the reference to the InferenceObjective
-                  in the same namespace.
-                properties:
-                  name:
-                    description: name of the InferenceObjective resource to bind to.
-                    minLength: 1
-                    type: string
-                required:
-                - name
-                type: object
               workloadSelectorTemplates:
                 description: |-
                   workloadSelectorTemplates are Go-template strings that produce SPIFFE workload
@@ -103,8 +130,8 @@ spec:
                 type: array
                 x-kubernetes-list-type: set
             required:
+            - poolRef
             - selectorSource
-            - targetRef
             - workloadSelectorTemplates
             type: object
             x-kubernetes-validations:
@@ -114,12 +141,15 @@ spec:
                 (including default mode)
               rule: has(self.containerDiscriminator) || (has(self.mode) && self.mode
                 == 'PoolOnly')
+            - message: objectiveRef is required when mode is PerObjective (including
+                default mode)
+              rule: has(self.objectiveRef) || (has(self.mode) && self.mode == 'PoolOnly')
           status:
             description: status defines the observed state of InferenceIdentityBinding.
             properties:
               computedSpiffeIDs:
                 description: computedSpiffeIDs lists the SPIFFE IDs produced from
-                  the SpiffeIDTemplate and TargetRef.
+                  the SpiffeIDTemplate and references.
                 items:
                   description: ComputedSpiffeIDStatus holds a single computed SPIFFE
                     ID and the mode that produced it.

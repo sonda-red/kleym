@@ -46,16 +46,12 @@ func TestReconcileLogsStructuredSuccessPath(t *testing.T) {
 		logKeyNamespace: testNamespace,
 		logKeyName:      "binding-log-success",
 	})
-	logs.requireEntry(t, "resolved target InferenceObjective", map[string]string{
-		logKeyTargetRef: "objective-a",
-		logKeyObjective: "default/objective-a",
-	})
 	logs.requireEntry(t, "resolved target InferencePool", map[string]string{
 		logKeyPool: "default/pool-a",
 	})
 	logs.requireEntry(t, "rendered identity from inference intent", map[string]string{
 		logKeyMode:      string(kleymv1alpha1.InferenceIdentityBindingModePoolOnly),
-		logKeyObjective: "objective-a",
+		logKeyObjective: "",
 		logKeyPool:      "pool-a",
 		logKeySpiffeID:  "spiffe://kleym.sonda.red/ns/default/pool/pool-a",
 	})
@@ -85,7 +81,7 @@ func TestReconcileLogsFailureStatus(t *testing.T) {
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
-			WithObjects(binding).
+			WithObjects(newTestPool(), binding).
 			Build(),
 		Scheme: scheme,
 	}

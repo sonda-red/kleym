@@ -21,8 +21,6 @@ import (
 	"sort"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,16 +31,18 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
-// setupFieldIndexes registers three controller-runtime field indexes on
+// setupFieldIndexes registers controller-runtime field indexes on
 // InferenceIdentityBinding objects. Field indexes allow efficient lookups
 // (like a database index) without scanning every object in the namespace.
 //
 // Indexes registered:
-//  1. targetRef.name — used by mapObjectiveToBindings and listBindingsReferencingObjective
-//     to find all bindings that reference a given InferenceObjective.
-//  2. effectiveMode — used by listCollisionCandidateBindings to find all
+//  1. objectiveRef.name — used by mapObjectiveToBindings to find bindings
+//     whose optional objective subject changed.
+//  2. poolRef.name — used by mapPoolToBindings to requeue bindings directly
+//     anchored to a changed InferencePool.
+//  3. effectiveMode — used by listCollisionCandidateBindings to find all
 //     PerObjective bindings when peer names are unavailable.
-//  3. containerDiscriminatorKey — used by listCollisionCandidateBindings to
+//  4. containerDiscriminatorKey — used by listCollisionCandidateBindings to
 //     find bindings with the same container discriminator for collision detection.
 func (r *InferenceIdentityBindingReconciler) setupFieldIndexes(mgr ctrl.Manager) error {
 	indexer := mgr.GetFieldIndexer()
@@ -50,12 +50,23 @@ func (r *InferenceIdentityBindingReconciler) setupFieldIndexes(mgr ctrl.Manager)
 	if err := indexer.IndexField(
 		context.Background(),
 		&kleymv1alpha1.InferenceIdentityBinding{},
-		fieldIndexTargetRefName,
+		fieldIndexObjectiveRefName,
 		func(rawObj client.Object) []string {
-			return bindingTargetRefNameIndexValue(rawObj)
+			return bindingObjectiveRefNameIndexValue(rawObj)
 		},
 	); err != nil {
-		return fmt.Errorf("failed to index InferenceIdentityBinding targetRef.name: %w", err)
+		return fmt.Errorf("failed to index InferenceIdentityBinding objectiveRef.name: %w", err)
+	}
+
+	if err := indexer.IndexField(
+		context.Background(),
+		&kleymv1alpha1.InferenceIdentityBinding{},
+		fieldIndexPoolRefName,
+		func(rawObj client.Object) []string {
+			return bindingPoolRefNameIndexValue(rawObj)
+		},
+	); err != nil {
+		return fmt.Errorf("failed to index InferenceIdentityBinding poolRef.name: %w", err)
 	}
 
 	if err := indexer.IndexField(
@@ -83,18 +94,36 @@ func (r *InferenceIdentityBindingReconciler) setupFieldIndexes(mgr ctrl.Manager)
 	return nil
 }
 
-func bindingTargetRefNameIndexValue(rawObj client.Object) []string {
+func bindingObjectiveRefNameIndexValue(rawObj client.Object) []string {
 	binding, ok := rawObj.(*kleymv1alpha1.InferenceIdentityBinding)
 	if !ok {
 		return nil
 	}
 
-	targetName := strings.TrimSpace(binding.Spec.TargetRef.Name)
-	if targetName == "" {
+	if binding.Spec.ObjectiveRef == nil {
 		return nil
 	}
 
-	return []string{targetName}
+	objectiveName := strings.TrimSpace(binding.Spec.ObjectiveRef.Name)
+	if objectiveName == "" {
+		return nil
+	}
+
+	return []string{objectiveName}
+}
+
+func bindingPoolRefNameIndexValue(rawObj client.Object) []string {
+	binding, ok := rawObj.(*kleymv1alpha1.InferenceIdentityBinding)
+	if !ok {
+		return nil
+	}
+
+	poolName := strings.TrimSpace(binding.Spec.PoolRef.Name)
+	if poolName == "" {
+		return nil
+	}
+
+	return []string{poolName}
 }
 
 func bindingEffectiveModeIndexValue(rawObj client.Object) []string {
@@ -181,70 +210,30 @@ func (r *InferenceIdentityBindingReconciler) mapObjectiveToBindings(
 	return requestsForBindings(bindings)
 }
 
-// mapPoolToBindings handles the two-hop fanout when an InferencePool changes:
-//
-//	pool change → find objectives that reference this pool
-//	             → find bindings that reference those objectives
-//	             → enqueue those bindings for reconciliation
-//
-// This traversal is necessary because bindings don't reference pools directly;
-// they reference objectives, which in turn reference pools via poolRef. A pool
-// change (e.g. selector update) can affect the rendered identity of any binding
-// that transitively depends on it.
-//
-// Results are deduplicated and sorted for deterministic reconciliation order.
+// mapPoolToBindings requeues bindings that directly anchor to a changed
+// InferencePool. The field index keeps the fanout narrow, and the group filter
+// avoids reconciling bindings pinned to the other supported GAIE pool group
+// when both APIs serve pools with the same name.
 func (r *InferenceIdentityBindingReconciler) mapPoolToBindings(
 	ctx context.Context,
 	object client.Object,
 ) []reconcile.Request {
-	namespace := object.GetNamespace()
-	poolName := object.GetName()
-	poolGroup := object.GetObjectKind().GroupVersionKind().Group
-	objectiveNames := r.objectiveNamesReferencingPool(ctx, namespace, poolName, poolGroup)
-	if len(objectiveNames) == 0 {
+	bindings, err := r.listBindingsReferencingPool(ctx, object.GetNamespace(), object.GetName())
+	if err != nil {
 		return nil
 	}
 
-	requestsByKey := map[string]reconcile.Request{}
-	objectiveNameList := make([]string, 0, len(objectiveNames))
-	for objectiveName := range objectiveNames {
-		objectiveNameList = append(objectiveNameList, objectiveName)
-	}
-	sort.Strings(objectiveNameList)
-
-	for _, objectiveName := range objectiveNameList {
-		bindings, err := r.listBindingsReferencingObjective(ctx, namespace, objectiveName)
-		if err != nil {
-			return nil
-		}
-		for i := range bindings {
-			binding := bindings[i]
-			request := reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: binding.Namespace,
-					Name:      binding.Name,
-				},
-			}
-			requestsByKey[request.String()] = request
-		}
-	}
-
-	requestKeys := make([]string, 0, len(requestsByKey))
-	for key := range requestsByKey {
-		requestKeys = append(requestKeys, key)
-	}
-	sort.Strings(requestKeys)
-
-	requests := make([]reconcile.Request, 0, len(requestKeys))
-	for _, key := range requestKeys {
-		request, exists := requestsByKey[key]
-		if !exists {
+	poolGroup := object.GetObjectKind().GroupVersionKind().Group
+	filtered := make([]*kleymv1alpha1.InferenceIdentityBinding, 0, len(bindings))
+	for i := range bindings {
+		binding := bindings[i]
+		refGroup := strings.TrimSpace(binding.Spec.PoolRef.Group)
+		if refGroup != "" && poolGroup != "" && refGroup != poolGroup {
 			continue
 		}
-		requests = append(requests, request)
+		filtered = append(filtered, binding)
 	}
-
-	return requests
+	return requestsForBindings(filtered)
 }
 
 func (r *InferenceIdentityBindingReconciler) listBindingsReferencingObjective(
@@ -252,7 +241,15 @@ func (r *InferenceIdentityBindingReconciler) listBindingsReferencingObjective(
 	namespace string,
 	objectiveName string,
 ) ([]*kleymv1alpha1.InferenceIdentityBinding, error) {
-	return r.listBindingsByField(ctx, namespace, fieldIndexTargetRefName, objectiveName)
+	return r.listBindingsByField(ctx, namespace, fieldIndexObjectiveRefName, objectiveName)
+}
+
+func (r *InferenceIdentityBindingReconciler) listBindingsReferencingPool(
+	ctx context.Context,
+	namespace string,
+	poolName string,
+) ([]*kleymv1alpha1.InferenceIdentityBinding, error) {
+	return r.listBindingsByField(ctx, namespace, fieldIndexPoolRefName, poolName)
 }
 
 func requestsForBindings(bindings []*kleymv1alpha1.InferenceIdentityBinding) []reconcile.Request {
@@ -272,41 +269,4 @@ func requestsForBindings(bindings []*kleymv1alpha1.InferenceIdentityBinding) []r
 	})
 
 	return requests
-}
-
-func (r *InferenceIdentityBindingReconciler) objectiveNamesReferencingPool(
-	ctx context.Context,
-	namespace string,
-	poolName string,
-	poolGroup string,
-) map[string]struct{} {
-	objectiveNames := map[string]struct{}{}
-
-	for _, gvk := range r.watchObjectiveGVKs() {
-		list := &unstructured.UnstructuredList{}
-		list.SetGroupVersionKind(gvk.GroupVersion().WithKind(gvk.Kind + "List"))
-		if err := r.List(ctx, list, client.InNamespace(namespace)); err != nil {
-			if meta.IsNoMatchError(err) {
-				continue
-			}
-			continue
-		}
-
-		for i := range list.Items {
-			objective := &list.Items[i]
-			ref, err := extractPoolRef(objective, namespace)
-			if err != nil {
-				continue
-			}
-			if ref.Name != poolName {
-				continue
-			}
-			if poolGroup != "" && ref.Group != "" && ref.Group != poolGroup {
-				continue
-			}
-			objectiveNames[objective.GetName()] = struct{}{}
-		}
-	}
-
-	return objectiveNames
 }
