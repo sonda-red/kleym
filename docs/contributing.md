@@ -3,7 +3,9 @@ title: Contributing
 weight: 110
 ---
 
-`kleym` is a Kubernetes operator that compiles inference identity intent into SPIFFE Runtime Environment (SPIRE) Controller Manager resources. The repo is still early, so contributors should prefer small, explicit changes that keep the spec, code, and generated artifacts aligned.
+Kleym is the project. `kleym-operator` is the Kubernetes controller binary and operator image. `kleym` is reserved for a future CLI, but the CLI is not implemented yet.
+
+The current `kleym-operator` implementation compiles inference identity intent into SPIFFE Runtime Environment (SPIRE) Controller Manager resources. The repo is still early, so contributors should prefer small, explicit changes that keep the spec, code, and generated artifacts aligned.
 
 ## Sources Of Truth
 
@@ -45,10 +47,10 @@ The repository bootstraps local tool binaries under `bin/` through `make` target
 
 ## Repository Map
 
-- `cmd/main.go`: controller manager entry point
+- `cmd/kleym-operator/main.go`: operator entry point
 - `api/v1alpha1`: API types and generated deepcopy code for `InferenceIdentityBinding`
 - `internal/controller`: reconciliation logic and controller-focused tests
-- `config/`: CRD, RBAC, manager deployment, samples, and kustomize overlays
+- `config/`: CRD, RBAC, operator deployment, samples, and kustomize overlays
 - `test/e2e`: Kind-backed end-to-end coverage
 - `test/chainsaw`: Chainsaw scenarios for declarative cluster reconciliation checks
 - `.github/workflows`: CI, release, and maintenance automation
@@ -59,13 +61,14 @@ The repository bootstraps local tool binaries under `bin/` through `make` target
 - `make docs-build`: build the docs site with Hugo + Hextra
 - `make docs-serve`: serve docs locally with Hugo
 - `make run`: run the controller locally against the current kubeconfig
-- `make build`: build the manager binary
+- `make build-operator`: build the operator binary
+- `make build`: compatibility alias for `make build-operator`
 - `make test`: run non-e2e tests with envtest setup
 - `make lint`: run `golangci-lint`
 - `make test-e2e`: run Kind-backed end-to-end tests
 - `make test-e2e-chainsaw`: run Kind-backed Chainsaw tests
 - `make install`: install CRDs into the current cluster
-- `make deploy IMG=<registry>/kleym:<tag>`: deploy the controller image to the current cluster
+- `make deploy IMG=<registry>/kleym-operator:<tag>`: deploy the operator image to the current cluster
 - `make build-installer`: render `dist/install.yaml`
 
 ## Change Rules

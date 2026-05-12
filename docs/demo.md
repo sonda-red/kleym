@@ -36,7 +36,7 @@ Confirm the external CRDs and controller are present:
 kubectl get crd inferencepools.inference.networking.k8s.io
 kubectl get crd inferenceobjectives.inference.networking.x-k8s.io
 kubectl get crd clusterspiffeids.spire.spiffe.io
-kubectl -n kleym-system rollout status deployment/kleym-controller-manager --timeout=120s
+kubectl -n kleym-system rollout status deployment/kleym-operator --timeout=120s
 ```
 
 Expected observation: the CRDs exist and the controller deployment is available.

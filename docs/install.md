@@ -3,7 +3,7 @@ title: Install
 weight: 30
 ---
 
-This page covers the practical commands for running `kleym`, deploying it, testing it, and previewing the documentation site locally.
+This page covers the practical commands for running `kleym-operator`, deploying it, testing it, and previewing the documentation site locally.
 
 ## Prerequisites
 
@@ -28,10 +28,10 @@ Run the controller against your current kubeconfig:
 make run
 ```
 
-Build the manager binary:
+Build the operator binary:
 
 ```sh
-make build
+make build-operator
 ```
 
 ## Deploy
@@ -45,7 +45,7 @@ make install
 Deploy the controller image:
 
 ```sh
-make deploy IMG=<registry>/kleym:<tag>
+make deploy IMG=<registry>/kleym-operator:<tag>
 ```
 
 Render the local consolidated installer manifest into `dist/install.yaml`:
@@ -84,7 +84,7 @@ kind: Kustomization
 resources:
 - https://github.com/sonda-red/kleym//deployment?ref=vX.Y.Z
 images:
-- name: ghcr.io/sonda-red/kleym
+- name: ghcr.io/sonda-red/kleym-operator
   newTag: vX.Y.Z
 ```
 
@@ -176,7 +176,7 @@ spec:
     kind: GitRepository
     name: kleym
   images:
-  - name: ghcr.io/sonda-red/kleym
+  - name: ghcr.io/sonda-red/kleym-operator
     newTag: vX.Y.Z
   wait: true
 ```
@@ -198,7 +198,7 @@ spec:
     path: deployment
     kustomize:
       images:
-      - ghcr.io/sonda-red/kleym:vX.Y.Z
+      - ghcr.io/sonda-red/kleym-operator:vX.Y.Z
   destination:
     server: https://kubernetes.default.svc
     namespace: kleym-system
