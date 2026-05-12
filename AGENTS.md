@@ -21,6 +21,7 @@ Keep the search tight. Read the directly relevant discussion and any immediately
 ## Ticket Discipline
 
 - If the work is tied to an issue or ticket, follow that issue's instructions explicitly.
+- If asked to create a GitHub issue, use `.github/ISSUE_TEMPLATE/scoped-task.md` as the default structure unless the user requests a different template.
 - Do not silently expand scope. If adjacent cleanup or extra improvement seems worthwhile but is not required to close the issue, propose a follow-up ticket instead of bundling it into the current change.
 
 ## Branch And PR Hygiene
