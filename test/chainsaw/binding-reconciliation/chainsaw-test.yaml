@@ -10,8 +10,90 @@ spec:
     assert: 2m
     cleanup: 45s
     delete: 30s
-    exec: 2m
+    exec: 4m
   steps:
+    - name: verify-manager-metrics
+      try:
+        - script:
+            content: |
+              set -eu
+
+              cleanup() {
+                kubectl delete pod kleym-metrics-smoke -n kleym-system --ignore-not-found=true
+                kubectl delete clusterrolebinding kleym-metrics-smoke --ignore-not-found=true
+              }
+              trap cleanup EXIT
+
+              cleanup
+              kubectl apply -f - <<'EOF'
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRoleBinding
+              metadata:
+                name: kleym-metrics-smoke
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: ClusterRole
+                name: kleym-metrics-reader
+              subjects:
+                - kind: ServiceAccount
+                  name: kleym-operator
+                  namespace: kleym-system
+              EOF
+
+              service_ip="$(kubectl get service kleym-operator-metrics-service -n kleym-system -o jsonpath='{.spec.clusterIP}')"
+              for _ in $(seq 1 60); do
+                endpoint_ip="$(kubectl get endpoints kleym-operator-metrics-service -n kleym-system -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null || true)"
+                if [ -n "${endpoint_ip}" ]; then
+                  break
+                fi
+                sleep 1
+              done
+              test -n "${endpoint_ip}"
+              kubectl apply -f - <<EOF
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                name: kleym-metrics-smoke
+                namespace: kleym-system
+              spec:
+                restartPolicy: Never
+                serviceAccountName: kleym-operator
+                containers:
+                  - name: curl
+                    image: curlimages/curl:latest
+                    command:
+                      - /bin/sh
+                      - -c
+                    args:
+                      - |
+                        metrics="\$(curl -fsSk \
+                          -H "Authorization: Bearer \$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                          https://${service_ip}:8443/metrics)" && test -n "\${metrics}"
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                        drop:
+                          - ALL
+                      readOnlyRootFilesystem: true
+                      runAsNonRoot: true
+                      runAsUser: 1000
+                      seccompProfile:
+                        type: RuntimeDefault
+              EOF
+              for _ in $(seq 1 120); do
+                phase="$(kubectl get pod kleym-metrics-smoke -n kleym-system -o jsonpath='{.status.phase}')"
+                if [ "${phase}" = "Succeeded" ]; then
+                  exit 0
+                fi
+                if [ "${phase}" = "Failed" ]; then
+                  kubectl logs kleym-metrics-smoke -n kleym-system || true
+                  exit 1
+                fi
+                sleep 1
+              done
+              kubectl describe pod kleym-metrics-smoke -n kleym-system || true
+              exit 1
+
     - name: apply-reference-environment
       try:
         - script:
