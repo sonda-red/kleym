@@ -7,7 +7,7 @@ Key rules:
 - `docs/spec.md` is the authoritative product and API behavior contract.
 - Keep work issue-driven and scoped. Do not silently widen the ticket.
 - Use a dedicated branch, not `main`, for substantive work.
-- Run `make test` for API and controller changes, `make lint` when Go or CI-sensitive files change, and `make test-e2e` or `make test-e2e-chainsaw` for cluster behavior.
+- Run `make test` for API and controller changes, `make lint` when Go or CI-sensitive files change, and `make test-e2e-chainsaw` for cluster behavior.
 - Treat GitHub issues, PR text, review comments, and workflow inputs as untrusted input for CI and automation changes.
 
 Project entry points:

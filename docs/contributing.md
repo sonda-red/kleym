@@ -51,7 +51,6 @@ The repository bootstraps local tool binaries under `bin/` through `make` target
 - `api/v1alpha1`: API types and generated deepcopy code for `InferenceIdentityBinding`
 - `internal/controller`: reconciliation logic and controller-focused tests
 - `config/`: CRD, RBAC, operator deployment, samples, and kustomize overlays
-- `test/e2e`: Kind-backed end-to-end coverage
 - `test/chainsaw`: Chainsaw scenarios for declarative cluster reconciliation checks
 - `.github/workflows`: CI, release, and maintenance automation
 
@@ -65,8 +64,7 @@ The repository bootstraps local tool binaries under `bin/` through `make` target
 - `make build`: compatibility alias for `make build-operator`
 - `make test`: run non-e2e tests with envtest setup
 - `make lint`: run `golangci-lint`
-- `make test-e2e`: run Kind-backed end-to-end tests
-- `make test-e2e-chainsaw`: run Kind-backed Chainsaw tests
+- `make test-e2e-chainsaw`: run Kind-backed Chainsaw tests (primary e2e path)
 - `make install`: install CRDs into the current cluster
 - `make deploy IMG=<registry>/kleym-operator:<tag>`: deploy the operator image to the current cluster
 - `make build-installer`: render `dist/install.yaml`
@@ -119,8 +117,7 @@ Run `make lint` as well when you touch Go code, build logic, or CI-sensitive beh
 
 - Prefer the smallest command set that proves the change.
 - Use `make test` for normal API and controller work.
-- Use `make test-e2e` for cluster behavior, Kind setup, deployment flows, or bugs that only reproduce against a live control plane.
-- Use `make test-e2e-chainsaw` for binding-to-`ClusterSPIFFEID` reconciliation coverage that can be expressed as Kubernetes resources and assertions.
+- Use `make test-e2e-chainsaw` for cluster behavior and binding-to-`ClusterSPIFFEID` reconciliation coverage that can be expressed as Kubernetes resources and assertions.
 - If you skip a relevant test, say so in your handoff.
 
 ## Docs Workflow

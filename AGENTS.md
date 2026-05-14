@@ -90,7 +90,7 @@ If you change reconciliation behavior, also check:
 - Tests are required for behavior changes. Prefer focused tests that verify the invariant being changed rather than broad snapshot or cosmetic coverage.
 - `make test` for API and controller changes.
 - `make lint` when touching Go code or build and CI logic.
-- `make test-e2e` for Kind or cluster behavior, or when explicitly requested.
+- `make test-e2e-chainsaw` for Kind or cluster behavior (primary e2e path).
 
 State in your handoff which GitHub context you checked, or that no relevant GitHub context was available.
 

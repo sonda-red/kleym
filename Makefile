@@ -74,7 +74,6 @@ test: manifests generate fmt vet setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell "$(ENVTEST)" use $(ENVTEST_K8S_VERSION) --bin-dir "$(LOCALBIN)" -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
 # E2E tests use Kind and load the operator image locally.
-# Set CERT_MANAGER_INSTALL_SKIP=true when the cluster already has cert-manager.
 KIND_CLUSTER ?= kleym-test-e2e
 E2E_IMG ?= example.com/kleym-operator:e2e
 KEEP_KIND ?= false
@@ -94,11 +93,7 @@ setup-test-e2e: kind ## Set up a Kind cluster for e2e tests if it does not exist
 			echo "Creating Kind cluster '$(KIND_CLUSTER)'..."; \
 			$(KIND) create cluster --name $(KIND_CLUSTER) ;; \
 	esac
-
-.PHONY: test-e2e
-test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
-	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2e/ -v -ginkgo.v
-	@if [ "$(KEEP_KIND)" != "true" ]; then $(MAKE) cleanup-test-e2e; fi
+	"$(KUBECTL)" config use-context kind-$(KIND_CLUSTER)
 
 .PHONY: install-e2e-crds
 install-e2e-crds: install ## Install minimal external CRDs required by e2e tests.
@@ -108,6 +103,11 @@ install-e2e-crds: install ## Install minimal external CRDs required by e2e tests
 	"$(KUBECTL)" wait --for condition=Established crd/clusterspiffeids.spire.spiffe.io --timeout=60s
 	"$(KUBECTL)" wait --for condition=Established crd/inferencepools.inference.networking.k8s.io --timeout=60s
 	"$(KUBECTL)" wait --for condition=Established crd/inferenceobjectives.inference.networking.x-k8s.io --timeout=60s
+
+.PHONY: prepare-e2e-namespace
+prepare-e2e-namespace: ## Create the operator namespace with restricted Pod Security for e2e.
+	"$(KUBECTL)" create namespace kleym-system --dry-run=client -o yaml | "$(KUBECTL)" apply -f -
+	"$(KUBECTL)" label namespace kleym-system pod-security.kubernetes.io/enforce=restricted --overwrite
 
 .PHONY: test-e2e-chainsaw
 test-e2e-chainsaw: setup-test-e2e chainsaw manifests generate fmt vet ## Run Chainsaw e2e tests against a Kind cluster.
@@ -123,6 +123,7 @@ test-e2e-chainsaw: setup-test-e2e chainsaw manifests generate fmt vet ## Run Cha
 	$(MAKE) docker-build-operator IMG=$(E2E_IMG); \
 	"$(KIND)" load docker-image "$(E2E_IMG)" --name "$(KIND_CLUSTER)"; \
 	$(MAKE) install-e2e-crds; \
+	$(MAKE) prepare-e2e-namespace; \
 	$(MAKE) deploy IMG=$(E2E_IMG); \
 	"$(KUBECTL)" rollout status deployment/kleym-operator -n kleym-system --timeout=120s; \
 	mkdir -p "$(CHAINSAW_REPORT_DIR)"; \
