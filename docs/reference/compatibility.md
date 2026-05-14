@@ -94,7 +94,7 @@ Related design issue: [#109](https://github.com/sonda-red/kleym/issues/109).
 | Go, Kubernetes, controller-runtime, build, or CI-sensitive dependency | README or install docs if the public floor changes | `make test`, `make lint` |
 | GAIE GVK or consumed field | [API](api), [spec](../spec), `docs/troubleshooting.md` | Resolver and partial-CRD tests |
 | Rendered `ClusterSPIFFEID` field | [Managed Resources](resources), this page, design issue when behavior changes | Create, update, delete, and resync tests |
-| Reconciliation or status behavior | [spec](../spec), [Conditions](conditions), troubleshooting docs | `make test`; `make test-e2e` when cluster behavior changes |
+| Reconciliation or status behavior | [spec](../spec), [Conditions](conditions), troubleshooting docs | `make test`; `make test-e2e-chainsaw` when cluster behavior changes |
 | Docs-only compatibility policy | This page | `make docs-build` |
 
 ## Upgrade Checks

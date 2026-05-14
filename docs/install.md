@@ -230,13 +230,7 @@ Run lint:
 make lint
 ```
 
-Run Kind-backed end-to-end coverage:
-
-```sh
-make test-e2e
-```
-
-Run the Kind-backed Chainsaw reconciliation check:
+Run the Kind-backed Chainsaw reconciliation check (primary e2e path):
 
 ```sh
 make test-e2e-chainsaw
