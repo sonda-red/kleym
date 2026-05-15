@@ -22,7 +22,36 @@ Keep the search tight. Read the directly relevant discussion and any immediately
 
 - If the work is tied to an issue or ticket, follow that issue's instructions explicitly.
 - If asked to create a GitHub issue, use `.github/ISSUE_TEMPLATE/scoped-task.md` as the default structure unless the user requests a different template.
+- When triaging issues, apply the matching `complexity/T*` label for the ticket's tier and keep the label with the issue while it remains open.
 - Do not silently expand scope. If adjacent cleanup or extra improvement seems worthwhile but is not required to close the issue, propose a follow-up ticket instead of bundling it into the current change.
+
+## Ticket Complexity And Model Tiering
+
+When creating or planning tickets, classify the work by complexity before writing the final issue or implementation plan. Complexity is based on correctness risk, architectural impact, and required repository understanding, not only file count.
+
+| Tier | Complexity | Typical work | Recommended agent assistance |
+|---|---|---|---|
+| T0 | Trivial | Typo fixes, formatting, broken links, tiny docs edits | Cheap/default model |
+| T1 | Low | Small docs improvements, simple tests, minor refactors with obvious scope | Cheap/default model |
+| T2 | Medium | Localized code changes, new validation cases, CLI/package wiring, focused controller fixes | Standard coding model |
+| T3 | High | API shape changes, reconciliation behavior, selector safety, compatibility logic, nontrivial test design | Strong coding model with high reasoning |
+| T4 | Critical | CRD semantics, identity derivation invariants, collision behavior, finalizers, security boundaries, repo layout changes | Strongest model with high or extra-high reasoning |
+
+When creating an issue:
+
+1. Determine the complexity tier.
+2. Add a `Complexity` section to the issue.
+3. Explain why the tier was chosen.
+4. Include a recommended model assistance tier.
+
+When planning implementation:
+
+1. Read the issue complexity tier first.
+2. Confirm or adjust the tier if the actual scope differs.
+3. Produce a plan sized for that tier.
+4. Recommend the minimum agent tier that should be used for implementation and review.
+
+Prefer the lowest model tier that is safe for the work. Escalate only when correctness, API stability, security, or architectural consistency is at risk.
 
 ## Branch And PR Hygiene
 
