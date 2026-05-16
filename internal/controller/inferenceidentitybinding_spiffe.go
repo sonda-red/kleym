@@ -149,11 +149,11 @@ func clusterSPIFFEIDInSync(current *unstructured.Unstructured, desired *unstruct
 }
 
 func mergeDesiredClusterSPIFFEID(current *unstructured.Unstructured, desired *unstructured.Unstructured) {
-	currentSpec, _, _ := unstructured.NestedMap(desired.Object, "spec")
+	desiredSpec, _, _ := unstructured.NestedMap(desired.Object, "spec")
 	if current.Object == nil {
 		current.Object = map[string]any{}
 	}
-	current.Object["spec"] = currentSpec
+	current.Object["spec"] = desiredSpec
 
 	labels := current.GetLabels()
 	if labels == nil {
