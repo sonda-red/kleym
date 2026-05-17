@@ -4,7 +4,8 @@ The canonical contributor guide now lives at [`docs/contributing.md`](docs/contr
 
 Key rules:
 
-- `docs/spec.md` is the authoritative product and API behavior contract.
+- `docs/spec/operator.md` is the authoritative operator product and API behavior contract.
+- `docs/spec/cli.md` is the read-only inspection CLI contract.
 - Keep work issue-driven and scoped. Do not silently widen the ticket.
 - Use a dedicated branch, not `main`, for substantive work.
 - Run `make test` for API and controller changes, `make lint` when Go or CI-sensitive files change, and `make test-e2e-chainsaw` for cluster behavior.

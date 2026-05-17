@@ -5,7 +5,7 @@
   <p>
     <a href="https://kleym.sonda.red">Documentation</a>
     ·
-    <a href="docs/spec.md">Spec</a>
+    <a href="docs/spec/_index.md">Specs</a>
     ·
     <a href="docs/examples/">Examples</a>
     ·
@@ -26,7 +26,7 @@
   </a>
 </p>
 
-Kleym is the project. `kleym-operator` is the Kubernetes controller binary and operator image. `kleym` is reserved for a future CLI, but the CLI is not implemented yet.
+Kleym is the project. `kleym-operator` is the Kubernetes controller binary and operator image. `kleym` is the CLI.
 
 The `kleym-operator` controller is for clusters that use the [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/). It reads inference intent from resources such as [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/), then compiles that intent into deterministic SPIFFE identities and materializes them as SPIRE Controller Manager `ClusterSPIFFEID` resources.
 
@@ -168,7 +168,8 @@ Docs live under [`docs/`](docs/), with the published site at <https://kleym.sond
 | [`docs/examples/`](docs/examples/) | Concrete manifests and expected outcomes |
 | [`docs/reference/`](docs/reference/) | API surface, conditions, and managed resources |
 | [`docs/troubleshooting.md`](docs/troubleshooting.md) | Condition-driven debugging and dependency checks |
-| [`docs/spec.md`](docs/spec.md) | Authoritative product and API behavior |
+| [`docs/spec/operator.md`](docs/spec/operator.md) | Authoritative operator product, API, and reconciliation behavior |
+| [`docs/spec/cli.md`](docs/spec/cli.md) | Read-only inspection CLI contract |
 | [`docs/design/`](docs/design/) | Internal design notes |
 | [`docs/contributing.md`](docs/contributing.md) | Contributor workflow and validation expectations |
 

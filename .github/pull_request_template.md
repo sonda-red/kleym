@@ -2,6 +2,10 @@
 
 - Describe the change briefly.
 
+## What I Changed And Why
+
+- Describe the implementation choices a code owner should review.
+
 ## Related Issue
 
 - Required for ticket-driven work: `Fixes #<issue>` or `Closes #<issue>`
@@ -10,6 +14,12 @@
 
 - Confirm this PR follows the issue instructions explicitly.
 - List any ideas that came up but were intentionally left out of scope.
+
+## Spec And Docs
+
+- Operator Spec (`docs/spec/operator.md`): updated / not needed because
+- CLI Spec (`docs/spec/cli.md`): updated / not needed because
+- Other docs: updated / not needed because
 
 ## Follow-Up Work
 

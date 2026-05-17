@@ -3,13 +3,14 @@ title: Contributing
 weight: 110
 ---
 
-Kleym is the project. `kleym-operator` is the Kubernetes controller binary and operator image. `kleym` is reserved for a future CLI, but the CLI is not implemented yet.
+Kleym is the project. `kleym-operator` is the Kubernetes controller binary and operator image. `kleym` is the CLI.
 
 The current `kleym-operator` implementation compiles inference identity intent into SPIFFE Runtime Environment (SPIRE) Controller Manager resources. The repo is still early, so contributors should prefer small, explicit changes that keep the spec, code, and generated artifacts aligned.
 
 ## Sources Of Truth
 
-- [`spec.md`](spec) is the authoritative product and API behavior document.
+- [Operator Spec](/spec/operator/) is the authoritative operator product and API behavior document.
+- [CLI Spec](/spec/cli/) is the read-only inspection CLI contract.
 - `README.md` is the project entry point and quickstart.
 - `AGENTS.md` is the minimal repository contract for coding agents.
 - `RELEASING.md` describes the manual release procedure.
@@ -21,7 +22,7 @@ If code and docs disagree, fix the disagreement instead of silently choosing one
 Issues and pull requests are part of the design history for this repository. Check the directly relevant GitHub context when:
 
 - a task references an issue, PR, review thread, release note, or regression
-- intended behavior is unclear from the current code and the [spec](spec)
+- intended behavior is unclear from the current code and either the [Operator Spec](/spec/operator/) or [CLI Spec](/spec/cli/)
 - you are changing API contracts, reconciliation semantics, CI, release flow, or project policy
 
 Keep that review narrow. Read the issue or PR that motivated the change and any directly related follow-ups. Avoid broad history searches unless the task genuinely requires it.
@@ -73,7 +74,8 @@ The repository bootstraps local tool binaries under `bin/` through `make` target
 
 ### API And Controller Changes
 
-- Update the [spec](spec) when behavior or API contract changes.
+- Update the [Operator Spec](/spec/operator/) when operator behavior or API contract changes.
+- Update the [CLI Spec](/spec/cli/) when CLI command, output, inspection, or exit behavior changes.
 - If you touch files in `api/` or change kubebuilder markers, run:
 
 ```sh
@@ -92,7 +94,7 @@ Run `make lint` as well when you touch Go code, build logic, or CI-sensitive beh
 ### Documentation Changes
 
 - Update `README.md` when setup, scope, or entry-point commands change.
-- Update the [spec](spec) when the product contract changes.
+- Update the [Operator Spec](/spec/operator/) or [CLI Spec](/spec/cli/) when the matching product contract changes.
 - Update this page when workflow, tooling, or contributor expectations change.
 
 ### Dependency And Build Changes

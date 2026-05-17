@@ -3,7 +3,7 @@ title: Reconciliation
 weight: 10
 ---
 
-This page explains the current controller flow. The behavior contract remains in the [spec](../spec).
+This page explains the current controller flow. The behavior contract remains in the [Operator Spec](/spec/operator/).
 
 ## Current Flow
 

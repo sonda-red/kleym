@@ -32,7 +32,8 @@ It is an identity registration compiler. The project is intentionally narrow:
 
 ### Core docs
 
-- [Spec](/spec): authoritative behavior and API contract
+- [Operator Spec](/spec/operator): authoritative operator behavior and API contract
+- [CLI Spec](/spec/cli): read-only inspection CLI contract
 - [API reference](/reference/api): fields, conditions, and managed resources
 - [Concepts](/concepts): identity boundaries, selector safety, and scope
 - [Architecture](/architecture): controller flow from intent to SPIRE resources

@@ -1,4 +1,7 @@
-# Kleym CLI Spec
+---
+title: CLI Spec
+weight: 20
+---
 
 `kleym` is a read-only inspection CLI for `InferenceIdentityBinding` state. It explains how one binding becomes a deterministic SPIFFE identity registration by recomputing desired state with the same pure render, resolve, selector, naming, and collision logic as `kleym-operator`; comparing that desired state with observed Kleym-managed `ClusterSPIFFEID` output; and reporting findings from current Kubernetes API state.
 

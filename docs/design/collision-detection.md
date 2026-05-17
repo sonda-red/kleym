@@ -3,7 +3,7 @@ title: Collision Detection
 weight: 30
 ---
 
-This page explains the current per-objective collision logic. The intended policy still lives in the [spec](../spec).
+This page explains the current per-objective collision logic. The intended policy still lives in the [Operator Spec](/spec/operator/).
 
 ## Problem
 
