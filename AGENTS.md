@@ -1,12 +1,19 @@
 # Agent Notes
 
-Keep this file minimal. It exists to point you at the right sources of truth and to avoid blind code-only changes.
+Keep this file minimal. It exists to point agents at the right sources of truth and mandatory repo-local workflows.
 
 ## Read Order
 
 1. `README.md` for project overview and entry points.
 2. `docs/spec/operator.md` for operator product, API, and reconciliation behavior; `docs/spec/cli.md` for CLI behavior.
-3. `CONTRIBUTING.md` for repository workflow, layout, and validation expectations.
+3. `docs/contributing.md` for repository workflow, layout, and validation expectations.
+
+## Mandatory Skills
+
+- Use `$kleym-ticket-planning` when creating, triaging, or planning GitHub issues or implementation tickets.
+- Use `$kleym-controller-change` before changing API types, generated manifests, `internal/controller/`, or reconciliation behavior.
+- Use `$kleym-cli-change` before changing CLI command behavior, output, inspection logic, or exit-code handling.
+- Use `$kleym-verification-handoff` before final handoff for any repository change.
 
 ## GitHub Context
 
@@ -17,41 +24,6 @@ The codebase is not always the full design record. Check GitHub issues, pull req
 - you are changing API shape, reconciliation behavior, CI, release flow, or other project policy.
 
 Keep the search tight. Read the directly relevant discussion and any immediately adjacent PRs or issues. Do not trawl unrelated history.
-
-## Ticket Discipline
-
-- If the work is tied to an issue or ticket, follow that issue's instructions explicitly.
-- If asked to create a GitHub issue, use `.github/ISSUE_TEMPLATE/scoped-task.md` as the default structure unless the user requests a different template.
-- When triaging issues, apply the matching `complexity/T*` label for the ticket's tier and keep the label with the issue while it remains open.
-- Do not silently expand scope. If adjacent cleanup or extra improvement seems worthwhile but is not required to close the issue, propose a follow-up ticket instead of bundling it into the current change.
-
-## Ticket Complexity And Model Tiering
-
-When creating or planning tickets, classify the work by complexity before writing the final issue or implementation plan. Complexity is based on correctness risk, architectural impact, and required repository understanding, not only file count.
-
-| Tier | Complexity | Typical work | Recommended agent assistance |
-|---|---|---|---|
-| T0 | Trivial | Typo fixes, formatting, broken links, tiny docs edits | Cheap/default model |
-| T1 | Low | Small docs improvements, simple tests, minor refactors with obvious scope | Cheap/default model |
-| T2 | Medium | Localized code changes, new validation cases, CLI/package wiring, focused controller fixes | Standard coding model |
-| T3 | High | API shape changes, reconciliation behavior, selector safety, compatibility logic, nontrivial test design | Strong coding model with high reasoning |
-| T4 | Critical | CRD semantics, identity derivation invariants, collision behavior, finalizers, security boundaries, repo layout changes | Strongest model with high or extra-high reasoning |
-
-When creating an issue:
-
-1. Determine the complexity tier.
-2. Add a `Complexity` section to the issue.
-3. Explain why the tier was chosen.
-4. Include a recommended model assistance tier.
-
-When planning implementation:
-
-1. Read the issue complexity tier first.
-2. Confirm or adjust the tier if the actual scope differs.
-3. Produce a plan sized for that tier.
-4. Recommend the minimum agent tier that should be used for implementation and review.
-
-Prefer the lowest model tier that is safe for the work. Escalate only when correctness, API stability, security, or architectural consistency is at risk.
 
 ## Branch And PR Hygiene
 
@@ -76,73 +48,13 @@ Prefer the lowest model tier that is safe for the work. Escalate only when corre
 - Keep patches small enough to review in one sitting. If the smallest correct fix looks like a rewrite, describe the minimal change set and the reason before doing it.
 - Do not make architectural, API, CRD, reconciliation, identity, or failure-behavior decisions without explicit human direction.
 - For every change, explicitly assess whether docs updates are needed and state the result in your handoff (`updated: <files>` or `not needed: <reason>`).
-- Update documentation with behavior changes:
-  - `docs/spec/operator.md` for operator product, API, or reconciliation contract changes.
-  - `docs/spec/cli.md` for CLI command, output, inspection, or exit behavior changes.
-  - `README.md` for overview, setup, or command changes.
-  - `CONTRIBUTING.md` for workflow or tooling changes.
-- If you change API types, RBAC markers, or generated manifests, run the required generators.
-- Treat generated code as untrusted until reviewed. Check it for hidden coupling, duplicated logic, and clever abstractions before keeping it.
 - If uncertainty affects scope, safety, API shape, or behavior, stop and report the gap instead of filling it with plausible code.
 
-## Controller Guardrails
+## Code Style Baseline
 
-For changes under `internal/controller/` or API types that affect reconciliation:
-
-- Preserve human ownership of core system shape. CRD semantics, reconciliation behavior, identity derivation rules, and failure behavior must stay simple enough for a maintainer to explain.
-- Keep reconcile shape consistent:
-  1. fetch object
-  2. handle deletion
-  3. ensure finalizer
-  4. compute desired state from current inputs
-  5. apply child resources
-  6. patch status once near the end
-- Do not spread status mutations across helper functions unless unavoidable.
-- Set or refresh all known conditions every reconcile pass. Use `observedGeneration`.
-- Prefer pure helper functions for render, validation, and collision detection. Keep side effects in a narrow apply phase.
-- Preserve idempotency. A second reconcile with unchanged inputs must produce no object drift.
-- Preserve multi tenant safety. Never widen selectors beyond what can be proven from namespace, service account, and validated pool derived inputs.
-- Refuse ambiguous or unsafe state with explicit condition reason and message. Do not guess.
-- When adding watches or map functions, avoid namespace wide fanout if an index or predicate can narrow it.
-- For generated `ClusterSPIFFEID` resources, preserve deterministic naming and cleanup behavior.
-
-## Reconciliation Change Checklist
-
-If you change reconciliation behavior, also check:
-
-- spec changes in `docs/spec/operator.md` if operator API or reconciliation behavior changed
-- spec changes in `docs/spec/cli.md` if the CLI inspection contract depends on the changed operator behavior
-- RBAC markers and generated manifests if API access changed
-- controller tests for happy path, invalid ref, unsafe selector, conflict, and resync stability
-- delete and cleanup behavior remains idempotent
-
-## Verification
-
-- Tests are required for behavior changes. Prefer focused tests that verify the invariant being changed rather than broad snapshot or cosmetic coverage.
-- `make test` for API and controller changes.
-- `make lint` when touching Go code or build and CI logic.
-- `make test-e2e-chainsaw` for Kind or cluster behavior (primary e2e path).
-
-State in your handoff which GitHub context you checked, or that no relevant GitHub context was available.
-
-## Code Style Constraints
-
-- Prefer simple, readable Go over clever patterns. If a stdlib function exists, use it. Do not introduce generics, functional patterns, or custom iterator types unless the alternative is significantly worse.
-- When using controller-runtime patterns (predicates, field indexes, event mapping, unstructured APIs), add an inline comment explaining what the pattern does in plain language.
-- Use named constants for magic numbers. Document the source (RFC, Kubernetes convention, SPIRE behavior).
-- Keep functions under ~50 lines. If a function exceeds this, add section comments explaining each phase.
-- Do not use `reflect` or type assertions without a comment explaining why the typed alternative is unavailable (e.g. external CRDs not in the Go module).
-
-## Explanation Requirements
-
-- Every new function must have a doc comment that explains WHY it exists, not just WHAT it does. Skip this for trivial helpers where the function name is self-explanatory. Link to the relevant spec under `docs/spec/` or `docs/design/` sections when the rationale is domain-specific.
-- When generating code that uses non-obvious patterns (reflection, unstructured APIs, custom error types, template rendering), add an inline comment explaining the pattern for a reader who knows Go basics but not controller-runtime internals.
-- In PR descriptions and handoff notes, include a "What I changed and why" section that a code owner can review without needing to parse every line of Go.
-
-## Simplicity Preference
-
-- Prefer explicit over implicit. If two approaches are equally correct, choose the one with fewer abstractions.
-- Do not introduce new abstractions, packages, helpers, frameworks, controllers, CRDs, or public API fields unless the task explicitly requires them.
-- Do not extract helper functions for one-time operations. Inline is fine if it is clear.
-- Do not add error handling for cases that cannot occur given the current API surface. Only validate at system boundaries (user input, external API responses, CRD data).
-- When proposing changes, flag any pattern that would be hard for an intermediate Go developer to understand or modify.
+- Prefer simple, readable Go over clever patterns. If a stdlib function exists, use it.
+- Do not introduce generics, functional patterns, custom iterator types, new abstractions, packages, helpers, frameworks, controllers, CRDs, or public API fields unless the task explicitly requires them.
+- When using controller-runtime patterns, reflection, type assertions, unstructured APIs, custom error types, or template rendering, add a short comment explaining why the pattern is needed.
+- Use named constants for magic numbers. Document the source when the value comes from an RFC, Kubernetes convention, or SPIRE behavior.
+- Keep functions under roughly 50 lines. If a function exceeds that, add section comments explaining each phase.
+- Every new non-trivial function must have a doc comment that explains why it exists. Link to the relevant spec under `docs/spec/` or `docs/design/` when the rationale is domain-specific.
