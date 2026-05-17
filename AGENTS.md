@@ -105,6 +105,20 @@ For changes under `internal/controller/` or API types that affect reconciliation
 - When adding watches or map functions, avoid namespace wide fanout if an index or predicate can narrow it.
 - For generated `ClusterSPIFFEID` resources, preserve deterministic naming and cleanup behavior.
 
+## CLI Work
+
+The `kleym` CLI is a Go CLI using Cobra. Its behavior is defined by `docs/spec/cli.md`.
+
+When modifying CLI code:
+
+- Keep Cobra command handlers thin: parse flags, call inspection logic, format output, and return exit codes.
+- Do not put identity derivation, selector safety, collision detection, GVK resolution, or rendering logic inside command files.
+- Reuse the same pure render, resolve, selector, naming, and collision logic as the operator; do not import controller reconciliation, watches, finalizers, status patching, or mutation paths.
+- Preserve deterministic, scriptable output.
+- Preserve stable machine-readable JSON output for commands intended for CI or automation.
+- Preserve the exit-code contract from `docs/spec/cli.md`, including `--strict`.
+- Do not introduce interactive prompts or TUI behavior unless the issue explicitly asks for it.
+
 ## Reconciliation Change Checklist
 
 If you change reconciliation behavior, also check:
