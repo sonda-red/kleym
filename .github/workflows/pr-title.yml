@@ -36,9 +36,12 @@ jobs:
             chore
           scopes: |
             api
+            cli
             controller
             config
             deps
+            docs
+            operator
           requireScope: false
           subjectPattern: ^[a-z].+$
           subjectPatternError: >
