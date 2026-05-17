@@ -34,7 +34,7 @@ The command inspects one `InferenceIdentityBinding` end to end.
 --timeout
 ```
 
-Default output is `text`. Stable machine output is `json`.
+Default namespace is `default`. Default output is `text`. Stable machine output is `json`. `--timeout` must be greater than zero.
 
 ## Output Contract
 
