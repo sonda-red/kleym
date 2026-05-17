@@ -20,6 +20,12 @@ The current controller implementation is `kleym-operator`. The CLI implementatio
 ## CLI Surface
 
 ```bash
+kleym --version
+```
+
+The root version flag prints the linked CLI version string and exits without contacting Kubernetes. Released binaries must report the release tag. Unreleased local builds default to `dev`.
+
+```bash
 kleym inspect binding <name> -n <namespace>
 ```
 
