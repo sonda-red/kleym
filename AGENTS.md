@@ -5,7 +5,7 @@ Keep this file minimal. It exists to point you at the right sources of truth and
 ## Read Order
 
 1. `README.md` for project overview and entry points.
-2. `docs/spec.md` for the authoritative product and API behavior.
+2. `docs/spec/operator.md` for operator product, API, and reconciliation behavior; `docs/spec/cli.md` for CLI behavior.
 3. `CONTRIBUTING.md` for repository workflow, layout, and validation expectations.
 
 ## GitHub Context
@@ -13,7 +13,7 @@ Keep this file minimal. It exists to point you at the right sources of truth and
 The codebase is not always the full design record. Check GitHub issues, pull requests, and review threads before coding when:
 
 - the task references an issue, PR, commit, or review comment;
-- intended behavior is ambiguous from code plus `docs/spec.md`;
+- intended behavior is ambiguous from code plus the relevant spec under `docs/spec/`;
 - you are changing API shape, reconciliation behavior, CI, release flow, or other project policy.
 
 Keep the search tight. Read the directly relevant discussion and any immediately adjacent PRs or issues. Do not trawl unrelated history.
@@ -77,7 +77,8 @@ Prefer the lowest model tier that is safe for the work. Escalate only when corre
 - Do not make architectural, API, CRD, reconciliation, identity, or failure-behavior decisions without explicit human direction.
 - For every change, explicitly assess whether docs updates are needed and state the result in your handoff (`updated: <files>` or `not needed: <reason>`).
 - Update documentation with behavior changes:
-  - `docs/spec.md` for product or API contract changes.
+  - `docs/spec/operator.md` for operator product, API, or reconciliation contract changes.
+  - `docs/spec/cli.md` for CLI command, output, inspection, or exit behavior changes.
   - `README.md` for overview, setup, or command changes.
   - `CONTRIBUTING.md` for workflow or tooling changes.
 - If you change API types, RBAC markers, or generated manifests, run the required generators.
@@ -109,7 +110,8 @@ For changes under `internal/controller/` or API types that affect reconciliation
 
 If you change reconciliation behavior, also check:
 
-- spec changes in `docs/spec.md` if API or behavior changed
+- spec changes in `docs/spec/operator.md` if operator API or reconciliation behavior changed
+- spec changes in `docs/spec/cli.md` if the CLI inspection contract depends on the changed operator behavior
 - RBAC markers and generated manifests if API access changed
 - controller tests for happy path, invalid ref, unsafe selector, conflict, and resync stability
 - delete and cleanup behavior remains idempotent
@@ -133,7 +135,7 @@ State in your handoff which GitHub context you checked, or that no relevant GitH
 
 ## Explanation Requirements
 
-- Every new function must have a doc comment that explains WHY it exists, not just WHAT it does. Skip this for trivial helpers where the function name is self-explanatory. Link to `docs/spec.md` or `docs/design/` sections when the rationale is domain-specific.
+- Every new function must have a doc comment that explains WHY it exists, not just WHAT it does. Skip this for trivial helpers where the function name is self-explanatory. Link to the relevant spec under `docs/spec/` or `docs/design/` sections when the rationale is domain-specific.
 - When generating code that uses non-obvious patterns (reflection, unstructured APIs, custom error types, template rendering), add an inline comment explaining the pattern for a reader who knows Go basics but not controller-runtime internals.
 - In PR descriptions and handoff notes, include a "What I changed and why" section that a code owner can review without needing to parse every line of Go.
 

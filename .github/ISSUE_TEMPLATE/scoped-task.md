@@ -18,6 +18,23 @@ assignees: ""
 - <!-- scope item -->
 
 
+## Spec Impact
+
+<!-- Choose the relevant contract and state whether it must change. -->
+
+- Operator Spec (`docs/spec/operator.md`):
+- CLI Spec (`docs/spec/cli.md`):
+
+
+## Complexity
+
+<!-- Required by AGENTS.md. Use complexity/T0 through complexity/T4 and explain why. -->
+
+- Tier:
+- Why:
+- Recommended agent assistance:
+
+
 ## Acceptance Criteria
 
 <!-- Use checkboxes for the concrete end state. Keep this reviewable. -->

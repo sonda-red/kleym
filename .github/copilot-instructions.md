@@ -36,14 +36,18 @@ Use these rules whenever you generate commit messages or pull request titles for
 Use these when they match the change:
 
 - `api`
+- `cli`
 - `controller`
 - `config`
+- `docs`
 - `deps`
+- `operator`
 
 ## Source Of Truth
 
 These rules must stay aligned with:
 
+- [`AGENTS.md`](../AGENTS.md)
 - [`RELEASING.md`](../RELEASING.md)
 
 ## Pull Request Descriptions

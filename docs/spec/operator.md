@@ -1,6 +1,6 @@
 ---
-title: Spec
-weight: 80
+title: Operator Spec
+weight: 10
 ---
 
 `kleym-operator` makes inference workloads legible to workload identity by translating inference intent into deterministic Secure Production Identity Framework for Everyone (SPIFFE) identities. It compiles that intent into SPIFFE Runtime Environment (SPIRE) Controller Manager resources, primarily [`ClusterSPIFFEID`][clusterspiffeid].

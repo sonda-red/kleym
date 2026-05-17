@@ -4,8 +4,8 @@ weight: 60
 ---
 
 This page explains how platform systems can use the SPIFFE identities that
-`kleym` registers. It is non-normative guidance. The [spec](/spec/) remains
-the product and API contract.
+`kleym-operator` registers. It is non-normative guidance. The
+[Operator Spec](/spec/operator/) remains the product and API contract.
 
 ## Handoff Boundary
 

@@ -4,7 +4,7 @@ weight: 55
 ---
 
 This page records version support, external API assumptions, and upgrade checks.
-The [spec](../spec) remains the behavior contract.
+The [Operator Spec](/spec/operator/) remains the behavior contract.
 
 For Gateway API Inference Extension (GAIE), `kleym` compatibility is guaranteed
 only for the objective and pool shapes listed below.
@@ -34,7 +34,7 @@ release.
 | Go | Root module defines the public toolchain floor. | `go.mod`, README, install docs |
 | Kubernetes API clients | Follows `client-go`, `apimachinery`, and controller-runtime module versions. | `go.mod` |
 | Gateway API | External; no route object is a direct `kleym` input. | Selected gateway/inference stack docs |
-| GAIE | Supported only for documented objective and pool GVKs and fields. | [API](api), [spec](../spec) |
+| GAIE | Supported only for documented objective and pool GVKs and fields. | [API](api), [Operator Spec](/spec/operator/) |
 | Inference stack | External; workloads, schedulers, routes, and gateways stay outside `kleym`. | Selected stack release docs |
 | SPIRE | External unless a rendered SPIRE Controller Manager field changes SPIRE registration behavior. | SPIRE release docs |
 | SPIRE Controller Manager | Supported for the documented `ClusterSPIFFEID` output fields. | [Managed Resources](resources), `ClusterSPIFFEID` CRD schema |
@@ -92,9 +92,9 @@ Related design issue: [#109](https://github.com/sonda-red/kleym/issues/109).
 | Change | Required updates | Required validation |
 | --- | --- | --- |
 | Go, Kubernetes, controller-runtime, build, or CI-sensitive dependency | README or install docs if the public floor changes | `make test`, `make lint` |
-| GAIE GVK or consumed field | [API](api), [spec](../spec), `docs/troubleshooting.md` | Resolver and partial-CRD tests |
+| GAIE GVK or consumed field | [API](api), [Operator Spec](/spec/operator/), `docs/troubleshooting.md` | Resolver and partial-CRD tests |
 | Rendered `ClusterSPIFFEID` field | [Managed Resources](resources), this page, design issue when behavior changes | Create, update, delete, and resync tests |
-| Reconciliation or status behavior | [spec](../spec), [Conditions](conditions), troubleshooting docs | `make test`; `make test-e2e-chainsaw` when cluster behavior changes |
+| Reconciliation or status behavior | [Operator Spec](/spec/operator/), [Conditions](conditions), troubleshooting docs | `make test`; `make test-e2e-chainsaw` when cluster behavior changes |
 | Docs-only compatibility policy | This page | `make docs-build` |
 
 ## Upgrade Checks

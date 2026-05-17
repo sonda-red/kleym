@@ -61,7 +61,7 @@ const (
 
 // InferencePoolTargetRef anchors a binding to the serving pool that supplies
 // selector provenance. GAIE objectives are optional at request time, but pool
-// selection is the stable workload boundary; see docs/spec.md.
+// selection is the stable workload boundary; see docs/spec/operator.md.
 type InferencePoolTargetRef struct {
 	// name of the InferencePool resource to bind to.
 	// +required

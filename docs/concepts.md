@@ -3,7 +3,7 @@ title: Concepts
 weight: 10
 ---
 
-This page covers the main ideas behind `kleym`: the external resources it depends on, the intent object it owns, identity modes, container discrimination, and selector safety. The [spec](spec) remains the authoritative contract.
+This page covers the main ideas behind `kleym`: the external resources it depends on, the intent object it owns, identity modes, container discrimination, and selector safety. The [Operator Spec](/spec/operator/) remains the authoritative operator contract.
 
 ## Gateway API Inference Extension (GAIE) Resources `kleym` Depends On
 
@@ -92,4 +92,4 @@ Reference docs: [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/ove
 
 - Read [architecture](architecture) for the end-to-end control flow.
 - Read [examples](examples/basic-binding) for concrete manifests.
-- Read [spec](spec) if you need the full contract.
+- Read the [Operator Spec](/spec/operator/) if you need the full operator contract.
