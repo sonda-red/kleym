@@ -26,6 +26,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	identitypkg "github.com/sonda-red/kleym/internal/identity"
 )
 
 func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
@@ -102,29 +103,7 @@ func desiredClusterSPIFFEID(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	identity renderedIdentity,
 ) *unstructured.Unstructured {
-	object := &unstructured.Unstructured{}
-	object.SetGroupVersionKind(clusterSPIFFEIDGVK)
-	object.SetName(identity.Name)
-	object.SetLabels(map[string]string{
-		managedByLabelKey:        managedByLabelValue,
-		bindingNameLabelKey:      binding.Name,
-		bindingNamespaceLabelKey: binding.Namespace,
-	})
-
-	selectorTemplates := make([]any, 0, len(identity.Selectors))
-	for _, selector := range identity.Selectors {
-		selectorTemplates = append(selectorTemplates, selector)
-	}
-
-	object.Object["spec"] = map[string]any{
-		"spiffeIDTemplate":          identity.SpiffeID,
-		"podSelector":               identity.PodSelector,
-		"workloadSelectorTemplates": selectorTemplates,
-		"fallback":                  identity.Fallback,
-		"hint":                      identity.Hint,
-	}
-
-	return object
+	return identitypkg.DesiredClusterSPIFFEID(binding, identity)
 }
 
 func clusterSPIFFEIDInSync(current *unstructured.Unstructured, desired *unstructured.Unstructured) bool {
@@ -175,11 +154,7 @@ func (r *InferenceIdentityBindingReconciler) listManagedClusterSPIFFEIDs(
 	if err := r.List(
 		ctx,
 		list,
-		client.MatchingLabels(map[string]string{
-			managedByLabelKey:        managedByLabelValue,
-			bindingNameLabelKey:      binding.Name,
-			bindingNamespaceLabelKey: binding.Namespace,
-		}),
+		client.MatchingLabels(identitypkg.ManagedClusterSPIFFEIDLabels(binding)),
 	); err != nil {
 		return nil, err
 	}

@@ -1,17 +1,15 @@
 package controller
 
-import "k8s.io/apimachinery/pkg/runtime/schema"
+import (
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/sonda-red/kleym/internal/identity"
+)
 
 func (r *InferenceIdentityBindingReconciler) resolveObjectiveGVKs() []schema.GroupVersionKind {
-	if len(r.availableObjectiveGVKs) > 0 {
-		return r.availableObjectiveGVKs
-	}
-	return inferenceObjectiveGVKs
+	return identity.ResolveObjectiveGVKs(r.availableObjectiveGVKs)
 }
 
 func (r *InferenceIdentityBindingReconciler) resolvePoolGVKs() []schema.GroupVersionKind {
-	if len(r.availablePoolGVKs) > 0 {
-		return r.availablePoolGVKs
-	}
-	return inferencePoolGVKs
+	return identity.ResolvePoolGVKs(r.availablePoolGVKs)
 }
