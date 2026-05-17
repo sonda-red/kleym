@@ -19,7 +19,6 @@ jobs:
     permissions:
       contents: write
       packages: write
-      id-token: write
     env:
       GOFLAGS: -buildvcs=false -p=2
       GOMAXPROCS: "2"
@@ -53,7 +52,7 @@ jobs:
         run: make test
 
       - name: Build release artifacts
-        run: make release-artifacts VERSION=${{ inputs.version }}
+        run: make release-artifacts VERSION="${{ inputs.version }}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -89,4 +88,8 @@ jobs:
           gh release create "${{ inputs.version }}" \
             --generate-notes \
             --title "${{ inputs.version }}" \
-            dist/install.yaml dist/kleym-crds.yaml
+            dist/install.yaml \
+            dist/kleym-crds.yaml \
+            dist/kleym_*.tar.gz \
+            dist/kleym_*.zip \
+            dist/kleym_checksums.txt

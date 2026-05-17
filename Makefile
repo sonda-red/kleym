@@ -159,7 +159,7 @@ build-operator: manifests generate fmt vet ## Build the kleym-operator binary.
 
 .PHONY: build-cli
 build-cli: fmt vet ## Build the kleym CLI binary.
-	go build -o bin/kleym ./cmd/kleym
+	go build -ldflags "-X github.com/sonda-red/kleym/internal/version.Version=$(CLI_VERSION)" -o bin/kleym ./cmd/kleym
 
 .PHONY: build
 build: build-operator ## Compatibility alias for build-operator.
@@ -206,10 +206,41 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	"$(KUSTOMIZE)" build config/default > dist/install.yaml
 
 VERSION ?= latest
+CLI_VERSION ?= dev
+CLI_RELEASE_PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
 .PHONY: release-artifacts
 release-artifacts: kustomize ## Build install.yaml and CRD bundle for a release.
 	$(MAKE) build-installer IMG=ghcr.io/sonda-red/kleym-operator:$(VERSION)
 	"$(KUSTOMIZE)" build config/crd > dist/kleym-crds.yaml
+	$(MAKE) release-cli-archives VERSION=$(VERSION)
+
+.PHONY: release-cli-archives
+release-cli-archives: fmt vet ## Build deterministic CLI release archives and checksums.
+	mkdir -p dist
+	rm -f dist/kleym_*.tar.gz dist/kleym_*.zip dist/kleym_checksums.txt
+	@for platform in $(CLI_RELEASE_PLATFORMS); do \
+		os="$${platform%/*}"; \
+		arch="$${platform#*/}"; \
+		archive="tar.gz"; \
+		binary="kleym"; \
+		if [ "$$os" = "windows" ]; then \
+			archive="zip"; \
+			binary="kleym.exe"; \
+		fi; \
+		stem="kleym_$(VERSION)_$${os}_$${arch}"; \
+		stage="$$(mktemp -d)"; \
+		GOOS="$$os" GOARCH="$$arch" CGO_ENABLED=0 go build -ldflags "-X github.com/sonda-red/kleym/internal/version.Version=$(VERSION)" -o "$$stage/$$binary" ./cmd/kleym; \
+		if [ -f LICENSE ]; then cp LICENSE "$$stage/LICENSE"; fi; \
+		set -- "$$binary"; \
+		if [ -f "$$stage/LICENSE" ]; then set -- "$$@" LICENSE; fi; \
+		if [ "$$archive" = "zip" ]; then \
+			(cd "$$stage" && zip -X -q "$(CURDIR)/dist/$$stem.zip" "$$@"); \
+		else \
+			tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -C "$$stage" -czf "dist/$$stem.tar.gz" "$$@"; \
+		fi; \
+		rm -rf "$$stage"; \
+	done
+	@cd dist && find . -maxdepth 1 -type f \( -name 'kleym_$(VERSION)_*.tar.gz' -o -name 'kleym_$(VERSION)_*.zip' \) -printf '%f\n' | LC_ALL=C sort | xargs sha256sum > kleym_checksums.txt
 
 .PHONY: release-plan
 release-plan: ## Show commits since last release and suggest version bump.

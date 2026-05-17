@@ -1,6 +1,6 @@
 # Releasing
 
-kleym uses workflow-dispatch publishing. The release workflow is triggered manually from the GitHub Actions UI, and it creates the tag, container image, and GitHub Release in a single atomic run.
+kleym uses workflow-dispatch publishing. The release workflow is triggered manually from the GitHub Actions UI, and it creates the tag, operator image, manifests, CLI archives, checksums, and GitHub Release in one project release.
 
 ## Procedure
 
@@ -20,17 +20,15 @@ kleym uses workflow-dispatch publishing. The release workflow is triggered manua
 5. The workflow:
    - Validates the version format and that the tag does not already exist.
    - Runs tests.
-   - Builds generated release artifacts under `dist/`: `install.yaml` and
-     `kleym-crds.yaml`.
+   - Builds generated release artifacts under `dist/`: `install.yaml`, `kleym-crds.yaml`, cross-platform `kleym` archives, and `kleym_checksums.txt`.
    - Builds and pushes a multi-arch container image to GHCR (`ghcr.io/sonda-red/kleym-operator:vX.Y.Z` and `latest`).
    - Creates an annotated git tag and pushes it.
    - Creates a GitHub Release with auto-generated release notes from merged PR titles.
 
-6. Consume the generated `install.yaml` release asset, the GHCR image, or the
-   root GitOps kustomization from the release. GitOps users can pin the root
-   kustomization to the release tag, for example
-   `https://github.com/sonda-red/kleym//deployment?ref=vX.Y.Z`, and override the
-   controller image tag to the same `vX.Y.Z` version.
+6. Consume the generated release assets:
+   - Use `install.yaml`, `kleym-crds.yaml`, or the GHCR image for operator deployment.
+   - Use the platform-specific CLI archive for end-user downloads. Run `kleym --version` after extraction to confirm the linked release tag.
+   - GitOps users can pin the root kustomization to the release tag, for example `https://github.com/sonda-red/kleym//deployment?ref=vX.Y.Z`, and override the controller image tag to the same `vX.Y.Z` version.
 
 ## Why workflow_dispatch
 
@@ -52,6 +50,16 @@ GitHub auto-generates release notes from merged PR titles and labels. Convention
 
 Dependency-only updates use `chore(deps)` and do not trigger a release unless you explicitly tag.
 
+When editing the generated notes, group material by surface:
+
+- Operator
+- CLI
+- API/CRD
+- Docs
+- Dependencies/Build
+
+Keep operator and CLI changes in the same project release. Separate operator and CLI version streams remain out of scope.
+
 ## Release Artifacts
 
 Each release includes generated artifacts. They are uploaded to the GitHub
@@ -61,6 +69,9 @@ Release and are not committed to the repository.
 |----------|-------------|
 | `install.yaml` | Full operator deployment manifest (CRDs + controller + RBAC) |
 | `kleym-crds.yaml` | CRD-only bundle for standalone CRD installation |
+| `kleym_vX.Y.Z_<os>_<arch>.tar.gz` | CLI archives for `linux/amd64`, `linux/arm64`, `darwin/amd64`, and `darwin/arm64` |
+| `kleym_vX.Y.Z_windows_amd64.zip` | CLI archive for Windows |
+| `kleym_checksums.txt` | SHA-256 checksums for all uploaded CLI archives |
 | GHCR image | `ghcr.io/sonda-red/kleym-operator:vX.Y.Z` and `latest` |
 
 The repository also exposes the `deployment/` kustomization for GitOps
