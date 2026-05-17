@@ -157,6 +157,10 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 build-operator: manifests generate fmt vet ## Build the kleym-operator binary.
 	go build -o bin/kleym-operator ./cmd/kleym-operator
 
+.PHONY: build-cli
+build-cli: fmt vet ## Build the kleym CLI binary.
+	go build -o bin/kleym ./cmd/kleym
+
 .PHONY: build
 build: build-operator ## Compatibility alias for build-operator.
 
