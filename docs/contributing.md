@@ -3,9 +3,9 @@ title: Contributing
 weight: 110
 ---
 
-Kleym is the project. `kleym-operator` is the Kubernetes controller binary and operator image. `kleym` is the CLI.
+Kleym connects Gateway API Inference Extension resources to SPIFFE workload identity for Kubernetes. `kleym-operator` is the controller binary and operator image; `kleym` is the read-only inspection CLI.
 
-The current `kleym-operator` implementation compiles inference identity intent into SPIFFE Runtime Environment (SPIRE) Controller Manager resources. The repo is still early, so contributors should prefer small, explicit changes that keep the spec, code, and generated artifacts aligned.
+`kleym-operator` compiles inference identity intent into SPIFFE Runtime Environment (SPIRE) Controller Manager resources. The repo is still early, so contributors should prefer small, explicit changes that keep the spec, code, and generated artifacts aligned.
 
 ## Sources Of Truth
 
