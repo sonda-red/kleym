@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/sonda-red/kleym/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -32,10 +33,12 @@ func NewRootCommand() *cobra.Command {
 		Short:         "Read-only inspection CLI for Kleym bindings",
 		SilenceErrors: true,
 		SilenceUsage:  true,
+		Version:       version.Version,
 	}
 	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return withExitCode(exitUsage, err)
 	})
+	cmd.SetVersionTemplate("{{printf \"%s\\n\" .Version}}")
 
 	cmd.PersistentFlags().StringVarP(&opts.Namespace, "namespace", "n", defaultNamespace, "Namespace for binding lookup")
 	cmd.PersistentFlags().StringVarP(&opts.Output, "output", "o", outputText, "Output format: text|json")

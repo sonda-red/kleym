@@ -18,6 +18,25 @@ func TestRootHelpSucceeds(t *testing.T) {
 	}
 }
 
+func TestRootVersionReportsLinkedVersion(t *testing.T) {
+	cmd := NewRootCommand()
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
+	cmd.SetArgs([]string{"--version"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected --version to succeed: %v", err)
+	}
+	if got := stdout.String(); got != "dev\n" {
+		t.Fatalf("expected linked version output %q, got %q", "dev\n", got)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr for --version, got:\n%s", stderr.String())
+	}
+}
+
 func TestInspectBindingHelpIncludesMVPFlags(t *testing.T) {
 	cmd := NewRootCommand()
 	stdout := &bytes.Buffer{}
@@ -144,6 +163,11 @@ func TestExecuteMapsErrorsToExitCodes(t *testing.T) {
 		{
 			name: "success",
 			args: []string{"--help"},
+			want: exitOK,
+		},
+		{
+			name: "version",
+			args: []string{"--version"},
 			want: exitOK,
 		},
 		{
