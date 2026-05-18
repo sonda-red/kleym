@@ -1,12 +1,16 @@
 package cli
 
 import (
+	"context"
 	"errors"
 
 	"github.com/spf13/cobra"
 )
 
-var errInspectBindingNotImplemented = errors.New("inspect binding is not implemented")
+var (
+	errInspectBindingTextOutputUnsupported = errors.New("binding inspection text output is not implemented")
+	errInspectBindingHasErrorFindings      = errors.New("binding inspection completed with error findings")
+)
 
 // newInspectCommand creates the inspect command group under the root CLI.
 func newInspectCommand(opts *Options) *cobra.Command {
@@ -24,8 +28,33 @@ func newInspectCommand(opts *Options) *cobra.Command {
 		PreRunE: func(_ *cobra.Command, _ []string) error {
 			return validateRunnableOptions(opts)
 		},
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return withExitCode(exitInternal, errInspectBindingNotImplemented)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if opts.Output != outputJSON {
+				return withExitCode(exitInternal, errInspectBindingTextOutputUnsupported)
+			}
+
+			inspector, err := newBindingInspectionRunner(opts)
+			if err != nil {
+				return withExitCode(exitUsage, err)
+			}
+
+			ctx, cancel := context.WithTimeout(cmd.Context(), opts.Timeout)
+			defer cancel()
+
+			report, inspectErr := inspector.InspectBinding(ctx, opts.Namespace, args[0])
+			if err := WriteBindingInspectionReport(cmd.OutOrStdout(), opts.Output, report); err != nil {
+				return withExitCode(exitInternal, err)
+			}
+			if inspectErr != nil {
+				if errors.Is(inspectErr, errBindingInspectionNotFound) {
+					return withExitCode(exitBindingNotFound, inspectErr)
+				}
+				if errors.Is(inspectErr, errBindingInspectionErrorFindings) {
+					return withExitCode(exitInspectionIssue, errInspectBindingHasErrorFindings)
+				}
+				return withExitCode(exitUsage, inspectErr)
+			}
+			return nil
 		},
 	}
 

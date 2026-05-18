@@ -60,7 +60,7 @@ func TestInspectBindingHelpIncludesMVPFlags(t *testing.T) {
 	}
 }
 
-func TestInspectBindingReturnsNotImplemented(t *testing.T) {
+func TestInspectBindingTextOutputReturnsUnsupported(t *testing.T) {
 	cmd := NewRootCommand()
 	cmd.SetOut(&bytes.Buffer{})
 	stderr := &bytes.Buffer{}
@@ -71,7 +71,7 @@ func TestInspectBindingReturnsNotImplemented(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected inspect binding to return an error")
 	}
-	if !errors.Is(err, errInspectBindingNotImplemented) {
+	if !errors.Is(err, errInspectBindingTextOutputUnsupported) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if stderr.Len() != 0 {
@@ -186,7 +186,7 @@ func TestExecuteMapsErrorsToExitCodes(t *testing.T) {
 			name:    "internal",
 			args:    []string{"inspect", "binding", "my-binding"},
 			want:    exitInternal,
-			wantErr: errInspectBindingNotImplemented.Error(),
+			wantErr: errInspectBindingTextOutputUnsupported.Error(),
 		},
 	}
 

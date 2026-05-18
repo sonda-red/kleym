@@ -8,10 +8,12 @@ import (
 )
 
 const (
-	exitOK       = 0
-	exitGeneric  = 1
-	exitUsage    = 4
-	exitInternal = 5
+	exitOK              = 0
+	exitGeneric         = 1
+	exitInspectionIssue = 2
+	exitBindingNotFound = 3
+	exitUsage           = 4
+	exitInternal        = 5
 )
 
 type exitError struct {
