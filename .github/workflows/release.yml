@@ -73,6 +73,8 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/kleym-operator:${{ inputs.version }}
             ghcr.io/${{ github.repository_owner }}/kleym-operator:latest
+          build-args: |
+            VERSION=${{ inputs.version }}
           cache-from: type=gha,scope=kleym-operator-buildkit
           cache-to: type=gha,mode=min,scope=kleym-operator-buildkit,ignore-error=true
           platforms: linux/amd64,linux/arm64

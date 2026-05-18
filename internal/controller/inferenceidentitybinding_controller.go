@@ -35,16 +35,11 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	identitypkg "github.com/sonda-red/kleym/internal/identity"
 )
 
 const (
-	defaultNameValue                  = "kleym"
 	inferenceIdentityBindingFinalizer = "kleym.sonda.red/inferenceidentitybinding-finalizer"
-	managedByLabelKey                 = "kleym.sonda.red/managed-by"
-	managedByLabelValue               = defaultNameValue
-	bindingNameLabelKey               = "kleym.sonda.red/binding-name"
-	bindingNamespaceLabelKey          = "kleym.sonda.red/binding-namespace"
-	defaultTrustDomain                = "kleym.sonda.red"
 
 	conditionTypeReady          = "Ready"
 	conditionTypeConflict       = "Conflict"
@@ -87,19 +82,9 @@ const (
 )
 
 var (
-	inferenceObjectiveGVKs = []schema.GroupVersionKind{
-		{Group: "inference.networking.x-k8s.io", Version: "v1alpha2", Kind: "InferenceObjective"},
-		{Group: "inference.networking.k8s.io", Version: "v1", Kind: "InferenceObjective"},
-	}
-	inferencePoolGVKs = []schema.GroupVersionKind{
-		{Group: "inference.networking.k8s.io", Version: "v1", Kind: "InferencePool"},
-		{Group: "inference.networking.x-k8s.io", Version: "v1alpha2", Kind: "InferencePool"},
-	}
-	clusterSPIFFEIDGVK = schema.GroupVersionKind{
-		Group:   "spire.spiffe.io",
-		Version: "v1alpha1",
-		Kind:    "ClusterSPIFFEID",
-	}
+	inferenceObjectiveGVKs = identitypkg.InferenceObjectiveGVKs()
+	inferencePoolGVKs      = identitypkg.InferencePoolGVKs()
+	clusterSPIFFEIDGVK     = identitypkg.ClusterSPIFFEIDGVK()
 )
 
 // InferenceIdentityBindingReconciler reconciles a InferenceIdentityBinding object
@@ -441,7 +426,7 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 	logger := logf.FromContext(ctx)
 
 	mode := effectiveMode(binding.Spec.Mode)
-	poolRef, err := bindingPoolRef(binding)
+	poolRef, err := identitypkg.BindingPoolRef(binding)
 	if err != nil {
 		return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidPoolRef", err.Error())
 	}
@@ -462,7 +447,7 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 	)
 
 	var objective *unstructured.Unstructured
-	objectiveRef, hasObjectiveRef, err := bindingObjectiveRef(binding)
+	objectiveRef, hasObjectiveRef, err := identitypkg.BindingObjectiveRef(binding)
 	if err != nil {
 		return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidObjectiveRef", err.Error())
 	}
@@ -484,7 +469,7 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 			logKeyObjective, namespacedBindingKey(objective.GetNamespace(), objective.GetName()),
 			logKeyObjectiveGVK, objective.GroupVersionKind().String(),
 		)
-		if err := validateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
+		if err := identitypkg.ValidateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
 			return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidObjectiveRef", err.Error())
 		}
 	}

@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	identitypkg "github.com/sonda-red/kleym/internal/identity"
 )
 
 func TestReconcileDeleteWaitsForManagedClusterSPIFFEIDsToDisappear(t *testing.T) {
@@ -198,11 +199,7 @@ func newManagedClusterSPIFFEIDForBinding(
 	managed := &unstructured.Unstructured{}
 	managed.SetGroupVersionKind(clusterSPIFFEIDGVK)
 	managed.SetName(name)
-	managed.SetLabels(map[string]string{
-		managedByLabelKey:        managedByLabelValue,
-		bindingNameLabelKey:      binding.Name,
-		bindingNamespaceLabelKey: binding.Namespace,
-	})
+	managed.SetLabels(identitypkg.ManagedClusterSPIFFEIDLabels(binding))
 	managed.Object["spec"] = map[string]any{
 		"spiffeIDTemplate": "spiffe://example.test/ns/default/obj/example",
 	}

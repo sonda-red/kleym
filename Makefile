@@ -1,5 +1,6 @@
 # Image URL to use all building/pushing image targets
 IMG ?= ghcr.io/sonda-red/kleym-operator:latest
+VERSION ?= dev
 DOCS_PORT ?= 1313
 HUGO ?= hugo
 
@@ -173,7 +174,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build-operator
 docker-build-operator: ## Build the kleym-operator image.
-	$(CONTAINER_TOOL) build -t ${IMG} .
+	$(CONTAINER_TOOL) build --build-arg VERSION=$(VERSION) -t ${IMG} .
 
 .PHONY: docker-build
 docker-build: docker-build-operator ## Compatibility alias for docker-build-operator.

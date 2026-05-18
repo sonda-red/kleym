@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	"github.com/sonda-red/kleym/internal/identity"
 )
 
 // reconcileStateError bundles a Kubernetes condition type, reason, and message
@@ -49,39 +50,7 @@ func newStateError(conditionType, reason, message string) *reconcileStateError {
 	}
 }
 
-type inferencePoolRef struct {
-	Name      string
-	Group     string
-	Namespace string
-}
-
-type inferenceObjectiveRef struct {
-	Name      string
-	Group     string
-	Namespace string
-}
-
-type renderedIdentity struct {
-	Name         string
-	Mode         kleymv1alpha1.InferenceIdentityBindingMode
-	SpiffeID     string
-	Selectors    []string
-	PodSelector  map[string]any
-	ObjectiveRef string
-	PoolRef      string
-	Hint         string
-	Fallback     bool
-}
-
-type renderTemplateData struct {
-	Namespace                   string
-	BindingName                 string
-	ObjectiveName               string
-	PoolName                    string
-	Mode                        string
-	ContainerDiscriminatorType  string
-	ContainerDiscriminatorValue string
-}
+type renderedIdentity = identity.RenderedIdentity
 
 type desiredBindingState struct {
 	identities               []renderedIdentity
@@ -117,10 +86,7 @@ func namespacedBindingKey(namespace, name string) string {
 }
 
 func effectiveMode(mode kleymv1alpha1.InferenceIdentityBindingMode) kleymv1alpha1.InferenceIdentityBindingMode {
-	if mode == "" {
-		return kleymv1alpha1.InferenceIdentityBindingModePerObjective
-	}
-	return mode
+	return identity.EffectiveMode(mode)
 }
 
 // errorsAsStateError is a type-assertion helper that extracts a
@@ -129,9 +95,20 @@ func effectiveMode(mode kleymv1alpha1.InferenceIdentityBindingMode) kleymv1alpha
 // the caller's target so the caller can read conditionType/reason/message.
 func errorsAsStateError(err error, target *reconcileStateError) bool {
 	var stateErr *reconcileStateError
-	if !errors.As(err, &stateErr) {
-		return false
+	if errors.As(err, &stateErr) {
+		*target = *stateErr
+		return true
 	}
-	*target = *stateErr
-	return true
+
+	var identityErr *identity.StateError
+	if errors.As(err, &identityErr) {
+		*target = reconcileStateError{
+			conditionType: identityErr.ConditionType,
+			reason:        identityErr.Reason,
+			message:       identityErr.Message,
+		}
+		return true
+	}
+
+	return false
 }
