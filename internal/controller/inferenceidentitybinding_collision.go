@@ -17,8 +17,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"sort"
 	"strings"
 
@@ -29,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	identitypkg "github.com/sonda-red/kleym/internal/identity"
 )
 
 // computePerObjectiveCollisionSet detects identity collisions between PerObjective bindings.
@@ -386,55 +385,10 @@ func collisionPeerBindingNames(conditions []metav1.Condition) []string {
 // overlapping ClusterSPIFFEID resources targeting the same container, which is
 // unsafe. The key is: podSelector JSON | selectors JSON | discriminator type | discriminator value.
 func perObjectiveCollisionFingerprint(
-	identity renderedIdentity,
+	rendered renderedIdentity,
 	discriminator *kleymv1alpha1.ContainerDiscriminator,
 ) (string, error) {
-	if discriminator == nil {
-		return "", fmt.Errorf("containerDiscriminator is required for per-objective collision detection")
-	}
-
-	containerValue := strings.TrimSpace(discriminator.Value)
-	if containerValue == "" {
-		return "", fmt.Errorf("containerDiscriminator.value must not be empty")
-	}
-
-	podSelectorFingerprint, err := normalizedPodSelectorFingerprint(identity.PodSelector)
-	if err != nil {
-		return "", err
-	}
-
-	selectorFingerprint, err := normalizedSelectorFingerprint(identity.Selectors)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%s|%s|%s|%s", podSelectorFingerprint, selectorFingerprint, discriminator.Type, containerValue), nil
-}
-
-func normalizedPodSelectorFingerprint(selector map[string]any) (string, error) {
-	if len(selector) == 0 {
-		return "", fmt.Errorf("pod selector must be present for collision detection")
-	}
-
-	serialized, err := json.Marshal(selector)
-	if err != nil {
-		return "", fmt.Errorf("failed to encode pod selector fingerprint: %w", err)
-	}
-
-	return string(serialized), nil
-}
-
-func normalizedSelectorFingerprint(selectors []string) (string, error) {
-	if len(selectors) == 0 {
-		return "", fmt.Errorf("selectors must be present for collision detection")
-	}
-
-	serialized, err := json.Marshal(selectors)
-	if err != nil {
-		return "", fmt.Errorf("failed to encode selector fingerprint: %w", err)
-	}
-
-	return string(serialized), nil
+	return identitypkg.PerObjectiveCollisionFingerprint(rendered, discriminator)
 }
 
 func identityCollisionMessage(bindingName string, collidingBindings []string) string {
