@@ -57,7 +57,7 @@ Top-level JSON shape:
 
 ```json
 {
-  "apiVersion": "cli.kleym.sonda.red/v1alpha1",
+  "schemaVersion": "v1alpha1",
   "kind": "BindingInspectionReport",
   "generatedAt": "",
   "bindingRef": {},
