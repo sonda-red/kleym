@@ -37,6 +37,7 @@ import (
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 	"github.com/sonda-red/kleym/internal/controller"
+	"github.com/sonda-red/kleym/internal/version"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -191,7 +192,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting manager")
+	setupLog.Info("starting manager", "version", version.Version)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
