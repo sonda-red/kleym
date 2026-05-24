@@ -669,6 +669,15 @@ func hasErrorSeverityFinding(findings []BindingInspectionFinding) bool {
 	return false
 }
 
+func hasWarningSeverityFinding(findings []BindingInspectionFinding) bool {
+	for _, finding := range findings {
+		if finding.Severity == BindingInspectionFindingSeverityWarning {
+			return true
+		}
+	}
+	return false
+}
+
 func stableValueString(value any) string {
 	if value == nil {
 		return ""

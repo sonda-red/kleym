@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	errInspectBindingTextOutputUnsupported = errors.New("binding inspection text output is not implemented")
-	errInspectBindingHasErrorFindings      = errors.New("binding inspection completed with error findings")
+	errInspectBindingHasErrorFindings   = errors.New("binding inspection completed with error findings")
+	errInspectBindingHasWarningFindings = errors.New("binding inspection completed with warning findings in strict mode")
 )
 
 // newInspectCommand creates the inspect command group under the root CLI.
@@ -29,10 +29,6 @@ func newInspectCommand(opts *Options) *cobra.Command {
 			return validateRunnableOptions(opts)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if opts.Output != outputJSON {
-				return withExitCode(exitInternal, errInspectBindingTextOutputUnsupported)
-			}
-
 			inspector, err := newBindingInspectionRunner(opts)
 			if err != nil {
 				return withExitCode(exitUsage, err)
@@ -45,14 +41,9 @@ func newInspectCommand(opts *Options) *cobra.Command {
 			if err := WriteBindingInspectionReport(cmd.OutOrStdout(), opts.Output, report); err != nil {
 				return withExitCode(exitInternal, err)
 			}
-			if inspectErr != nil {
-				if errors.Is(inspectErr, errBindingInspectionNotFound) {
-					return withExitCode(exitBindingNotFound, inspectErr)
-				}
-				if errors.Is(inspectErr, errBindingInspectionErrorFindings) {
-					return withExitCode(exitInspectionIssue, errInspectBindingHasErrorFindings)
-				}
-				return withExitCode(exitUsage, inspectErr)
+			code, err := inspectionExitCode(report, inspectErr, opts.Strict)
+			if err != nil {
+				return withExitCode(code, err)
 			}
 			return nil
 		},
@@ -60,4 +51,23 @@ func newInspectCommand(opts *Options) *cobra.Command {
 
 	inspectCmd.AddCommand(bindingCmd)
 	return inspectCmd
+}
+
+func inspectionExitCode(report BindingInspectionReport, inspectErr error, strict bool) (int, error) {
+	if inspectErr != nil {
+		if errors.Is(inspectErr, errBindingInspectionNotFound) {
+			return exitBindingNotFound, inspectErr
+		}
+		if errors.Is(inspectErr, errBindingInspectionErrorFindings) {
+			return exitInspectionIssue, errInspectBindingHasErrorFindings
+		}
+		return exitUsage, inspectErr
+	}
+	if hasErrorSeverityFinding(report.Findings) {
+		return exitInspectionIssue, errInspectBindingHasErrorFindings
+	}
+	if strict && hasWarningSeverityFinding(report.Findings) {
+		return exitInspectionIssue, errInspectBindingHasWarningFindings
+	}
+	return exitOK, nil
 }

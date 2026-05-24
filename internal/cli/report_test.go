@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -287,6 +288,119 @@ func TestWriteBindingInspectionReportJSONWritesCompactJSONWithNewline(t *testing
 	}
 	if bytes.Contains(out.Bytes(), []byte("\n\n")) {
 		t.Fatalf("expected compact JSON, got %q", out.String())
+	}
+}
+
+func TestWriteBindingInspectionReportTextRepresentativeReport(t *testing.T) {
+	fallbackFalse := false
+	report := BindingInspectionReport{
+		GeneratedAt: "2026-05-18T09:10:11Z",
+		BindingRef: BindingInspectionBindingRef{
+			Namespace:  "tenant-a",
+			Name:       "binding-a",
+			Generation: 7,
+			Mode:       "PerObjective",
+			PoolRef: &BindingInspectionTargetRef{
+				Namespace: "tenant-a",
+				Name:      "pool-a",
+				Group:     "inference.networking.k8s.io",
+				Version:   "v1",
+				Kind:      "InferencePool",
+			},
+			ObjectiveRef: &BindingInspectionTargetRef{
+				Namespace: "tenant-a",
+				Name:      "objective-a",
+				Group:     "inference.networking.k8s.io",
+				Version:   "v1",
+				Kind:      "InferenceObjective",
+			},
+		},
+		Desired: BindingInspectionDesiredState{
+			ClusterSPIFFEIDName: "tenant-a-binding-a-1234abcd",
+			SPIFFEID:            "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+			PodSelector:         map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
+			WorkloadSelectors:   []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
+			Hint:                "tenant-a/binding-a",
+			Fallback:            &fallbackFalse,
+		},
+		Observed: BindingInspectionObservedState{
+			ManagedClusterSPIFFEIDs: []BindingInspectionManagedClusterSPIFFEID{{
+				Name:              "tenant-a-binding-a-1234abcd",
+				SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+				PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
+				WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
+				Hint:              "tenant-a/binding-a",
+				Fallback:          &fallbackFalse,
+			}},
+			Drift: []BindingInspectionDriftEntry{{
+				Field:    "spec.workloadSelectorTemplates",
+				Desired:  "k8s:container-name:model-server",
+				Observed: "k8s:container-name:old-server",
+			}},
+			EligibleWorkloads: []BindingInspectionEligibleWorkload{{
+				Namespace: "tenant-a",
+				Pod:       "pool-a-12345",
+				Container: "model-server",
+			}},
+		},
+		Findings: []BindingInspectionFinding{{
+			ID:       findingObservedDrift,
+			Severity: BindingInspectionFindingSeverityWarning,
+			Reason:   reasonObservedDrift,
+			Message:  "observed managed ClusterSPIFFEID state differs from desired state",
+		}},
+		Capabilities: BindingInspectionCapabilities{
+			Binding:          BindingInspectionCapabilityFull,
+			GAIEResources:    BindingInspectionCapabilityFull,
+			ClusterSPIFFEIDs: BindingInspectionCapabilityFull,
+			PeerBindings:     BindingInspectionCapabilityPartial,
+			Pods:             BindingInspectionCapabilitySkipped,
+		},
+	}
+
+	var out bytes.Buffer
+	if err := WriteBindingInspectionReport(&out, outputText, report); err != nil {
+		t.Fatalf("write text report: %v", err)
+	}
+	text := out.String()
+	for _, want := range []string{
+		"BindingInspectionReport",
+		"GeneratedAt: 2026-05-18T09:10:11Z",
+		"Name: tenant-a/binding-a",
+		"PoolRef: inference.networking.k8s.io/v1/InferencePool tenant-a/pool-a",
+		"Desired:",
+		"ClusterSPIFFEID: tenant-a-binding-a-1234abcd",
+		"Pod selector: {\"matchLabels\":{\"app\":\"pool-a\"}}",
+		"Observed:",
+		"Managed ClusterSPIFFEIDs: 1",
+		"spec.workloadSelectorTemplates: desired=k8s:container-name:model-server observed=k8s:container-name:old-server",
+		"Eligible workloads: 1",
+		"Findings:",
+		"warning observed-drift (ObservedDrift)",
+		"Capabilities:",
+		"Peer bindings: partial",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("text output missing %q\n%s", want, text)
+		}
+	}
+}
+
+func TestWriteBindingInspectionReportTextEmptyFindings(t *testing.T) {
+	var out bytes.Buffer
+	if err := WriteBindingInspectionReport(&out, outputText, NewBindingInspectionReport()); err != nil {
+		t.Fatalf("write text report: %v", err)
+	}
+	if got := out.String(); !strings.Contains(got, "Findings:\n  none\n") {
+		t.Fatalf("expected empty findings text, got:\n%s", got)
+	}
+}
+
+func TestWriteBindingInspectionReportTextReturnsWriterError(t *testing.T) {
+	wantErr := errors.New("write failed")
+	err := WriteBindingInspectionReport(errWriter{err: wantErr}, outputText, NewBindingInspectionReport())
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected writer error %v, got %v", wantErr, err)
 	}
 }
 

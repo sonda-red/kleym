@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -190,10 +191,162 @@ func writeBindingInspectionReportJSON(w io.Writer, report BindingInspectionRepor
 	return encoder.Encode(normalizeBindingInspectionReport(report))
 }
 
-// WriteBindingInspectionReport selects the stable machine-readable binding inspection output.
-func WriteBindingInspectionReport(w io.Writer, output string, report BindingInspectionReport) error {
-	if output != outputJSON {
-		return fmt.Errorf("binding inspection output %q is not implemented", output)
+// writeBindingInspectionReportText writes deterministic human-oriented inspection output.
+func writeBindingInspectionReportText(w io.Writer, report BindingInspectionReport) error {
+	report = normalizeBindingInspectionReport(report)
+
+	var builder strings.Builder
+	appendTextLine(&builder, "BindingInspectionReport")
+	appendTextLine(&builder, "GeneratedAt: %s", textString(report.GeneratedAt))
+	appendTextLine(&builder, "")
+	appendTextLine(&builder, "Binding:")
+	appendTextLine(&builder, "  Name: %s", textNamespacedName(report.BindingRef.Namespace, report.BindingRef.Name))
+	appendTextLine(&builder, "  Generation: %d", report.BindingRef.Generation)
+	appendTextLine(&builder, "  Mode: %s", textString(report.BindingRef.Mode))
+	appendTextLine(&builder, "  PoolRef: %s", textTargetRef(report.BindingRef.PoolRef))
+	appendTextLine(&builder, "  ObjectiveRef: %s", textTargetRef(report.BindingRef.ObjectiveRef))
+	appendTextLine(&builder, "  Conditions: %d", len(report.BindingRef.Conditions))
+
+	appendTextLine(&builder, "")
+	appendTextLine(&builder, "Desired:")
+	appendTextLine(&builder, "  ClusterSPIFFEID: %s", textString(report.Desired.ClusterSPIFFEIDName))
+	appendTextLine(&builder, "  SPIFFE ID: %s", textString(report.Desired.SPIFFEID))
+	appendTextLine(&builder, "  Pod selector: %s", textStableValue(report.Desired.PodSelector))
+	appendTextStringList(&builder, "  Workload selectors", report.Desired.WorkloadSelectors)
+	appendTextLine(&builder, "  Hint: %s", textString(report.Desired.Hint))
+	appendTextLine(&builder, "  Fallback: %s", textBool(report.Desired.Fallback))
+
+	appendTextLine(&builder, "")
+	appendTextLine(&builder, "Observed:")
+	appendTextLine(&builder, "  Managed ClusterSPIFFEIDs: %d", len(report.Observed.ManagedClusterSPIFFEIDs))
+	for _, managed := range report.Observed.ManagedClusterSPIFFEIDs {
+		appendTextLine(&builder, "    - %s", textString(managed.Name))
+		appendTextLine(&builder, "      SPIFFE ID: %s", textString(managed.SPIFFEID))
+		appendTextLine(&builder, "      Pod selector: %s", textStableValue(managed.PodSelector))
+		appendTextStringList(&builder, "      Workload selectors", managed.WorkloadSelectors)
+		appendTextLine(&builder, "      Hint: %s", textString(managed.Hint))
+		appendTextLine(&builder, "      Fallback: %s", textBool(managed.Fallback))
+		appendTextLine(&builder, "      Conditions: %d", len(managed.Conditions))
 	}
-	return writeBindingInspectionReportJSON(w, report)
+	appendTextLine(&builder, "  Drift: %d", len(report.Observed.Drift))
+	for _, drift := range report.Observed.Drift {
+		appendTextLine(&builder, "    - %s: desired=%s observed=%s", drift.Field, textString(drift.Desired), textString(drift.Observed))
+	}
+	appendTextLine(&builder, "  Eligible workloads: %d", len(report.Observed.EligibleWorkloads))
+	for _, workload := range report.Observed.EligibleWorkloads {
+		appendTextLine(&builder, "    - %s/%s container=%s", textString(workload.Namespace), textString(workload.Pod), textString(workload.Container))
+	}
+
+	appendTextLine(&builder, "")
+	appendTextLine(&builder, "Findings:")
+	if len(report.Findings) == 0 {
+		appendTextLine(&builder, "  none")
+	} else {
+		for _, finding := range report.Findings {
+			appendTextLine(&builder, "  - %s %s (%s): %s", finding.Severity, finding.ID, finding.Reason, finding.Message)
+			appendTextLine(&builder, "    AffectedRefs: %d", len(finding.AffectedRefs))
+		}
+	}
+
+	appendTextLine(&builder, "")
+	appendTextLine(&builder, "Capabilities:")
+	appendTextLine(&builder, "  Binding: %s", textString(string(report.Capabilities.Binding)))
+	appendTextLine(&builder, "  GAIE resources: %s", textString(string(report.Capabilities.GAIEResources)))
+	appendTextLine(&builder, "  ClusterSPIFFEIDs: %s", textString(string(report.Capabilities.ClusterSPIFFEIDs)))
+	appendTextLine(&builder, "  Peer bindings: %s", textString(string(report.Capabilities.PeerBindings)))
+	appendTextLine(&builder, "  Pods: %s", textString(string(report.Capabilities.Pods)))
+
+	_, err := io.WriteString(w, builder.String())
+	return err
+}
+
+// WriteBindingInspectionReport selects the binding inspection output format.
+func WriteBindingInspectionReport(w io.Writer, output string, report BindingInspectionReport) error {
+	switch output {
+	case outputText:
+		return writeBindingInspectionReportText(w, report)
+	case outputJSON:
+		return writeBindingInspectionReportJSON(w, report)
+	default:
+		return fmt.Errorf("invalid binding inspection output %q", output)
+	}
+}
+
+func appendTextLine(builder *strings.Builder, format string, args ...any) {
+	_, _ = fmt.Fprintf(builder, format, args...)
+	_ = builder.WriteByte('\n')
+}
+
+func appendTextStringList(builder *strings.Builder, label string, values []string) {
+	appendTextLine(builder, "%s: %d", label, len(values))
+	itemIndent := strings.Repeat(" ", leadingSpaces(label)+2)
+	for _, value := range values {
+		appendTextLine(builder, "%s- %s", itemIndent, value)
+	}
+}
+
+func leadingSpaces(value string) int {
+	for i, r := range value {
+		if r != ' ' {
+			return i
+		}
+	}
+	return len(value)
+}
+
+func textString(value string) string {
+	if value == "" {
+		return "(none)"
+	}
+	return value
+}
+
+func textBool(value *bool) string {
+	if value == nil {
+		return "(none)"
+	}
+	if *value {
+		return "true"
+	}
+	return "false"
+}
+
+func textNamespacedName(namespace string, name string) string {
+	if namespace == "" {
+		return textString(name)
+	}
+	if name == "" {
+		return namespace + "/(none)"
+	}
+	return namespace + "/" + name
+}
+
+func textTargetRef(ref *BindingInspectionTargetRef) string {
+	if ref == nil {
+		return "(none)"
+	}
+	parts := make([]string, 0, 2)
+	if ref.Kind != "" {
+		kind := ref.Kind
+		if ref.Version != "" {
+			kind = ref.Version + "/" + kind
+		}
+		if ref.Group != "" {
+			kind = ref.Group + "/" + kind
+		}
+		parts = append(parts, kind)
+	}
+	parts = append(parts, textNamespacedName(ref.Namespace, ref.Name))
+	return strings.Join(parts, " ")
+}
+
+func textStableValue(value any) string {
+	if value == nil {
+		return "(none)"
+	}
+	text := stableValueString(value)
+	if text == "" {
+		return "(none)"
+	}
+	return text
 }
