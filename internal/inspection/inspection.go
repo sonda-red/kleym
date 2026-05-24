@@ -1,4 +1,4 @@
-package cli
+package inspection
 
 import (
 	"context"
@@ -48,15 +48,23 @@ const (
 )
 
 var (
-	errBindingInspectionNotFound      = errors.New("binding not found")
-	errBindingInspectionErrorFindings = errors.New("binding inspection report contains error findings")
+	// ErrBindingInspectionNotFound reports a successful API lookup where the requested binding is absent.
+	ErrBindingInspectionNotFound = errors.New("binding not found")
+	// ErrBindingInspectionErrorFindings reports a completed inspection with error-severity findings.
+	ErrBindingInspectionErrorFindings = errors.New("binding inspection report contains error findings")
 )
 
-type bindingInspectionRunner interface {
-	InspectBinding(ctx context.Context, namespace string, name string) (BindingInspectionReport, error)
+// Config describes Kubernetes access settings for live binding inspection.
+type Config struct {
+	Context    string
+	Kubeconfig string
+	Timeout    time.Duration
 }
 
-var newBindingInspectionRunner = newKubernetesBindingInspector
+// BindingInspector inspects one binding and returns the stable report model.
+type BindingInspector interface {
+	InspectBinding(ctx context.Context, namespace string, name string) (BindingInspectionReport, error)
+}
 
 type bindingInspector struct {
 	client client.Client
@@ -64,18 +72,19 @@ type bindingInspector struct {
 	now    func() time.Time
 }
 
-func newKubernetesBindingInspector(opts *Options) (bindingInspectionRunner, error) {
-	configOverrides := &clientcmd.ConfigOverrides{CurrentContext: opts.Context}
+// NewKubernetesBindingInspector returns a read-only Kubernetes-backed binding inspector.
+func NewKubernetesBindingInspector(config Config) (BindingInspector, error) {
+	configOverrides := &clientcmd.ConfigOverrides{CurrentContext: config.Context}
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	if opts.Kubeconfig != "" {
-		loadingRules.ExplicitPath = opts.Kubeconfig
+	if config.Kubeconfig != "" {
+		loadingRules.ExplicitPath = config.Kubeconfig
 	}
 
 	restConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides).ClientConfig()
 	if err != nil {
 		return nil, fmt.Errorf("load Kubernetes config: %w", err)
 	}
-	restConfig.Timeout = opts.Timeout
+	restConfig.Timeout = config.Timeout
 
 	scheme := newBindingInspectionScheme()
 	httpClient, err := rest.HTTPClientFor(restConfig)
@@ -144,7 +153,7 @@ func (i *bindingInspector) InspectBinding(ctx context.Context, namespace string,
 					Kind:      "InferenceIdentityBinding",
 				}},
 			})
-			return normalizeBindingInspectionReport(report), errBindingInspectionNotFound
+			return normalizeBindingInspectionReport(report), ErrBindingInspectionNotFound
 		}
 		return report, fmt.Errorf("read InferenceIdentityBinding %q: %w", identity.NamespacedBindingKey(namespace, name), err)
 	}
@@ -159,8 +168,8 @@ func (i *bindingInspector) InspectBinding(ctx context.Context, namespace string,
 	i.inspectEligibleWorkloads(ctx, binding, rendered, desiredReady, &report)
 
 	report = normalizeBindingInspectionReport(report)
-	if hasErrorSeverityFinding(report.Findings) {
-		return report, errBindingInspectionErrorFindings
+	if HasErrorSeverityFinding(report.Findings) {
+		return report, ErrBindingInspectionErrorFindings
 	}
 	return report, nil
 }
@@ -913,7 +922,8 @@ func driftEntries(desired *unstructured.Unstructured, observed *unstructured.Uns
 	return entries
 }
 
-func hasErrorSeverityFinding(findings []BindingInspectionFinding) bool {
+// HasErrorSeverityFinding reports whether findings contain any error-severity item.
+func HasErrorSeverityFinding(findings []BindingInspectionFinding) bool {
 	for _, finding := range findings {
 		if finding.Severity == BindingInspectionFindingSeverityError {
 			return true
@@ -922,7 +932,8 @@ func hasErrorSeverityFinding(findings []BindingInspectionFinding) bool {
 	return false
 }
 
-func hasWarningSeverityFinding(findings []BindingInspectionFinding) bool {
+// HasWarningSeverityFinding reports whether findings contain any warning-severity item.
+func HasWarningSeverityFinding(findings []BindingInspectionFinding) bool {
 	for _, finding := range findings {
 		if finding.Severity == BindingInspectionFindingSeverityWarning {
 			return true

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/sonda-red/kleym/internal/inspection"
 )
 
 func TestRootHelpSucceeds(t *testing.T) {
@@ -64,7 +66,7 @@ func TestInspectBindingFactoryErrorReturnsUsage(t *testing.T) {
 	originalFactory := newBindingInspectionRunner
 	t.Cleanup(func() { newBindingInspectionRunner = originalFactory })
 	wantErr := errors.New("load failed")
-	newBindingInspectionRunner = func(_ *Options) (bindingInspectionRunner, error) {
+	newBindingInspectionRunner = func(_ *Options) (inspection.BindingInspector, error) {
 		return nil, wantErr
 	}
 

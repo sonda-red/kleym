@@ -1,4 +1,4 @@
-package cli
+package inspection
 
 import (
 	"encoding/json"
@@ -7,6 +7,11 @@ import (
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	outputText = "text"
+	outputJSON = "json"
 )
 
 const (
@@ -366,10 +371,10 @@ func leadingSpaces(value string) int {
 }
 
 func inspectionTextStatus(findings []BindingInspectionFinding) string {
-	if hasErrorSeverityFinding(findings) {
+	if HasErrorSeverityFinding(findings) {
 		return "Error"
 	}
-	if hasWarningSeverityFinding(findings) {
+	if HasWarningSeverityFinding(findings) {
 		return "Warning"
 	}
 	return "OK"

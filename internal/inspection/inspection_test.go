@@ -1,9 +1,7 @@
-package cli
+package inspection
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -21,165 +19,6 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 	"github.com/sonda-red/kleym/internal/identity"
 )
-
-func TestInspectBindingJSONUsesRunner(t *testing.T) {
-	originalFactory := newBindingInspectionRunner
-	t.Cleanup(func() { newBindingInspectionRunner = originalFactory })
-
-	fakeReport := NewBindingInspectionReport()
-	fakeReport.GeneratedAt = "2026-05-18T10:11:12Z"
-	fakeReport.BindingRef = BindingInspectionBindingRef{Namespace: "tenant-a", Name: "binding-a"}
-	newBindingInspectionRunner = func(_ *Options) (bindingInspectionRunner, error) {
-		return fixedInspectionRunner{report: fakeReport}, nil
-	}
-
-	cmd := NewRootCommand()
-	stdout := &bytes.Buffer{}
-	stderr := &bytes.Buffer{}
-	cmd.SetOut(stdout)
-	cmd.SetErr(stderr)
-	cmd.SetArgs([]string{"inspect", "binding", "binding-a", "-n", "tenant-a", "-o", "json"})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("inspect binding returned error: %v", err)
-	}
-	if stderr.Len() != 0 {
-		t.Fatalf("expected no stderr, got:\n%s", stderr.String())
-	}
-
-	var got BindingInspectionReport
-	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
-		t.Fatalf("unmarshal inspect output: %v\n%s", err, stdout.String())
-	}
-	if got.BindingRef.Namespace != "tenant-a" || got.BindingRef.Name != "binding-a" {
-		t.Fatalf("bindingRef = %#v, want tenant-a/binding-a", got.BindingRef)
-	}
-}
-
-func TestInspectBindingDefaultTextUsesRunner(t *testing.T) {
-	originalFactory := newBindingInspectionRunner
-	t.Cleanup(func() { newBindingInspectionRunner = originalFactory })
-
-	fakeReport := NewBindingInspectionReport()
-	fakeReport.GeneratedAt = "2026-05-18T10:11:12Z"
-	fakeReport.BindingRef = BindingInspectionBindingRef{Namespace: "tenant-a", Name: "binding-a", Mode: "PerObjective"}
-	fakeReport.Desired = BindingInspectionDesiredState{
-		ClusterSPIFFEIDName: "tenant-a-binding-a-1234abcd",
-		SPIFFEID:            "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
-	}
-	newBindingInspectionRunner = func(_ *Options) (bindingInspectionRunner, error) {
-		return fixedInspectionRunner{report: fakeReport}, nil
-	}
-
-	cmd := NewRootCommand()
-	stdout := &bytes.Buffer{}
-	stderr := &bytes.Buffer{}
-	cmd.SetOut(stdout)
-	cmd.SetErr(stderr)
-	cmd.SetArgs([]string{"inspect", "binding", "binding-a", "-n", "tenant-a"})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("inspect binding returned error: %v", err)
-	}
-	if stderr.Len() != 0 {
-		t.Fatalf("expected no stderr, got:\n%s", stderr.String())
-	}
-
-	out := stdout.String()
-	for _, want := range []string{
-		"BindingInspectionReport",
-		"Name: tenant-a/binding-a",
-		"Mode: PerObjective",
-		"ClusterSPIFFEID: tenant-a-binding-a-1234abcd",
-		"SPIFFE ID: spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
-		"Findings:\n  none",
-	} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("text output missing %q\n%s", want, out)
-		}
-	}
-}
-
-func TestInspectionExitCodeMapping(t *testing.T) {
-	setupErr := errors.New("load Kubernetes config")
-	tests := []struct {
-		name       string
-		report     BindingInspectionReport
-		inspectErr error
-		strict     bool
-		wantCode   int
-		wantErr    error
-	}{
-		{
-			name:     "success",
-			report:   NewBindingInspectionReport(),
-			wantCode: exitOK,
-		},
-		{
-			name: "warning is non-fatal without strict",
-			report: BindingInspectionReport{Findings: []BindingInspectionFinding{{
-				ID:       findingObservedDrift,
-				Severity: BindingInspectionFindingSeverityWarning,
-				Reason:   reasonObservedDrift,
-				Message:  "drift",
-			}}},
-			wantCode: exitOK,
-		},
-		{
-			name: "warning is inspection issue with strict",
-			report: BindingInspectionReport{Findings: []BindingInspectionFinding{{
-				ID:       findingObservedDrift,
-				Severity: BindingInspectionFindingSeverityWarning,
-				Reason:   reasonObservedDrift,
-				Message:  "drift",
-			}}},
-			strict:   true,
-			wantCode: exitInspectionIssue,
-			wantErr:  errInspectBindingHasWarningFindings,
-		},
-		{
-			name: "error finding",
-			report: BindingInspectionReport{Findings: []BindingInspectionFinding{{
-				ID:       findingDependencyMissing,
-				Severity: BindingInspectionFindingSeverityError,
-				Reason:   "Missing",
-				Message:  "missing",
-			}}},
-			inspectErr: errBindingInspectionErrorFindings,
-			wantCode:   exitInspectionIssue,
-			wantErr:    errInspectBindingHasErrorFindings,
-		},
-		{
-			name:       "binding not found",
-			report:     NewBindingInspectionReport(),
-			inspectErr: errBindingInspectionNotFound,
-			wantCode:   exitBindingNotFound,
-			wantErr:    errBindingInspectionNotFound,
-		},
-		{
-			name:       "inspection setup failure",
-			report:     NewBindingInspectionReport(),
-			inspectErr: setupErr,
-			wantCode:   exitUsage,
-			wantErr:    setupErr,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotCode, gotErr := inspectionExitCode(tt.report, tt.inspectErr, tt.strict)
-			if gotCode != tt.wantCode {
-				t.Fatalf("exit code = %d, want %d", gotCode, tt.wantCode)
-			}
-			if tt.wantErr == nil && gotErr != nil {
-				t.Fatalf("expected no error, got %v", gotErr)
-			}
-			if tt.wantErr != nil && !errors.Is(gotErr, tt.wantErr) {
-				t.Fatalf("error = %v, want %v", gotErr, tt.wantErr)
-			}
-		})
-	}
-}
 
 func TestInspectBindingSuccessReport(t *testing.T) {
 	binding := testInspectionBinding()
@@ -233,7 +72,7 @@ func TestInspectBindingMissingBindingReport(t *testing.T) {
 	inspector := newTestBindingInspector(t, nil)
 
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "missing")
-	if !errors.Is(err, errBindingInspectionNotFound) {
+	if !errors.Is(err, ErrBindingInspectionNotFound) {
 		t.Fatalf("InspectBinding error = %v, want not found", err)
 	}
 
@@ -248,7 +87,7 @@ func TestInspectBindingMissingDependencyFinding(t *testing.T) {
 	inspector := newTestBindingInspector(t, nil, binding)
 
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
-	if !errors.Is(err, errBindingInspectionErrorFindings) {
+	if !errors.Is(err, ErrBindingInspectionErrorFindings) {
 		t.Fatalf("InspectBinding error = %v, want error findings", err)
 	}
 
@@ -266,7 +105,7 @@ func TestInspectBindingUnsafeSelectorFinding(t *testing.T) {
 	inspector := newTestBindingInspector(t, nil, binding, pool, objective)
 
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
-	if !errors.Is(err, errBindingInspectionErrorFindings) {
+	if !errors.Is(err, ErrBindingInspectionErrorFindings) {
 		t.Fatalf("InspectBinding error = %v, want error findings", err)
 	}
 
@@ -431,7 +270,7 @@ func TestInspectBindingNoMatchClusterSPIFFEIDCapability(t *testing.T) {
 	inspector := newTestBindingInspector(t, noMatch, binding, pool, objective)
 
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
-	if !errors.Is(err, errBindingInspectionErrorFindings) {
+	if !errors.Is(err, ErrBindingInspectionErrorFindings) {
 		t.Fatalf("InspectBinding error = %v, want error findings", err)
 	}
 
@@ -454,7 +293,7 @@ func TestInspectBindingCollisionConditionFinding(t *testing.T) {
 	inspector := newTestBindingInspector(t, nil, binding, pool, objective)
 
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
-	if !errors.Is(err, errBindingInspectionErrorFindings) {
+	if !errors.Is(err, ErrBindingInspectionErrorFindings) {
 		t.Fatalf("InspectBinding error = %v, want error findings", err)
 	}
 
@@ -696,4 +535,4 @@ func TestStringSliceFromAnySkipsNonStrings(t *testing.T) {
 }
 
 var _ client.Client = listErrorClient{}
-var _ bindingInspectionRunner = fixedInspectionRunner{}
+var _ BindingInspector = fixedInspectionRunner{}
