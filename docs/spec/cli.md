@@ -45,6 +45,7 @@ Default namespace is `default`. Default output is `text`. Stable machine output 
 ## Output Contract
 
 JSON is the stable contract. Text is human-oriented and may change between releases.
+Automation must consume `kleym inspect binding <name> -n <namespace> -o json`; the default text output is optimized for quick human diagnosis and leads with a summary before detailed sections.
 
 `kleym inspect binding` emits a `BindingInspectionReport` with four core sections:
 
@@ -128,6 +129,10 @@ Finding semantics:
 If RBAC or missing CRDs prevent a non-fatal check, `kleym` must report partial or unknown state instead of guessing.
 
 If usage, connection, authentication, discovery, or permission failure prevents reading the requested binding at all, the command exits as a fatal failure and no complete inspection report is required.
+
+Default text output summarizes status, finding count, drift count, eligible workload count, and inspection completeness before resource details. Status is `OK` when there are no warning or error findings, `Warning` when warning findings exist without errors, and `Error` when at least one error finding exists. Inspection completeness is `full` only when all relevant capabilities are full; partial, skipped, or unknown capability states must remain visible in the capabilities section, and may also be called out in the summary when useful for quick diagnosis.
+
+Text output should not repeat full observed selector state when observed managed `ClusterSPIFFEID` resources match desired state. In the healthy case, it reports each managed resource as `matches desired`. When drift exists, text output expands only the differing fields. Condition output should prefer compact `Type=Status` lines and include reason and message for unhealthy or otherwise relevant conditions.
 
 ## Inspection Boundaries
 

@@ -199,43 +199,58 @@ func writeBindingInspectionReportText(w io.Writer, report BindingInspectionRepor
 	appendTextLine(&builder, "BindingInspectionReport")
 	appendTextLine(&builder, "GeneratedAt: %s", textString(report.GeneratedAt))
 	appendTextLine(&builder, "")
+	appendTextLine(&builder, "Summary:")
+	appendTextLine(&builder, "  Status: %s", inspectionTextStatus(report.Findings))
+	appendTextLine(&builder, "  Findings: %s", textCountOrNone(len(report.Findings)))
+	appendTextLine(&builder, "  Drift: %s", textCountOrNone(len(report.Observed.Drift)))
+	appendTextLine(&builder, "  Eligible workloads: %d", len(report.Observed.EligibleWorkloads))
+	appendTextLine(&builder, "  Inspection completeness: %s", inspectionTextCompleteness(report.Capabilities))
+	partialChecks := inspectionTextCapabilityNames(report.Capabilities, BindingInspectionCapabilityPartial)
+	if len(partialChecks) > 0 {
+		appendTextLine(&builder, "  Partial checks:")
+		for _, check := range partialChecks {
+			appendTextLine(&builder, "    - %s", check)
+		}
+	}
+
+	appendTextLine(&builder, "")
 	appendTextLine(&builder, "Binding:")
 	appendTextLine(&builder, "  Name: %s", textNamespacedName(report.BindingRef.Namespace, report.BindingRef.Name))
 	appendTextLine(&builder, "  Generation: %d", report.BindingRef.Generation)
 	appendTextLine(&builder, "  Mode: %s", textString(report.BindingRef.Mode))
 	appendTextLine(&builder, "  PoolRef: %s", textTargetRef(report.BindingRef.PoolRef))
 	appendTextLine(&builder, "  ObjectiveRef: %s", textTargetRef(report.BindingRef.ObjectiveRef))
-	appendTextLine(&builder, "  Conditions: %d", len(report.BindingRef.Conditions))
+	appendTextConditions(&builder, "  ", report.BindingRef.Conditions)
 
 	appendTextLine(&builder, "")
-	appendTextLine(&builder, "Desired:")
+	appendTextLine(&builder, "Identity:")
 	appendTextLine(&builder, "  ClusterSPIFFEID: %s", textString(report.Desired.ClusterSPIFFEIDName))
 	appendTextLine(&builder, "  SPIFFE ID: %s", textString(report.Desired.SPIFFEID))
-	appendTextLine(&builder, "  Pod selector: %s", textStableValue(report.Desired.PodSelector))
-	appendTextStringList(&builder, "  Workload selectors", report.Desired.WorkloadSelectors)
 	appendTextLine(&builder, "  Hint: %s", textString(report.Desired.Hint))
 	appendTextLine(&builder, "  Fallback: %s", textBool(report.Desired.Fallback))
+
+	appendTextLine(&builder, "")
+	appendTextLine(&builder, "Selectors:")
+	appendTextLine(&builder, "  Pod selector: %s", textStableValue(report.Desired.PodSelector))
+	appendTextStringList(&builder, "  Workload selectors", report.Desired.WorkloadSelectors)
 
 	appendTextLine(&builder, "")
 	appendTextLine(&builder, "Observed:")
 	appendTextLine(&builder, "  Managed ClusterSPIFFEIDs: %d", len(report.Observed.ManagedClusterSPIFFEIDs))
 	for _, managed := range report.Observed.ManagedClusterSPIFFEIDs {
 		appendTextLine(&builder, "    - %s", textString(managed.Name))
-		appendTextLine(&builder, "      SPIFFE ID: %s", textString(managed.SPIFFEID))
-		appendTextLine(&builder, "      Pod selector: %s", textStableValue(managed.PodSelector))
-		appendTextStringList(&builder, "      Workload selectors", managed.WorkloadSelectors)
-		appendTextLine(&builder, "      Hint: %s", textString(managed.Hint))
-		appendTextLine(&builder, "      Fallback: %s", textBool(managed.Fallback))
-		appendTextLine(&builder, "      Conditions: %d", len(managed.Conditions))
+		if len(report.Observed.Drift) == 0 {
+			appendTextLine(&builder, "      Status: matches desired")
+		} else {
+			appendTextLine(&builder, "      Status: drift detected")
+			appendTextDriftEntries(&builder, "      ", report.Observed.Drift)
+		}
+		appendTextConditions(&builder, "      ", managed.Conditions)
 	}
-	appendTextLine(&builder, "  Drift: %d", len(report.Observed.Drift))
-	for _, drift := range report.Observed.Drift {
-		appendTextLine(&builder, "    - %s: desired=%s observed=%s", drift.Field, textString(drift.Desired), textString(drift.Observed))
+	if len(report.Observed.ManagedClusterSPIFFEIDs) == 0 && len(report.Observed.Drift) > 0 {
+		appendTextDriftEntries(&builder, "  ", report.Observed.Drift)
 	}
-	appendTextLine(&builder, "  Eligible workloads: %d", len(report.Observed.EligibleWorkloads))
-	for _, workload := range report.Observed.EligibleWorkloads {
-		appendTextLine(&builder, "    - %s/%s container=%s", textString(workload.Namespace), textString(workload.Pod), textString(workload.Container))
-	}
+	appendTextEligibleWorkloads(&builder, report.Observed.EligibleWorkloads)
 
 	appendTextLine(&builder, "")
 	appendTextLine(&builder, "Findings:")
@@ -243,8 +258,16 @@ func writeBindingInspectionReportText(w io.Writer, report BindingInspectionRepor
 		appendTextLine(&builder, "  none")
 	} else {
 		for _, finding := range report.Findings {
-			appendTextLine(&builder, "  - %s %s (%s): %s", finding.Severity, finding.ID, finding.Reason, finding.Message)
-			appendTextLine(&builder, "    AffectedRefs: %d", len(finding.AffectedRefs))
+			appendTextLine(&builder, "  - Severity: %s", textString(string(finding.Severity)))
+			appendTextLine(&builder, "    Reason: %s", textString(finding.Reason))
+			appendTextLine(&builder, "    Message: %s", textString(finding.Message))
+			appendTextLine(&builder, "    AffectedRefs:")
+			if len(finding.AffectedRefs) == 0 {
+				appendTextLine(&builder, "      none")
+			}
+			for i := range finding.AffectedRefs {
+				appendTextLine(&builder, "      - %s", textTargetRef(&finding.AffectedRefs[i]))
+			}
 		}
 	}
 
@@ -278,10 +301,58 @@ func appendTextLine(builder *strings.Builder, format string, args ...any) {
 }
 
 func appendTextStringList(builder *strings.Builder, label string, values []string) {
-	appendTextLine(builder, "%s: %d", label, len(values))
+	appendTextLine(builder, "%s:", label)
 	itemIndent := strings.Repeat(" ", leadingSpaces(label)+2)
+	if len(values) == 0 {
+		appendTextLine(builder, "%snone", itemIndent)
+		return
+	}
 	for _, value := range values {
 		appendTextLine(builder, "%s- %s", itemIndent, value)
+	}
+}
+
+func appendTextConditions(builder *strings.Builder, indent string, conditions []metav1.Condition) {
+	appendTextLine(builder, "%sConditions:", indent)
+	if len(conditions) == 0 {
+		appendTextLine(builder, "%s  none", indent)
+		return
+	}
+	for _, condition := range conditions {
+		appendTextLine(builder, "%s  %s=%s", indent, condition.Type, condition.Status)
+		if !textConditionNeedsDetail(condition) {
+			continue
+		}
+		appendTextLine(builder, "%s    Reason: %s", indent, textString(condition.Reason))
+		appendTextLine(builder, "%s    Message: %s", indent, textString(condition.Message))
+	}
+}
+
+func appendTextDriftEntries(builder *strings.Builder, indent string, entries []BindingInspectionDriftEntry) {
+	appendTextLine(builder, "%sDrift:", indent)
+	if len(entries) == 0 {
+		appendTextLine(builder, "%s  none", indent)
+		return
+	}
+	for _, drift := range entries {
+		appendTextLine(builder, "%s  - Field: %s", indent, textDriftField(drift.Field))
+		appendTextLine(builder, "%s    Desired: %s", indent, textString(drift.Desired))
+		appendTextLine(builder, "%s    Observed: %s", indent, textString(drift.Observed))
+	}
+}
+
+func appendTextEligibleWorkloads(builder *strings.Builder, workloads []BindingInspectionEligibleWorkload) {
+	appendTextLine(builder, "  Eligible workloads:")
+	if len(workloads) == 0 {
+		appendTextLine(builder, "    none")
+		return
+	}
+	for _, workload := range workloads {
+		line := textNamespacedName(workload.Namespace, workload.Pod)
+		if workload.Container != "" {
+			line += " container=" + workload.Container
+		}
+		appendTextLine(builder, "    - %s", line)
 	}
 }
 
@@ -292,6 +363,115 @@ func leadingSpaces(value string) int {
 		}
 	}
 	return len(value)
+}
+
+func inspectionTextStatus(findings []BindingInspectionFinding) string {
+	if hasErrorSeverityFinding(findings) {
+		return "Error"
+	}
+	if hasWarningSeverityFinding(findings) {
+		return "Warning"
+	}
+	return "OK"
+}
+
+func inspectionTextCompleteness(capabilities BindingInspectionCapabilities) string {
+	checks := inspectionTextCapabilityChecks(capabilities)
+	hasCapability := false
+	hasSkipped := false
+	hasUnknown := false
+	for _, check := range checks {
+		if check.value == "" {
+			hasUnknown = true
+			continue
+		}
+		hasCapability = true
+		switch check.value {
+		case BindingInspectionCapabilityPartial:
+			return string(BindingInspectionCapabilityPartial)
+		case BindingInspectionCapabilitySkipped:
+			hasSkipped = true
+		case BindingInspectionCapabilityUnknown:
+			hasUnknown = true
+		case BindingInspectionCapabilityFull:
+		default:
+			hasUnknown = true
+		}
+	}
+	if hasSkipped {
+		return string(BindingInspectionCapabilitySkipped)
+	}
+	if hasUnknown || !hasCapability {
+		return string(BindingInspectionCapabilityUnknown)
+	}
+	return string(BindingInspectionCapabilityFull)
+}
+
+func inspectionTextCapabilityNames(
+	capabilities BindingInspectionCapabilities,
+	want BindingInspectionCapability,
+) []string {
+	checks := inspectionTextCapabilityChecks(capabilities)
+	names := make([]string, 0, len(checks))
+	for _, check := range checks {
+		if check.value == want {
+			names = append(names, check.name)
+		}
+	}
+	return names
+}
+
+type inspectionTextCapabilityCheck struct {
+	name  string
+	value BindingInspectionCapability
+}
+
+func inspectionTextCapabilityChecks(capabilities BindingInspectionCapabilities) []inspectionTextCapabilityCheck {
+	return []inspectionTextCapabilityCheck{
+		{name: "Binding", value: capabilities.Binding},
+		{name: "GAIE resources", value: capabilities.GAIEResources},
+		{name: "ClusterSPIFFEIDs", value: capabilities.ClusterSPIFFEIDs},
+		{name: "Peer bindings", value: capabilities.PeerBindings},
+		{name: "Pods", value: capabilities.Pods},
+	}
+}
+
+func textConditionNeedsDetail(condition metav1.Condition) bool {
+	if condition.Status == metav1.ConditionUnknown {
+		return true
+	}
+	switch condition.Type {
+	case "Ready", "Resolved", "Rendered":
+		return condition.Status != metav1.ConditionTrue
+	case "Conflict", "InvalidRef", "UnsafeSelector", "RenderFailure":
+		return condition.Status == metav1.ConditionTrue
+	default:
+		return condition.Status != metav1.ConditionTrue
+	}
+}
+
+func textCountOrNone(count int) string {
+	if count == 0 {
+		return "none"
+	}
+	return fmt.Sprintf("%d", count)
+}
+
+func textDriftField(field string) string {
+	switch field {
+	case "spec.spiffeIDTemplate":
+		return "spiffeID"
+	case "spec.podSelector":
+		return "podSelector"
+	case "spec.workloadSelectorTemplates":
+		return "workloadSelectorTemplates"
+	case "spec.hint":
+		return "hint"
+	case "spec.fallback":
+		return "fallback"
+	default:
+		return field
+	}
 }
 
 func textString(value string) string {

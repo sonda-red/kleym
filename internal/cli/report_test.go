@@ -366,23 +366,141 @@ func TestWriteBindingInspectionReportTextRepresentativeReport(t *testing.T) {
 	for _, want := range []string{
 		"BindingInspectionReport",
 		"GeneratedAt: 2026-05-18T09:10:11Z",
+		"Summary:",
+		"Status: Warning",
+		"Findings: 1",
+		"Drift: 1",
+		"Eligible workloads: 1",
+		"Inspection completeness: partial",
+		"Partial checks:\n    - Peer bindings",
 		"Name: tenant-a/binding-a",
 		"PoolRef: inference.networking.k8s.io/v1/InferencePool tenant-a/pool-a",
-		"Desired:",
+		"Identity:",
 		"ClusterSPIFFEID: tenant-a-binding-a-1234abcd",
+		"Selectors:",
 		"Pod selector: {\"matchLabels\":{\"app\":\"pool-a\"}}",
 		"Observed:",
 		"Managed ClusterSPIFFEIDs: 1",
-		"spec.workloadSelectorTemplates: desired=k8s:container-name:model-server observed=k8s:container-name:old-server",
-		"Eligible workloads: 1",
+		"Status: drift detected",
+		"Field: workloadSelectorTemplates",
+		"Desired: k8s:container-name:model-server",
+		"Observed: k8s:container-name:old-server",
+		"Eligible workloads:",
+		"- tenant-a/pool-a-12345 container=model-server",
 		"Findings:",
-		"warning observed-drift (ObservedDrift)",
+		"Severity: warning",
+		"Reason: ObservedDrift",
+		"Message: observed managed ClusterSPIFFEID state differs from desired state",
 		"Capabilities:",
 		"Peer bindings: partial",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("text output missing %q\n%s", want, text)
 		}
+	}
+}
+
+func TestWriteBindingInspectionReportTextHealthyPartialSummary(t *testing.T) {
+	fallbackFalse := false
+	report := BindingInspectionReport{
+		GeneratedAt: "2026-05-18T09:10:11Z",
+		BindingRef: BindingInspectionBindingRef{
+			Namespace: "tenant-a",
+			Name:      "binding-a",
+			Mode:      "PerObjective",
+		},
+		Desired: BindingInspectionDesiredState{
+			ClusterSPIFFEIDName: "tenant-a-binding-a-1234abcd",
+			SPIFFEID:            "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+			PodSelector:         map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
+			WorkloadSelectors:   []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
+			Hint:                "tenant-a/binding-a",
+			Fallback:            &fallbackFalse,
+		},
+		Observed: BindingInspectionObservedState{
+			ManagedClusterSPIFFEIDs: []BindingInspectionManagedClusterSPIFFEID{{
+				Name: "tenant-a-binding-a-1234abcd",
+			}},
+			EligibleWorkloads: []BindingInspectionEligibleWorkload{{
+				Namespace: "tenant-a",
+				Pod:       "pool-a-12345",
+				Container: "model-server",
+			}},
+		},
+		Capabilities: BindingInspectionCapabilities{
+			Binding:          BindingInspectionCapabilityFull,
+			GAIEResources:    BindingInspectionCapabilityFull,
+			ClusterSPIFFEIDs: BindingInspectionCapabilityFull,
+			PeerBindings:     BindingInspectionCapabilityPartial,
+			Pods:             BindingInspectionCapabilityFull,
+		},
+	}
+
+	var out bytes.Buffer
+	if err := WriteBindingInspectionReport(&out, outputText, report); err != nil {
+		t.Fatalf("write text report: %v", err)
+	}
+	text := out.String()
+	for _, want := range []string{
+		"Summary:\n  Status: OK",
+		"Findings: none",
+		"Drift: none",
+		"Eligible workloads: 1",
+		"Inspection completeness: partial",
+		"Partial checks:\n    - Peer bindings",
+		"Status: matches desired",
+		"Findings:\n  none",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("text output missing %q\n%s", want, text)
+		}
+	}
+	for _, unwanted := range []string{
+		"SPIFFE ID: (none)",
+		"Pod selector: (none)",
+		"Workload selectors:\n              none",
+	} {
+		if strings.Contains(text, unwanted) {
+			t.Fatalf("text output unexpectedly contains %q\n%s", unwanted, text)
+		}
+	}
+}
+
+func TestWriteBindingInspectionReportTextConditionDetails(t *testing.T) {
+	report := BindingInspectionReport{
+		BindingRef: BindingInspectionBindingRef{
+			Namespace: "tenant-a",
+			Name:      "binding-a",
+			Conditions: []metav1.Condition{{
+				Type:    "Ready",
+				Status:  metav1.ConditionFalse,
+				Reason:  "RenderFailed",
+				Message: "failed to render ClusterSPIFFEID because objectiveRef is missing",
+			}, {
+				Type:   "Conflict",
+				Status: metav1.ConditionFalse,
+				Reason: "NoIdentityCollision",
+			}},
+		},
+	}
+
+	var out bytes.Buffer
+	if err := WriteBindingInspectionReport(&out, outputText, report); err != nil {
+		t.Fatalf("write text report: %v", err)
+	}
+	text := out.String()
+	for _, want := range []string{
+		"Ready=False",
+		"Reason: RenderFailed",
+		"Message: failed to render ClusterSPIFFEID because objectiveRef is missing",
+		"Conflict=False",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("text output missing %q\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "Reason: NoIdentityCollision") {
+		t.Fatalf("healthy Conflict=False condition should stay compact:\n%s", text)
 	}
 }
 
