@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/sonda-red/kleym/internal/inspection"
 )
 
 func TestRootHelpSucceeds(t *testing.T) {
@@ -60,7 +62,14 @@ func TestInspectBindingHelpIncludesMVPFlags(t *testing.T) {
 	}
 }
 
-func TestInspectBindingReturnsNotImplemented(t *testing.T) {
+func TestInspectBindingFactoryErrorReturnsUsage(t *testing.T) {
+	originalFactory := newBindingInspectionRunner
+	t.Cleanup(func() { newBindingInspectionRunner = originalFactory })
+	wantErr := errors.New("load failed")
+	newBindingInspectionRunner = func(_ *Options) (inspection.BindingInspector, error) {
+		return nil, wantErr
+	}
+
 	cmd := NewRootCommand()
 	cmd.SetOut(&bytes.Buffer{})
 	stderr := &bytes.Buffer{}
@@ -71,8 +80,11 @@ func TestInspectBindingReturnsNotImplemented(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected inspect binding to return an error")
 	}
-	if !errors.Is(err, errInspectBindingNotImplemented) {
+	if !errors.Is(err, wantErr) {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := codeForError(err); got != exitUsage {
+		t.Fatalf("expected factory error to return exit code %d, got %d", exitUsage, got)
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("expected command execution to leave error printing to main, got stderr:\n%s", stderr.String())
@@ -181,12 +193,6 @@ func TestExecuteMapsErrorsToExitCodes(t *testing.T) {
 			args:    []string{"nope"},
 			want:    exitUsage,
 			wantErr: "unknown command",
-		},
-		{
-			name:    "internal",
-			args:    []string{"inspect", "binding", "my-binding"},
-			want:    exitInternal,
-			wantErr: errInspectBindingNotImplemented.Error(),
 		},
 	}
 

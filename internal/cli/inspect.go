@@ -1,12 +1,25 @@
 package cli
 
 import (
+	"context"
 	"errors"
 
+	"github.com/sonda-red/kleym/internal/inspection"
 	"github.com/spf13/cobra"
 )
 
-var errInspectBindingNotImplemented = errors.New("inspect binding is not implemented")
+var (
+	errInspectBindingHasErrorFindings   = errors.New("binding inspection completed with error findings")
+	errInspectBindingHasWarningFindings = errors.New("binding inspection completed with warning findings in strict mode")
+)
+
+var newBindingInspectionRunner = func(opts *Options) (inspection.BindingInspector, error) {
+	return inspection.NewKubernetesBindingInspector(inspection.Config{
+		Context:    opts.Context,
+		Kubeconfig: opts.Kubeconfig,
+		Timeout:    opts.Timeout,
+	})
+}
 
 // newInspectCommand creates the inspect command group under the root CLI.
 func newInspectCommand(opts *Options) *cobra.Command {
@@ -24,11 +37,46 @@ func newInspectCommand(opts *Options) *cobra.Command {
 		PreRunE: func(_ *cobra.Command, _ []string) error {
 			return validateRunnableOptions(opts)
 		},
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return withExitCode(exitInternal, errInspectBindingNotImplemented)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			inspector, err := newBindingInspectionRunner(opts)
+			if err != nil {
+				return withExitCode(exitUsage, err)
+			}
+
+			ctx, cancel := context.WithTimeout(cmd.Context(), opts.Timeout)
+			defer cancel()
+
+			report, inspectErr := inspector.InspectBinding(ctx, opts.Namespace, args[0])
+			if err := inspection.WriteBindingInspectionReport(cmd.OutOrStdout(), opts.Output, report); err != nil {
+				return withExitCode(exitInternal, err)
+			}
+			code, err := inspectionExitCode(report, inspectErr, opts.Strict)
+			if err != nil {
+				return withExitCode(code, err)
+			}
+			return nil
 		},
 	}
 
 	inspectCmd.AddCommand(bindingCmd)
 	return inspectCmd
+}
+
+func inspectionExitCode(report inspection.BindingInspectionReport, inspectErr error, strict bool) (int, error) {
+	if inspectErr != nil {
+		if errors.Is(inspectErr, inspection.ErrBindingInspectionNotFound) {
+			return exitBindingNotFound, inspectErr
+		}
+		if errors.Is(inspectErr, inspection.ErrBindingInspectionErrorFindings) {
+			return exitInspectionIssue, errInspectBindingHasErrorFindings
+		}
+		return exitUsage, inspectErr
+	}
+	if inspection.HasErrorSeverityFinding(report.Findings) {
+		return exitInspectionIssue, errInspectBindingHasErrorFindings
+	}
+	if strict && inspection.HasWarningSeverityFinding(report.Findings) {
+		return exitInspectionIssue, errInspectBindingHasWarningFindings
+	}
+	return exitOK, nil
 }

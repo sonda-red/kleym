@@ -1,0 +1,1008 @@
+package inspection
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
+	"sort"
+	"strings"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+
+	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	"github.com/sonda-red/kleym/internal/identity"
+)
+
+const (
+	findingBindingNotFound      = "binding-not-found"
+	findingInvalidRef           = "invalid-ref"
+	findingDependencyMissing    = "dependency-missing"
+	findingUnsafeSelector       = "unsafe-selector"
+	findingRenderFailure        = "render-failure"
+	findingKleymCollision       = "kleym-collision"
+	findingZeroEligibleWorkload = "zero-eligible-workloads"
+	findingAmbiguousContainer   = "ambiguous-container-match"
+	findingObservedDrift        = "observed-drift"
+	findingRBACLimited          = "rbac-limited"
+	reasonZeroEligibleWorkload  = "ZeroEligibleWorkloads"
+	reasonAmbiguousContainer    = "AmbiguousContainerMatch"
+	reasonObservedDrift         = "ObservedDrift"
+	reasonRBACLimited           = "Forbidden"
+	conditionTypeConflict       = "Conflict"
+	clusterSPIFFEIDResourceName = "clusterspiffeids"
+	podResourceName             = "pods"
+)
+
+var (
+	// ErrBindingInspectionNotFound reports a successful API lookup where the requested binding is absent.
+	ErrBindingInspectionNotFound = errors.New("binding not found")
+	// ErrBindingInspectionErrorFindings reports a completed inspection with error-severity findings.
+	ErrBindingInspectionErrorFindings = errors.New("binding inspection report contains error findings")
+)
+
+// Config describes Kubernetes access settings for live binding inspection.
+type Config struct {
+	Context    string
+	Kubeconfig string
+	Timeout    time.Duration
+}
+
+// BindingInspector inspects one binding and returns the stable report model.
+type BindingInspector interface {
+	InspectBinding(ctx context.Context, namespace string, name string) (BindingInspectionReport, error)
+}
+
+type bindingInspector struct {
+	client client.Client
+	mapper meta.RESTMapper
+	now    func() time.Time
+}
+
+// NewKubernetesBindingInspector returns a read-only Kubernetes-backed binding inspector.
+func NewKubernetesBindingInspector(config Config) (BindingInspector, error) {
+	configOverrides := &clientcmd.ConfigOverrides{CurrentContext: config.Context}
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	if config.Kubeconfig != "" {
+		loadingRules.ExplicitPath = config.Kubeconfig
+	}
+
+	restConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides).ClientConfig()
+	if err != nil {
+		return nil, fmt.Errorf("load Kubernetes config: %w", err)
+	}
+	restConfig.Timeout = config.Timeout
+
+	scheme := newBindingInspectionScheme()
+	httpClient, err := rest.HTTPClientFor(restConfig)
+	if err != nil {
+		return nil, fmt.Errorf("create Kubernetes HTTP client: %w", err)
+	}
+	mapper, err := apiutil.NewDynamicRESTMapper(restConfig, httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("create Kubernetes REST mapper: %w", err)
+	}
+	kubeClient, err := client.New(restConfig, client.Options{Scheme: scheme, Mapper: mapper})
+	if err != nil {
+		return nil, fmt.Errorf("create Kubernetes client: %w", err)
+	}
+
+	return &bindingInspector{
+		client: kubeClient,
+		mapper: mapper,
+		now:    time.Now,
+	}, nil
+}
+
+func newBindingInspectionScheme() *runtime.Scheme {
+	scheme := runtime.NewScheme()
+	_ = corev1.AddToScheme(scheme)
+	_ = kleymv1alpha1.AddToScheme(scheme)
+	for _, gvk := range append(identity.InferenceObjectiveGVKs(), identity.InferencePoolGVKs()...) {
+		registerInspectionUnstructuredGVK(scheme, gvk)
+	}
+	registerInspectionUnstructuredGVK(scheme, identity.ClusterSPIFFEIDGVK())
+	return scheme
+}
+
+func registerInspectionUnstructuredGVK(scheme *runtime.Scheme, gvk schema.GroupVersionKind) {
+	scheme.AddKnownTypeWithName(gvk, &unstructured.Unstructured{})
+	scheme.AddKnownTypeWithName(gvk.GroupVersion().WithKind(gvk.Kind+"List"), &unstructured.UnstructuredList{})
+}
+
+// InspectBinding builds the stable JSON report for one InferenceIdentityBinding.
+func (i *bindingInspector) InspectBinding(ctx context.Context, namespace string, name string) (BindingInspectionReport, error) {
+	report := NewBindingInspectionReport()
+	report.GeneratedAt = i.now().UTC().Format(time.RFC3339)
+	report.BindingRef = BindingInspectionBindingRef{Namespace: namespace, Name: name}
+	report.Capabilities.Pods = BindingInspectionCapabilitySkipped
+
+	availableObjectiveGVKs, availablePoolGVKs, err := i.discoverGAIEGVKs()
+	if err != nil {
+		return report, fmt.Errorf("discover served GAIE resources: %w", err)
+	}
+	report.Resolved.ServedGVKs = bindingInspectionGVKs(append(availablePoolGVKs, availableObjectiveGVKs...))
+
+	binding := &kleymv1alpha1.InferenceIdentityBinding{}
+	if err := i.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, binding); err != nil {
+		if apierrors.IsNotFound(err) {
+			report.Capabilities.Binding = BindingInspectionCapabilityFull
+			report.Findings = append(report.Findings, BindingInspectionFinding{
+				ID:       findingBindingNotFound,
+				Severity: BindingInspectionFindingSeverityError,
+				Reason:   string(metav1.StatusReasonNotFound),
+				Message:  fmt.Sprintf("InferenceIdentityBinding %q was not found", identity.NamespacedBindingKey(namespace, name)),
+				AffectedRefs: []BindingInspectionTargetRef{{
+					Namespace: namespace,
+					Name:      name,
+					Group:     kleymv1alpha1.GroupVersion.Group,
+					Version:   kleymv1alpha1.GroupVersion.Version,
+					Kind:      "InferenceIdentityBinding",
+				}},
+			})
+			return normalizeBindingInspectionReport(report), ErrBindingInspectionNotFound
+		}
+		return report, fmt.Errorf("read InferenceIdentityBinding %q: %w", identity.NamespacedBindingKey(namespace, name), err)
+	}
+
+	report.Capabilities.Binding = BindingInspectionCapabilityFull
+	report.Capabilities.PeerBindings = BindingInspectionCapabilityPartial
+	report.BindingRef = bindingInspectionBindingRef(binding)
+	i.addCollisionFinding(binding, &report)
+
+	rendered, desiredReady := i.inspectDesiredState(ctx, binding, availableObjectiveGVKs, availablePoolGVKs, &report)
+	i.inspectObservedState(ctx, binding, rendered, desiredReady, &report)
+	i.inspectEligibleWorkloads(ctx, binding, rendered, desiredReady, &report)
+
+	report = normalizeBindingInspectionReport(report)
+	if HasErrorSeverityFinding(report.Findings) {
+		return report, ErrBindingInspectionErrorFindings
+	}
+	return report, nil
+}
+
+func (i *bindingInspector) discoverGAIEGVKs() ([]schema.GroupVersionKind, []schema.GroupVersionKind, error) {
+	availableObjectiveGVKs, err := filterAvailableInspectionGVKs(i.mapper, identity.InferenceObjectiveGVKs())
+	if err != nil {
+		return nil, nil, err
+	}
+	availablePoolGVKs, err := filterAvailableInspectionGVKs(i.mapper, identity.InferencePoolGVKs())
+	if err != nil {
+		return nil, nil, err
+	}
+	return availableObjectiveGVKs, availablePoolGVKs, nil
+}
+
+func filterAvailableInspectionGVKs(
+	mapper meta.RESTMapper,
+	candidates []schema.GroupVersionKind,
+) ([]schema.GroupVersionKind, error) {
+	available := make([]schema.GroupVersionKind, 0, len(candidates))
+	for _, gvk := range candidates {
+		if _, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version); err != nil {
+			if meta.IsNoMatchError(err) {
+				continue
+			}
+			return nil, fmt.Errorf("resolve REST mapping for %s: %w", gvk.String(), err)
+		}
+		available = append(available, gvk)
+	}
+	return available, nil
+}
+
+func (i *bindingInspector) inspectDesiredState(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	availableObjectiveGVKs []schema.GroupVersionKind,
+	availablePoolGVKs []schema.GroupVersionKind,
+	report *BindingInspectionReport,
+) (identity.RenderedIdentity, bool) {
+	mode := identity.EffectiveMode(binding.Spec.Mode)
+	poolRef, err := identity.BindingPoolRef(binding)
+	if err != nil {
+		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
+		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), findingInvalidRef)
+		return identity.RenderedIdentity{}, false
+	}
+	report.Resolved.PoolRef = poolRefToReportRef(poolRef, schema.GroupVersionKind{Kind: "InferencePool"})
+
+	pool, err := identity.ResolveInferencePool(ctx, i.client, availablePoolGVKs, poolRef)
+	if err != nil {
+		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
+		i.addFindingForError(report, err, *report.Resolved.PoolRef, "")
+		return identity.RenderedIdentity{}, false
+	}
+	report.Resolved.PoolRef = poolRefToReportRef(poolRef, pool.GroupVersionKind())
+
+	var objective *unstructured.Unstructured
+	objectiveRef, hasObjectiveRef, err := identity.BindingObjectiveRef(binding)
+	if err != nil {
+		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
+		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), findingInvalidRef)
+		return identity.RenderedIdentity{}, false
+	}
+	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective && !hasObjectiveRef {
+		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
+		i.addFindingForError(report, &identity.StateError{
+			ConditionType: identity.ConditionTypeRenderFailure,
+			Reason:        "MissingObjectiveRef",
+			Message:       "objectiveRef is required when mode is PerObjective",
+		}, bindingInspectionBindingTargetRef(binding), "")
+		return identity.RenderedIdentity{}, false
+	}
+	if hasObjectiveRef {
+		report.Resolved.ObjectiveRef = objectiveRefToReportRef(objectiveRef, schema.GroupVersionKind{Kind: "InferenceObjective"})
+		objective, err = identity.ResolveInferenceObjective(ctx, i.client, availableObjectiveGVKs, objectiveRef)
+		if err != nil {
+			report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
+			i.addFindingForError(report, err, *report.Resolved.ObjectiveRef, "")
+			return identity.RenderedIdentity{}, false
+		}
+		report.Resolved.ObjectiveRef = objectiveRefToReportRef(objectiveRef, objective.GroupVersionKind())
+		if err := identity.ValidateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
+			report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
+			i.addFindingForError(report, &identity.StateError{
+				ConditionType: identity.ConditionTypeInvalidRef,
+				Reason:        "InvalidObjectiveRef",
+				Message:       err.Error(),
+			}, *report.Resolved.ObjectiveRef, "")
+			return identity.RenderedIdentity{}, false
+		}
+	}
+
+	rendered, err := identity.RenderIdentity(binding, objective, pool)
+	if err != nil {
+		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
+		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), "")
+		return identity.RenderedIdentity{}, false
+	}
+
+	poolSelector, poolDerivedSelectors, err := identity.DeriveSelectorsFromPool(pool)
+	if err != nil {
+		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
+		i.addFindingForError(report, &identity.StateError{
+			ConditionType: identity.ConditionTypeUnsafeSelector,
+			Reason:        "InvalidPoolSelector",
+			Message:       err.Error(),
+		}, *report.Resolved.PoolRef, "")
+		return identity.RenderedIdentity{}, false
+	}
+
+	provenance := selectorProvenance(binding, rendered, poolDerivedSelectors)
+	report.Resolved.PoolSelector = poolSelector
+	report.Resolved.ContainerDiscriminator = containerDiscriminator(binding)
+	report.Resolved.SelectorProvenance = &provenance
+	report.Desired = BindingInspectionDesiredState{
+		ClusterSPIFFEIDName: rendered.Name,
+		SPIFFEID:            rendered.SpiffeID,
+		PodSelector:         rendered.PodSelector,
+		WorkloadSelectors:   append([]string(nil), rendered.Selectors...),
+		SelectorProvenance:  &provenance,
+		Hint:                rendered.Hint,
+		Fallback:            boolPtr(rendered.Fallback),
+	}
+	report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
+	return rendered, true
+}
+
+func (i *bindingInspector) inspectObservedState(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	rendered identity.RenderedIdentity,
+	desiredReady bool,
+	report *BindingInspectionReport,
+) {
+	objects, err := i.listManagedClusterSPIFFEIDs(ctx, binding)
+	if err != nil {
+		switch {
+		case meta.IsNoMatchError(err):
+			report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityUnknown
+			report.Findings = append(report.Findings, BindingInspectionFinding{
+				ID:       findingDependencyMissing,
+				Severity: BindingInspectionFindingSeverityError,
+				Reason:   "ClusterSPIFFEIDCRDMissing",
+				Message:  "ClusterSPIFFEID CRD is not installed",
+				AffectedRefs: []BindingInspectionTargetRef{{
+					Name:  clusterSPIFFEIDResourceName,
+					Group: identity.ClusterSPIFFEIDGVK().Group,
+					Kind:  identity.ClusterSPIFFEIDGVK().Kind,
+				}},
+			})
+		case apierrors.IsForbidden(err):
+			report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityPartial
+			report.Findings = append(report.Findings, BindingInspectionFinding{
+				ID:           findingRBACLimited,
+				Severity:     BindingInspectionFindingSeverityWarning,
+				Reason:       reasonRBACLimited,
+				Message:      "ClusterSPIFFEID resources are not readable",
+				AffectedRefs: []BindingInspectionTargetRef{{Name: clusterSPIFFEIDResourceName}},
+			})
+		default:
+			report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityUnknown
+			report.Findings = append(report.Findings, BindingInspectionFinding{
+				ID:           findingDependencyMissing,
+				Severity:     BindingInspectionFindingSeverityError,
+				Reason:       "ClusterSPIFFEIDListFailed",
+				Message:      err.Error(),
+				AffectedRefs: []BindingInspectionTargetRef{{Name: clusterSPIFFEIDResourceName}},
+			})
+		}
+		return
+	}
+
+	report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityFull
+	for _, object := range objects {
+		report.Observed.ManagedClusterSPIFFEIDs = append(
+			report.Observed.ManagedClusterSPIFFEIDs,
+			managedClusterSPIFFEIDReport(object),
+		)
+	}
+	sort.Slice(report.Observed.ManagedClusterSPIFFEIDs, func(left, right int) bool {
+		return report.Observed.ManagedClusterSPIFFEIDs[left].Name < report.Observed.ManagedClusterSPIFFEIDs[right].Name
+	})
+
+	if !desiredReady {
+		return
+	}
+
+	desired := identity.DesiredClusterSPIFFEID(binding, rendered)
+	if len(objects) == 0 {
+		report.Observed.Drift = append(report.Observed.Drift, BindingInspectionDriftEntry{
+			Field:    "metadata.name",
+			Desired:  desired.GetName(),
+			Observed: "",
+		})
+	}
+	for _, object := range objects {
+		report.Observed.Drift = append(report.Observed.Drift, driftEntries(desired, object)...)
+	}
+	if len(report.Observed.Drift) > 0 {
+		sort.Slice(report.Observed.Drift, func(left, right int) bool {
+			if report.Observed.Drift[left].Field == report.Observed.Drift[right].Field {
+				return report.Observed.Drift[left].Observed < report.Observed.Drift[right].Observed
+			}
+			return report.Observed.Drift[left].Field < report.Observed.Drift[right].Field
+		})
+		report.Findings = append(report.Findings, BindingInspectionFinding{
+			ID:       findingObservedDrift,
+			Severity: BindingInspectionFindingSeverityWarning,
+			Reason:   reasonObservedDrift,
+			Message:  "observed managed ClusterSPIFFEID state differs from desired state",
+			AffectedRefs: []BindingInspectionTargetRef{{
+				Name:  rendered.Name,
+				Group: identity.ClusterSPIFFEIDGVK().Group,
+				Kind:  identity.ClusterSPIFFEIDGVK().Kind,
+			}},
+		})
+	}
+}
+
+// inspectEligibleWorkloads reports live pod/container selector matches when desired state can be rendered.
+func (i *bindingInspector) inspectEligibleWorkloads(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	rendered identity.RenderedIdentity,
+	desiredReady bool,
+	report *BindingInspectionReport,
+) {
+	if !desiredReady {
+		return
+	}
+
+	pods, err := i.listEligiblePods(ctx, binding, rendered)
+	if err != nil {
+		if apierrors.IsForbidden(err) {
+			report.Capabilities.Pods = BindingInspectionCapabilityPartial
+			report.Findings = append(report.Findings, BindingInspectionFinding{
+				ID:           findingRBACLimited,
+				Severity:     BindingInspectionFindingSeverityWarning,
+				Reason:       reasonRBACLimited,
+				Message:      "pods are not readable",
+				AffectedRefs: []BindingInspectionTargetRef{podResourceTargetRef(binding.Namespace)},
+			})
+			return
+		}
+		report.Capabilities.Pods = BindingInspectionCapabilityUnknown
+		report.Findings = append(report.Findings, BindingInspectionFinding{
+			ID:           findingDependencyMissing,
+			Severity:     BindingInspectionFindingSeverityWarning,
+			Reason:       "PodListFailed",
+			Message:      err.Error(),
+			AffectedRefs: []BindingInspectionTargetRef{podResourceTargetRef(binding.Namespace)},
+		})
+		return
+	}
+
+	report.Capabilities.Pods = BindingInspectionCapabilityFull
+	report.Observed.EligibleWorkloads = eligibleWorkloadsFromPods(pods, rendered, report)
+	sort.Slice(report.Observed.EligibleWorkloads, func(left, right int) bool {
+		return eligibleWorkloadSortKey(report.Observed.EligibleWorkloads[left]) <
+			eligibleWorkloadSortKey(report.Observed.EligibleWorkloads[right])
+	})
+	if len(report.Observed.EligibleWorkloads) == 0 {
+		report.Findings = append(report.Findings, zeroEligibleWorkloadsFinding(binding))
+	}
+}
+
+// listEligiblePods narrows pod reads to the rendered pod selector and binding namespace.
+func (i *bindingInspector) listEligiblePods(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	rendered identity.RenderedIdentity,
+) ([]corev1.Pod, error) {
+	matchLabels, err := podSelectorMatchLabels(rendered.PodSelector)
+	if err != nil {
+		return nil, err
+	}
+
+	podList := &corev1.PodList{}
+	if err := i.client.List(
+		ctx,
+		podList,
+		client.InNamespace(binding.Namespace),
+		client.MatchingLabels(matchLabels),
+	); err != nil {
+		return nil, err
+	}
+	return podList.Items, nil
+}
+
+func (i *bindingInspector) listManagedClusterSPIFFEIDs(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+) ([]*unstructured.Unstructured, error) {
+	list := &unstructured.UnstructuredList{}
+	gvk := identity.ClusterSPIFFEIDGVK()
+	list.SetGroupVersionKind(gvk.GroupVersion().WithKind(gvk.Kind + "List"))
+	if err := i.client.List(ctx, list, client.MatchingLabels(identity.ManagedClusterSPIFFEIDLabels(binding))); err != nil {
+		return nil, err
+	}
+
+	items := make([]*unstructured.Unstructured, 0, len(list.Items))
+	for item := range list.Items {
+		items = append(items, list.Items[item].DeepCopy())
+	}
+	return items, nil
+}
+
+// eligibleWorkloadsFromPods evaluates live pod/container matches for the already-rendered identity selectors.
+func eligibleWorkloadsFromPods(
+	pods []corev1.Pod,
+	rendered identity.RenderedIdentity,
+	report *BindingInspectionReport,
+) []BindingInspectionEligibleWorkload {
+	selection := workloadSelectionFromSelectors(rendered.Selectors)
+	workloads := []BindingInspectionEligibleWorkload{}
+	for _, pod := range pods {
+		if !podMatchesSelection(pod, selection) {
+			continue
+		}
+
+		matchingContainers := matchingPodContainers(pod, selection)
+		if selection.ContainerSelectorType == "" {
+			workloads = append(workloads, BindingInspectionEligibleWorkload{
+				Namespace: pod.Namespace,
+				Pod:       pod.Name,
+			})
+			continue
+		}
+		if len(matchingContainers) > 1 {
+			report.Findings = append(report.Findings, ambiguousContainerFinding(pod, selection))
+		}
+		for _, container := range matchingContainers {
+			workloads = append(workloads, BindingInspectionEligibleWorkload{
+				Namespace: pod.Namespace,
+				Pod:       pod.Name,
+				Container: container.Name,
+			})
+		}
+	}
+	return workloads
+}
+
+func (i *bindingInspector) addFindingForError(
+	report *BindingInspectionReport,
+	err error,
+	ref BindingInspectionTargetRef,
+	fallbackID string,
+) {
+	finding := findingForError(err, ref, fallbackID)
+	report.Findings = append(report.Findings, finding)
+}
+
+func findingForError(err error, ref BindingInspectionTargetRef, fallbackID string) BindingInspectionFinding {
+	var stateErr *identity.StateError
+	if errors.As(err, &stateErr) {
+		return BindingInspectionFinding{
+			ID:           findingIDForStateError(stateErr, fallbackID),
+			Severity:     BindingInspectionFindingSeverityError,
+			Reason:       stateErr.Reason,
+			Message:      stateErr.Message,
+			AffectedRefs: []BindingInspectionTargetRef{ref},
+		}
+	}
+	if apierrors.IsForbidden(err) {
+		return BindingInspectionFinding{
+			ID:           findingRBACLimited,
+			Severity:     BindingInspectionFindingSeverityError,
+			Reason:       reasonRBACLimited,
+			Message:      err.Error(),
+			AffectedRefs: []BindingInspectionTargetRef{ref},
+		}
+	}
+	if fallbackID == "" {
+		fallbackID = findingDependencyMissing
+	}
+	return BindingInspectionFinding{
+		ID:           fallbackID,
+		Severity:     BindingInspectionFindingSeverityError,
+		Reason:       "InspectionFailed",
+		Message:      err.Error(),
+		AffectedRefs: []BindingInspectionTargetRef{ref},
+	}
+}
+
+func findingIDForStateError(err *identity.StateError, fallbackID string) string {
+	if strings.HasSuffix(err.Reason, "CRDMissing") {
+		return findingDependencyMissing
+	}
+	switch err.ConditionType {
+	case identity.ConditionTypeInvalidRef:
+		return findingInvalidRef
+	case identity.ConditionTypeUnsafeSelector:
+		return findingUnsafeSelector
+	case identity.ConditionTypeRenderFailure:
+		return findingRenderFailure
+	default:
+		if fallbackID != "" {
+			return fallbackID
+		}
+		return findingDependencyMissing
+	}
+}
+
+type workloadSelection struct {
+	Namespace             string
+	ServiceAccount        string
+	PodLabels             map[string]string
+	ContainerSelectorType string
+	ContainerValue        string
+}
+
+// workloadSelectionFromSelectors extracts the Kubernetes selectors the CLI can evaluate from rendered SPIRE selectors.
+func workloadSelectionFromSelectors(selectors []string) workloadSelection {
+	selection := workloadSelection{PodLabels: map[string]string{}}
+	for _, selector := range selectors {
+		switch {
+		case strings.HasPrefix(selector, "k8s:ns:"):
+			selection.Namespace = strings.TrimPrefix(selector, "k8s:ns:")
+		case strings.HasPrefix(selector, "k8s:sa:"):
+			selection.ServiceAccount = strings.TrimPrefix(selector, "k8s:sa:")
+		case strings.HasPrefix(selector, "k8s:container-name:"):
+			selection.ContainerSelectorType = "name"
+			selection.ContainerValue = strings.TrimPrefix(selector, "k8s:container-name:")
+		case strings.HasPrefix(selector, "k8s:container-image:"):
+			selection.ContainerSelectorType = "image"
+			selection.ContainerValue = strings.TrimPrefix(selector, "k8s:container-image:")
+		case strings.HasPrefix(selector, "k8s:pod-label:"):
+			key, value, ok := strings.Cut(strings.TrimPrefix(selector, "k8s:pod-label:"), ":")
+			if ok {
+				selection.PodLabels[key] = value
+			}
+		}
+	}
+	return selection
+}
+
+// podMatchesSelection checks namespace, service account, and pod-label selector requirements.
+func podMatchesSelection(pod corev1.Pod, selection workloadSelection) bool {
+	if selection.Namespace != "" && pod.Namespace != selection.Namespace {
+		return false
+	}
+	if selection.ServiceAccount != "" && pod.Spec.ServiceAccountName != selection.ServiceAccount {
+		return false
+	}
+	for key, value := range selection.PodLabels {
+		if pod.Labels[key] != value {
+			return false
+		}
+	}
+	return true
+}
+
+// matchingPodContainers returns containers selected by the rendered container discriminator.
+func matchingPodContainers(pod corev1.Pod, selection workloadSelection) []corev1.Container {
+	if selection.ContainerSelectorType == "" {
+		return nil
+	}
+
+	containers := []corev1.Container{}
+	for _, container := range pod.Spec.Containers {
+		switch selection.ContainerSelectorType {
+		case "name":
+			if container.Name == selection.ContainerValue {
+				containers = append(containers, container)
+			}
+		case "image":
+			if container.Image == selection.ContainerValue {
+				containers = append(containers, container)
+			}
+		}
+	}
+	return containers
+}
+
+// podSelectorMatchLabels converts the rendered label selector into client-go list labels.
+func podSelectorMatchLabels(selector map[string]any) (map[string]string, error) {
+	rawMatchLabels, found := selector["matchLabels"]
+	if !found {
+		rawMatchLabels = selector
+	}
+	matchLabels, ok := rawMatchLabels.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("desired pod selector matchLabels must be an object")
+	}
+
+	labels := make(map[string]string, len(matchLabels))
+	for key, value := range matchLabels {
+		text, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("desired pod selector matchLabels[%q] must be a string", key)
+		}
+		labels[key] = text
+	}
+	return labels, nil
+}
+
+func (i *bindingInspector) addCollisionFinding(
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	report *BindingInspectionReport,
+) {
+	condition := meta.FindStatusCondition(binding.Status.Conditions, conditionTypeConflict)
+	if condition == nil || condition.Status != metav1.ConditionTrue {
+		return
+	}
+	report.Findings = append(report.Findings, BindingInspectionFinding{
+		ID:       findingKleymCollision,
+		Severity: BindingInspectionFindingSeverityError,
+		Reason:   condition.Reason,
+		Message:  condition.Message,
+		AffectedRefs: []BindingInspectionTargetRef{{
+			Namespace: binding.Namespace,
+			Name:      binding.Name,
+			Group:     kleymv1alpha1.GroupVersion.Group,
+			Version:   kleymv1alpha1.GroupVersion.Version,
+			Kind:      "InferenceIdentityBinding",
+		}},
+	})
+}
+
+// zeroEligibleWorkloadsFinding records that readable pods did not match the rendered identity selectors.
+func zeroEligibleWorkloadsFinding(binding *kleymv1alpha1.InferenceIdentityBinding) BindingInspectionFinding {
+	return BindingInspectionFinding{
+		ID:       findingZeroEligibleWorkload,
+		Severity: BindingInspectionFindingSeverityInfo,
+		Reason:   reasonZeroEligibleWorkload,
+		Message:  "no currently readable pods match the rendered identity selectors",
+		AffectedRefs: []BindingInspectionTargetRef{{
+			Namespace: binding.Namespace,
+			Name:      binding.Name,
+			Group:     kleymv1alpha1.GroupVersion.Group,
+			Version:   kleymv1alpha1.GroupVersion.Version,
+			Kind:      "InferenceIdentityBinding",
+		}},
+	}
+}
+
+// ambiguousContainerFinding records a pod where one discriminator maps to more than one container.
+func ambiguousContainerFinding(pod corev1.Pod, selection workloadSelection) BindingInspectionFinding {
+	return BindingInspectionFinding{
+		ID:       findingAmbiguousContainer,
+		Severity: BindingInspectionFindingSeverityWarning,
+		Reason:   reasonAmbiguousContainer,
+		Message: fmt.Sprintf(
+			"pod %q has more than one container matching %s discriminator %q",
+			identity.NamespacedBindingKey(pod.Namespace, pod.Name),
+			selection.ContainerSelectorType,
+			selection.ContainerValue,
+		),
+		AffectedRefs: []BindingInspectionTargetRef{{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+			Version:   "v1",
+			Kind:      "Pod",
+		}},
+	}
+}
+
+func podResourceTargetRef(namespace string) BindingInspectionTargetRef {
+	return BindingInspectionTargetRef{
+		Namespace: namespace,
+		Name:      podResourceName,
+		Version:   "v1",
+		Kind:      "Pod",
+	}
+}
+
+func bindingInspectionBindingRef(binding *kleymv1alpha1.InferenceIdentityBinding) BindingInspectionBindingRef {
+	ref := BindingInspectionBindingRef{
+		Namespace:  binding.Namespace,
+		Name:       binding.Name,
+		Generation: binding.Generation,
+		Mode:       string(identity.EffectiveMode(binding.Spec.Mode)),
+		PoolRef: &BindingInspectionTargetRef{
+			Namespace: binding.Namespace,
+			Name:      binding.Spec.PoolRef.Name,
+			Group:     binding.Spec.PoolRef.Group,
+			Kind:      "InferencePool",
+		},
+		Conditions: append([]metav1.Condition(nil), binding.Status.Conditions...),
+	}
+	if binding.Spec.ObjectiveRef != nil {
+		ref.ObjectiveRef = &BindingInspectionTargetRef{
+			Namespace: binding.Namespace,
+			Name:      binding.Spec.ObjectiveRef.Name,
+			Group:     binding.Spec.ObjectiveRef.Group,
+			Kind:      "InferenceObjective",
+		}
+	}
+	return ref
+}
+
+func bindingInspectionBindingTargetRef(binding *kleymv1alpha1.InferenceIdentityBinding) BindingInspectionTargetRef {
+	return BindingInspectionTargetRef{
+		Namespace: binding.Namespace,
+		Name:      binding.Name,
+		Group:     kleymv1alpha1.GroupVersion.Group,
+		Version:   kleymv1alpha1.GroupVersion.Version,
+		Kind:      "InferenceIdentityBinding",
+	}
+}
+
+func poolRefToReportRef(ref identity.PoolRef, gvk schema.GroupVersionKind) *BindingInspectionTargetRef {
+	return &BindingInspectionTargetRef{
+		Namespace: ref.Namespace,
+		Name:      ref.Name,
+		Group:     firstNonEmpty(gvk.Group, ref.Group),
+		Version:   gvk.Version,
+		Kind:      firstNonEmpty(gvk.Kind, "InferencePool"),
+	}
+}
+
+func objectiveRefToReportRef(ref identity.ObjectiveRef, gvk schema.GroupVersionKind) *BindingInspectionTargetRef {
+	return &BindingInspectionTargetRef{
+		Namespace: ref.Namespace,
+		Name:      ref.Name,
+		Group:     firstNonEmpty(gvk.Group, ref.Group),
+		Version:   gvk.Version,
+		Kind:      firstNonEmpty(gvk.Kind, "InferenceObjective"),
+	}
+}
+
+func bindingInspectionGVKs(gvks []schema.GroupVersionKind) []BindingInspectionGVK {
+	result := make([]BindingInspectionGVK, 0, len(gvks))
+	for _, gvk := range gvks {
+		result = append(result, BindingInspectionGVK{
+			Group:   gvk.Group,
+			Version: gvk.Version,
+			Kind:    gvk.Kind,
+		})
+	}
+	return result
+}
+
+func selectorProvenance(
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	rendered identity.RenderedIdentity,
+	poolDerivedSelectors []string,
+) BindingInspectionSelectorProvenance {
+	containerSelector := ""
+	if binding.Spec.ContainerDiscriminator != nil {
+		if selector, err := identity.SelectorForContainerDiscriminator(binding.Spec.ContainerDiscriminator); err == nil {
+			containerSelector = selector
+		}
+	}
+
+	poolDerived := setFromStrings(poolDerivedSelectors)
+	workloadSelectors := make([]string, 0, len(rendered.Selectors))
+	safetySelectors := make([]string, 0, 2)
+	for _, selector := range rendered.Selectors {
+		if selector == containerSelector {
+			continue
+		}
+		if _, found := poolDerived[selector]; found {
+			continue
+		}
+		workloadSelectors = append(workloadSelectors, selector)
+		if strings.HasPrefix(selector, "k8s:ns:") || strings.HasPrefix(selector, "k8s:sa:") {
+			safetySelectors = append(safetySelectors, selector)
+		}
+	}
+	sort.Strings(poolDerivedSelectors)
+	sort.Strings(workloadSelectors)
+	sort.Strings(safetySelectors)
+
+	return BindingInspectionSelectorProvenance{
+		SelectorSource:       string(binding.Spec.SelectorSource),
+		PoolDerivedSelectors: append([]string(nil), poolDerivedSelectors...),
+		WorkloadSelectors:    workloadSelectors,
+		ContainerSelector:    containerSelector,
+		SafetySelectors:      safetySelectors,
+	}
+}
+
+func containerDiscriminator(binding *kleymv1alpha1.InferenceIdentityBinding) *BindingInspectionContainerDiscriminator {
+	if binding.Spec.ContainerDiscriminator == nil {
+		return nil
+	}
+	return &BindingInspectionContainerDiscriminator{
+		Type:  string(binding.Spec.ContainerDiscriminator.Type),
+		Value: binding.Spec.ContainerDiscriminator.Value,
+	}
+}
+
+func managedClusterSPIFFEIDReport(object *unstructured.Unstructured) BindingInspectionManagedClusterSPIFFEID {
+	spec, _, _ := unstructured.NestedMap(object.Object, "spec")
+	spiffeID, _ := spec["spiffeIDTemplate"].(string)
+	podSelector, _ := spec["podSelector"].(map[string]any)
+	hint, _ := spec["hint"].(string)
+	fallback, hasFallback := spec["fallback"].(bool)
+
+	report := BindingInspectionManagedClusterSPIFFEID{
+		Name:              object.GetName(),
+		SPIFFEID:          spiffeID,
+		PodSelector:       podSelector,
+		WorkloadSelectors: stringSliceFromAny(spec["workloadSelectorTemplates"]),
+		Hint:              hint,
+		Conditions:        clusterSPIFFEIDConditions(object),
+	}
+	if hasFallback {
+		report.Fallback = boolPtr(fallback)
+	}
+	return report
+}
+
+func clusterSPIFFEIDConditions(object *unstructured.Unstructured) []metav1.Condition {
+	rawConditions, found, err := unstructured.NestedSlice(object.Object, "status", "conditions")
+	if err != nil || !found {
+		return nil
+	}
+	data, err := json.Marshal(rawConditions)
+	if err != nil {
+		return nil
+	}
+	var conditions []metav1.Condition
+	if err := json.Unmarshal(data, &conditions); err != nil {
+		return nil
+	}
+	return conditions
+}
+
+func driftEntries(desired *unstructured.Unstructured, observed *unstructured.Unstructured) []BindingInspectionDriftEntry {
+	entries := []BindingInspectionDriftEntry{}
+	if desired.GetName() != observed.GetName() {
+		entries = append(entries, BindingInspectionDriftEntry{
+			Field:    "metadata.name",
+			Desired:  desired.GetName(),
+			Observed: observed.GetName(),
+		})
+	}
+
+	desiredSpec, _, _ := unstructured.NestedMap(desired.Object, "spec")
+	observedSpec, _, _ := unstructured.NestedMap(observed.Object, "spec")
+	for _, field := range []string{
+		"spiffeIDTemplate",
+		"podSelector",
+		"workloadSelectorTemplates",
+		"hint",
+		"fallback",
+	} {
+		if reflect.DeepEqual(desiredSpec[field], observedSpec[field]) {
+			continue
+		}
+		entries = append(entries, BindingInspectionDriftEntry{
+			Field:    "spec." + field,
+			Desired:  stableValueString(desiredSpec[field]),
+			Observed: stableValueString(observedSpec[field]),
+		})
+	}
+	return entries
+}
+
+// HasErrorSeverityFinding reports whether findings contain any error-severity item.
+func HasErrorSeverityFinding(findings []BindingInspectionFinding) bool {
+	for _, finding := range findings {
+		if finding.Severity == BindingInspectionFindingSeverityError {
+			return true
+		}
+	}
+	return false
+}
+
+// HasWarningSeverityFinding reports whether findings contain any warning-severity item.
+func HasWarningSeverityFinding(findings []BindingInspectionFinding) bool {
+	for _, finding := range findings {
+		if finding.Severity == BindingInspectionFindingSeverityWarning {
+			return true
+		}
+	}
+	return false
+}
+
+func eligibleWorkloadSortKey(workload BindingInspectionEligibleWorkload) string {
+	return workload.Namespace + "/" + workload.Pod + "/" + workload.Container
+}
+
+func stableValueString(value any) string {
+	if value == nil {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case bool:
+		if typed {
+			return "true"
+		}
+		return "false"
+	default:
+		data, err := json.Marshal(typed)
+		if err != nil {
+			return fmt.Sprint(typed)
+		}
+		return string(data)
+	}
+}
+
+func stringSliceFromAny(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return append([]string(nil), typed...)
+	case []any:
+		result := make([]string, 0, len(typed))
+		for _, item := range typed {
+			text, ok := item.(string)
+			if !ok {
+				continue
+			}
+			result = append(result, text)
+		}
+		return result
+	default:
+		return nil
+	}
+}
+
+func setFromStrings(values []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		result[value] = struct{}{}
+	}
+	return result
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func boolPtr(value bool) *bool {
+	return &value
+}
