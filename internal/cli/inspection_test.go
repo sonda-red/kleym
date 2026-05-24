@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -189,8 +190,9 @@ func TestInspectBindingSuccessReport(t *testing.T) {
 		t.Fatalf("render test identity: %v", err)
 	}
 	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	pod := testInspectionPod("model-server-a", "model-server")
 
-	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed)
+	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed, pod)
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
 	if err != nil {
 		t.Fatalf("InspectBinding returned error: %v", err)
@@ -208,6 +210,10 @@ func TestInspectBindingSuccessReport(t *testing.T) {
 	if len(report.Observed.ManagedClusterSPIFFEIDs) != 1 {
 		t.Fatalf("managed ClusterSPIFFEIDs = %d, want 1", len(report.Observed.ManagedClusterSPIFFEIDs))
 	}
+	if len(report.Observed.EligibleWorkloads) != 1 ||
+		report.Observed.EligibleWorkloads[0].Container != "model-server" {
+		t.Fatalf("eligible workloads = %#v, want model-server container", report.Observed.EligibleWorkloads)
+	}
 	if len(report.Observed.Drift) != 0 {
 		t.Fatalf("expected no drift, got %#v", report.Observed.Drift)
 	}
@@ -218,7 +224,7 @@ func TestInspectBindingSuccessReport(t *testing.T) {
 		report.Capabilities.GAIEResources != BindingInspectionCapabilityFull ||
 		report.Capabilities.ClusterSPIFFEIDs != BindingInspectionCapabilityFull ||
 		report.Capabilities.PeerBindings != BindingInspectionCapabilityPartial ||
-		report.Capabilities.Pods != BindingInspectionCapabilitySkipped {
+		report.Capabilities.Pods != BindingInspectionCapabilityFull {
 		t.Fatalf("unexpected capabilities: %#v", report.Capabilities)
 	}
 }
@@ -312,6 +318,59 @@ func TestInspectBindingMissingManagedOutputDrift(t *testing.T) {
 	}
 }
 
+func TestInspectBindingZeroEligibleWorkloadsFinding(t *testing.T) {
+	binding := testInspectionBinding()
+	pool := testInspectionPool("pool-a")
+	objective := testInspectionObjective("objective-a", "pool-a")
+	rendered, err := identity.RenderIdentity(binding, objective, pool)
+	if err != nil {
+		t.Fatalf("render test identity: %v", err)
+	}
+	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed)
+
+	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
+	if err != nil {
+		t.Fatalf("InspectBinding returned error: %v", err)
+	}
+
+	assertFinding(t, report.Findings, findingZeroEligibleWorkload, BindingInspectionFindingSeverityInfo, reasonZeroEligibleWorkload)
+	if report.Capabilities.Pods != BindingInspectionCapabilityFull {
+		t.Fatalf("pods capability = %q, want full", report.Capabilities.Pods)
+	}
+}
+
+func TestInspectBindingAmbiguousContainerMatchFinding(t *testing.T) {
+	binding := testInspectionBinding()
+	binding.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
+		Type:  kleymv1alpha1.ContainerDiscriminatorTypeImage,
+		Value: "registry.example.test/model-server:v1",
+	}
+	pool := testInspectionPool("pool-a")
+	objective := testInspectionObjective("objective-a", "pool-a")
+	rendered, err := identity.RenderIdentity(binding, objective, pool)
+	if err != nil {
+		t.Fatalf("render test identity: %v", err)
+	}
+	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	pod := testInspectionPod(
+		"model-server-a",
+		"model-server-a=registry.example.test/model-server:v1",
+		"model-server-b=registry.example.test/model-server:v1",
+	)
+	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed, pod)
+
+	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
+	if err != nil {
+		t.Fatalf("InspectBinding returned error: %v", err)
+	}
+
+	assertFinding(t, report.Findings, findingAmbiguousContainer, BindingInspectionFindingSeverityWarning, reasonAmbiguousContainer)
+	if len(report.Observed.EligibleWorkloads) != 2 {
+		t.Fatalf("eligible workloads = %#v, want two matching containers", report.Observed.EligibleWorkloads)
+	}
+}
+
 func TestInspectBindingRBACLimitedClusterSPIFFEIDs(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
@@ -331,6 +390,33 @@ func TestInspectBindingRBACLimitedClusterSPIFFEIDs(t *testing.T) {
 	assertFinding(t, report.Findings, findingRBACLimited, BindingInspectionFindingSeverityWarning, reasonRBACLimited)
 	if report.Capabilities.ClusterSPIFFEIDs != BindingInspectionCapabilityPartial {
 		t.Fatalf("clusterspiffeids capability = %q, want partial", report.Capabilities.ClusterSPIFFEIDs)
+	}
+}
+
+func TestInspectBindingRBACLimitedPods(t *testing.T) {
+	binding := testInspectionBinding()
+	pool := testInspectionPool("pool-a")
+	objective := testInspectionObjective("objective-a", "pool-a")
+	rendered, err := identity.RenderIdentity(binding, objective, pool)
+	if err != nil {
+		t.Fatalf("render test identity: %v", err)
+	}
+	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	forbidden := apierrors.NewForbidden(
+		schema.GroupResource{Resource: podResourceName},
+		"",
+		errors.New("denied"),
+	)
+	inspector := newTestBindingInspectorWithPodListErr(t, forbidden, binding, pool, objective, managed)
+
+	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
+	if err != nil {
+		t.Fatalf("InspectBinding returned error: %v", err)
+	}
+
+	assertFinding(t, report.Findings, findingRBACLimited, BindingInspectionFindingSeverityWarning, reasonRBACLimited)
+	if report.Capabilities.Pods != BindingInspectionCapabilityPartial {
+		t.Fatalf("pods capability = %q, want partial", report.Capabilities.Pods)
 	}
 }
 
@@ -376,6 +462,19 @@ func TestInspectBindingCollisionConditionFinding(t *testing.T) {
 }
 
 func newTestBindingInspector(t *testing.T, listErr error, objects ...client.Object) *bindingInspector {
+	return newTestBindingInspectorWithListErrors(t, listErr, nil, objects...)
+}
+
+func newTestBindingInspectorWithPodListErr(t *testing.T, podListErr error, objects ...client.Object) *bindingInspector {
+	return newTestBindingInspectorWithListErrors(t, nil, podListErr, objects...)
+}
+
+func newTestBindingInspectorWithListErrors(
+	t *testing.T,
+	clusterSPIFFEIDListErr error,
+	podListErr error,
+	objects ...client.Object,
+) *bindingInspector {
 	t.Helper()
 
 	scheme := newBindingInspectionScheme()
@@ -384,8 +483,12 @@ func newTestBindingInspector(t *testing.T, listErr error, objects ...client.Obje
 		WithObjects(objects...).
 		Build()
 	kubeClient := client.Client(baseClient)
-	if listErr != nil {
-		kubeClient = listErrorClient{Client: baseClient, err: listErr}
+	if clusterSPIFFEIDListErr != nil || podListErr != nil {
+		kubeClient = listErrorClient{
+			Client:             baseClient,
+			clusterSPIFFEIDErr: clusterSPIFFEIDListErr,
+			podErr:             podListErr,
+		}
 	}
 
 	return &bindingInspector{
@@ -396,6 +499,38 @@ func newTestBindingInspector(t *testing.T, listErr error, objects ...client.Obje
 		),
 		now: func() time.Time {
 			return time.Date(2026, 5, 18, 10, 11, 12, 0, time.UTC)
+		},
+	}
+}
+
+func testInspectionPod(name string, containers ...string) *corev1.Pod {
+	podContainers := make([]corev1.Container, 0, len(containers))
+	for _, container := range containers {
+		containerName := container
+		image := "registry.example.test/" + container + ":v1"
+		if strings.Contains(container, "=") {
+			var ok bool
+			containerName, image, ok = strings.Cut(container, "=")
+			if !ok {
+				continue
+			}
+		}
+		podContainers = append(podContainers, corev1.Container{
+			Name:  containerName,
+			Image: image,
+		})
+	}
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "tenant-a",
+			Name:      name,
+			Labels: map[string]string{
+				"app": "model-server",
+			},
+		},
+		Spec: corev1.PodSpec{
+			ServiceAccountName: "model-sa",
+			Containers:         podContainers,
 		},
 	}
 }
@@ -502,7 +637,8 @@ func (r fixedInspectionRunner) InspectBinding(_ context.Context, _ string, _ str
 
 type listErrorClient struct {
 	client.Client
-	err error
+	clusterSPIFFEIDErr error
+	podErr             error
 }
 
 func (c listErrorClient) List(
@@ -510,10 +646,14 @@ func (c listErrorClient) List(
 	list client.ObjectList,
 	opts ...client.ListOption,
 ) error {
+	if _, ok := list.(*corev1.PodList); ok && c.podErr != nil {
+		return c.podErr
+	}
 	gvk := list.GetObjectKind().GroupVersionKind()
 	if gvk.Group == identity.ClusterSPIFFEIDGVK().Group &&
-		strings.HasPrefix(gvk.Kind, identity.ClusterSPIFFEIDGVK().Kind) {
-		return c.err
+		strings.HasPrefix(gvk.Kind, identity.ClusterSPIFFEIDGVK().Kind) &&
+		c.clusterSPIFFEIDErr != nil {
+		return c.clusterSPIFFEIDErr
 	}
 	return c.Client.List(ctx, list, opts...)
 }

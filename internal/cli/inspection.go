@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,12 +34,17 @@ const (
 	findingUnsafeSelector       = "unsafe-selector"
 	findingRenderFailure        = "render-failure"
 	findingKleymCollision       = "kleym-collision"
+	findingZeroEligibleWorkload = "zero-eligible-workloads"
+	findingAmbiguousContainer   = "ambiguous-container-match"
 	findingObservedDrift        = "observed-drift"
 	findingRBACLimited          = "rbac-limited"
+	reasonZeroEligibleWorkload  = "ZeroEligibleWorkloads"
+	reasonAmbiguousContainer    = "AmbiguousContainerMatch"
 	reasonObservedDrift         = "ObservedDrift"
 	reasonRBACLimited           = "Forbidden"
 	conditionTypeConflict       = "Conflict"
 	clusterSPIFFEIDResourceName = "clusterspiffeids"
+	podResourceName             = "pods"
 )
 
 var (
@@ -94,6 +100,7 @@ func newKubernetesBindingInspector(opts *Options) (bindingInspectionRunner, erro
 
 func newBindingInspectionScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
+	_ = corev1.AddToScheme(scheme)
 	_ = kleymv1alpha1.AddToScheme(scheme)
 	for _, gvk := range append(identity.InferenceObjectiveGVKs(), identity.InferencePoolGVKs()...) {
 		registerInspectionUnstructuredGVK(scheme, gvk)
@@ -149,6 +156,7 @@ func (i *bindingInspector) InspectBinding(ctx context.Context, namespace string,
 
 	rendered, desiredReady := i.inspectDesiredState(ctx, binding, availableObjectiveGVKs, availablePoolGVKs, &report)
 	i.inspectObservedState(ctx, binding, rendered, desiredReady, &report)
+	i.inspectEligibleWorkloads(ctx, binding, rendered, desiredReady, &report)
 
 	report = normalizeBindingInspectionReport(report)
 	if hasErrorSeverityFinding(report.Findings) {
@@ -373,6 +381,76 @@ func (i *bindingInspector) inspectObservedState(
 	}
 }
 
+// inspectEligibleWorkloads reports live pod/container selector matches when desired state can be rendered.
+func (i *bindingInspector) inspectEligibleWorkloads(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	rendered identity.RenderedIdentity,
+	desiredReady bool,
+	report *BindingInspectionReport,
+) {
+	if !desiredReady {
+		return
+	}
+
+	pods, err := i.listEligiblePods(ctx, binding, rendered)
+	if err != nil {
+		if apierrors.IsForbidden(err) {
+			report.Capabilities.Pods = BindingInspectionCapabilityPartial
+			report.Findings = append(report.Findings, BindingInspectionFinding{
+				ID:           findingRBACLimited,
+				Severity:     BindingInspectionFindingSeverityWarning,
+				Reason:       reasonRBACLimited,
+				Message:      "pods are not readable",
+				AffectedRefs: []BindingInspectionTargetRef{podResourceTargetRef(binding.Namespace)},
+			})
+			return
+		}
+		report.Capabilities.Pods = BindingInspectionCapabilityUnknown
+		report.Findings = append(report.Findings, BindingInspectionFinding{
+			ID:           findingDependencyMissing,
+			Severity:     BindingInspectionFindingSeverityWarning,
+			Reason:       "PodListFailed",
+			Message:      err.Error(),
+			AffectedRefs: []BindingInspectionTargetRef{podResourceTargetRef(binding.Namespace)},
+		})
+		return
+	}
+
+	report.Capabilities.Pods = BindingInspectionCapabilityFull
+	report.Observed.EligibleWorkloads = eligibleWorkloadsFromPods(pods, rendered, report)
+	sort.Slice(report.Observed.EligibleWorkloads, func(left, right int) bool {
+		return eligibleWorkloadSortKey(report.Observed.EligibleWorkloads[left]) <
+			eligibleWorkloadSortKey(report.Observed.EligibleWorkloads[right])
+	})
+	if len(report.Observed.EligibleWorkloads) == 0 {
+		report.Findings = append(report.Findings, zeroEligibleWorkloadsFinding(binding))
+	}
+}
+
+// listEligiblePods narrows pod reads to the rendered pod selector and binding namespace.
+func (i *bindingInspector) listEligiblePods(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	rendered identity.RenderedIdentity,
+) ([]corev1.Pod, error) {
+	matchLabels, err := podSelectorMatchLabels(rendered.PodSelector)
+	if err != nil {
+		return nil, err
+	}
+
+	podList := &corev1.PodList{}
+	if err := i.client.List(
+		ctx,
+		podList,
+		client.InNamespace(binding.Namespace),
+		client.MatchingLabels(matchLabels),
+	); err != nil {
+		return nil, err
+	}
+	return podList.Items, nil
+}
+
 func (i *bindingInspector) listManagedClusterSPIFFEIDs(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
@@ -389,6 +467,41 @@ func (i *bindingInspector) listManagedClusterSPIFFEIDs(
 		items = append(items, list.Items[item].DeepCopy())
 	}
 	return items, nil
+}
+
+// eligibleWorkloadsFromPods evaluates live pod/container matches for the already-rendered identity selectors.
+func eligibleWorkloadsFromPods(
+	pods []corev1.Pod,
+	rendered identity.RenderedIdentity,
+	report *BindingInspectionReport,
+) []BindingInspectionEligibleWorkload {
+	selection := workloadSelectionFromSelectors(rendered.Selectors)
+	workloads := []BindingInspectionEligibleWorkload{}
+	for _, pod := range pods {
+		if !podMatchesSelection(pod, selection) {
+			continue
+		}
+
+		matchingContainers := matchingPodContainers(pod, selection)
+		if selection.ContainerSelectorType == "" {
+			workloads = append(workloads, BindingInspectionEligibleWorkload{
+				Namespace: pod.Namespace,
+				Pod:       pod.Name,
+			})
+			continue
+		}
+		if len(matchingContainers) > 1 {
+			report.Findings = append(report.Findings, ambiguousContainerFinding(pod, selection))
+		}
+		for _, container := range matchingContainers {
+			workloads = append(workloads, BindingInspectionEligibleWorkload{
+				Namespace: pod.Namespace,
+				Pod:       pod.Name,
+				Container: container.Name,
+			})
+		}
+	}
+	return workloads
 }
 
 func (i *bindingInspector) addFindingForError(
@@ -452,6 +565,99 @@ func findingIDForStateError(err *identity.StateError, fallbackID string) string 
 	}
 }
 
+type workloadSelection struct {
+	Namespace             string
+	ServiceAccount        string
+	PodLabels             map[string]string
+	ContainerSelectorType string
+	ContainerValue        string
+}
+
+// workloadSelectionFromSelectors extracts the Kubernetes selectors the CLI can evaluate from rendered SPIRE selectors.
+func workloadSelectionFromSelectors(selectors []string) workloadSelection {
+	selection := workloadSelection{PodLabels: map[string]string{}}
+	for _, selector := range selectors {
+		switch {
+		case strings.HasPrefix(selector, "k8s:ns:"):
+			selection.Namespace = strings.TrimPrefix(selector, "k8s:ns:")
+		case strings.HasPrefix(selector, "k8s:sa:"):
+			selection.ServiceAccount = strings.TrimPrefix(selector, "k8s:sa:")
+		case strings.HasPrefix(selector, "k8s:container-name:"):
+			selection.ContainerSelectorType = "name"
+			selection.ContainerValue = strings.TrimPrefix(selector, "k8s:container-name:")
+		case strings.HasPrefix(selector, "k8s:container-image:"):
+			selection.ContainerSelectorType = "image"
+			selection.ContainerValue = strings.TrimPrefix(selector, "k8s:container-image:")
+		case strings.HasPrefix(selector, "k8s:pod-label:"):
+			key, value, ok := strings.Cut(strings.TrimPrefix(selector, "k8s:pod-label:"), ":")
+			if ok {
+				selection.PodLabels[key] = value
+			}
+		}
+	}
+	return selection
+}
+
+// podMatchesSelection checks namespace, service account, and pod-label selector requirements.
+func podMatchesSelection(pod corev1.Pod, selection workloadSelection) bool {
+	if selection.Namespace != "" && pod.Namespace != selection.Namespace {
+		return false
+	}
+	if selection.ServiceAccount != "" && pod.Spec.ServiceAccountName != selection.ServiceAccount {
+		return false
+	}
+	for key, value := range selection.PodLabels {
+		if pod.Labels[key] != value {
+			return false
+		}
+	}
+	return true
+}
+
+// matchingPodContainers returns containers selected by the rendered container discriminator.
+func matchingPodContainers(pod corev1.Pod, selection workloadSelection) []corev1.Container {
+	if selection.ContainerSelectorType == "" {
+		return nil
+	}
+
+	containers := []corev1.Container{}
+	for _, container := range pod.Spec.Containers {
+		switch selection.ContainerSelectorType {
+		case "name":
+			if container.Name == selection.ContainerValue {
+				containers = append(containers, container)
+			}
+		case "image":
+			if container.Image == selection.ContainerValue {
+				containers = append(containers, container)
+			}
+		}
+	}
+	return containers
+}
+
+// podSelectorMatchLabels converts the rendered label selector into client-go list labels.
+func podSelectorMatchLabels(selector map[string]any) (map[string]string, error) {
+	rawMatchLabels, found := selector["matchLabels"]
+	if !found {
+		rawMatchLabels = selector
+	}
+	matchLabels, ok := rawMatchLabels.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("desired pod selector matchLabels must be an object")
+	}
+
+	labels := make(map[string]string, len(matchLabels))
+	for key, value := range matchLabels {
+		text, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("desired pod selector matchLabels[%q] must be a string", key)
+		}
+		labels[key] = text
+	}
+	return labels, nil
+}
+
 func (i *bindingInspector) addCollisionFinding(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	report *BindingInspectionReport,
@@ -473,6 +679,53 @@ func (i *bindingInspector) addCollisionFinding(
 			Kind:      "InferenceIdentityBinding",
 		}},
 	})
+}
+
+// zeroEligibleWorkloadsFinding records that readable pods did not match the rendered identity selectors.
+func zeroEligibleWorkloadsFinding(binding *kleymv1alpha1.InferenceIdentityBinding) BindingInspectionFinding {
+	return BindingInspectionFinding{
+		ID:       findingZeroEligibleWorkload,
+		Severity: BindingInspectionFindingSeverityInfo,
+		Reason:   reasonZeroEligibleWorkload,
+		Message:  "no currently readable pods match the rendered identity selectors",
+		AffectedRefs: []BindingInspectionTargetRef{{
+			Namespace: binding.Namespace,
+			Name:      binding.Name,
+			Group:     kleymv1alpha1.GroupVersion.Group,
+			Version:   kleymv1alpha1.GroupVersion.Version,
+			Kind:      "InferenceIdentityBinding",
+		}},
+	}
+}
+
+// ambiguousContainerFinding records a pod where one discriminator maps to more than one container.
+func ambiguousContainerFinding(pod corev1.Pod, selection workloadSelection) BindingInspectionFinding {
+	return BindingInspectionFinding{
+		ID:       findingAmbiguousContainer,
+		Severity: BindingInspectionFindingSeverityWarning,
+		Reason:   reasonAmbiguousContainer,
+		Message: fmt.Sprintf(
+			"pod %q has more than one container matching %s discriminator %q",
+			identity.NamespacedBindingKey(pod.Namespace, pod.Name),
+			selection.ContainerSelectorType,
+			selection.ContainerValue,
+		),
+		AffectedRefs: []BindingInspectionTargetRef{{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+			Version:   "v1",
+			Kind:      "Pod",
+		}},
+	}
+}
+
+func podResourceTargetRef(namespace string) BindingInspectionTargetRef {
+	return BindingInspectionTargetRef{
+		Namespace: namespace,
+		Name:      podResourceName,
+		Version:   "v1",
+		Kind:      "Pod",
+	}
 }
 
 func bindingInspectionBindingRef(binding *kleymv1alpha1.InferenceIdentityBinding) BindingInspectionBindingRef {
@@ -676,6 +929,10 @@ func hasWarningSeverityFinding(findings []BindingInspectionFinding) bool {
 		}
 	}
 	return false
+}
+
+func eligibleWorkloadSortKey(workload BindingInspectionEligibleWorkload) string {
+	return workload.Namespace + "/" + workload.Pod + "/" + workload.Container
 }
 
 func stableValueString(value any) string {
