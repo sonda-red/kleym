@@ -224,20 +224,22 @@ controller-runtime metrics surface; Kleym status conditions and events remain
 the per-object debugging surface for a specific
 `InferenceIdentityBinding`.
 
-To enable the shipped `ServiceMonitor`, add `config/prometheus` to the existing
-default kustomize flow:
+To enable the shipped `ServiceMonitor` from a remote GitOps overlay, add
+`config/prometheus` next to the default install and set the install namespace so
+the `ServiceMonitor` and metrics `Service` are rendered together:
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: kleym-system
 resources:
 - github.com/sonda-red/kleym/config/default?ref=main
 - github.com/sonda-red/kleym/config/prometheus?ref=main
 ```
 
-If you build from a local checkout, uncomment the `../prometheus` entry in
-`config/default/kustomization.yaml` and keep the metrics deployment patch
-enabled.
+If you build from a local checkout, you can instead uncomment the
+`../prometheus` entry in `config/default/kustomization.yaml` and keep the
+metrics deployment patch enabled.
 
 Prometheus still needs RBAC to read the authenticated metrics endpoint. The
 default install publishes the `kleym-metrics-reader` `ClusterRole`, so bind
