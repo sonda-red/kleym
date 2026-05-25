@@ -95,7 +95,7 @@ func TestInvalidOutputRejected(t *testing.T) {
 	cmd := NewRootCommand()
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
-	cmd.SetArgs([]string{"inspect", "binding", "my-binding", "--output", "yaml"})
+	cmd.SetArgs([]string{"inspect", "binding", "my-binding", "--output", "xml"})
 
 	err := cmd.Execute()
 	if err == nil {
@@ -113,7 +113,7 @@ func TestInvalidOutputNotRejectedForHelp(t *testing.T) {
 	cmd := NewRootCommand()
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
-	cmd.SetArgs([]string{"--output", "yaml", "--help"})
+	cmd.SetArgs([]string{"--output", "xml", "--help"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("expected help to bypass runnable output validation: %v", err)
@@ -184,7 +184,7 @@ func TestExecuteMapsErrorsToExitCodes(t *testing.T) {
 		},
 		{
 			name:    "usage",
-			args:    []string{"inspect", "binding", "my-binding", "--output", "yaml"},
+			args:    []string{"inspect", "binding", "my-binding", "--output", "xml"},
 			want:    exitUsage,
 			wantErr: "invalid --output",
 		},

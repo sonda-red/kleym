@@ -7,11 +7,14 @@ import (
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
 )
 
 const (
-	outputText = "text"
-	outputJSON = "json"
+	outputText     = "text"
+	outputJSON     = "json"
+	outputYAML     = "yaml"
+	outputMarkdown = "markdown"
 )
 
 const (
@@ -196,6 +199,103 @@ func writeBindingInspectionReportJSON(w io.Writer, report BindingInspectionRepor
 	return encoder.Encode(normalizeBindingInspectionReport(report))
 }
 
+// writeBindingInspectionReportYAML writes the normalized JSON report as equivalent YAML.
+func writeBindingInspectionReportYAML(w io.Writer, report BindingInspectionReport) error {
+	data, err := json.Marshal(normalizeBindingInspectionReport(report))
+	if err != nil {
+		return err
+	}
+	yamlData, err := yaml.JSONToYAML(data)
+	if err != nil {
+		return err
+	}
+	if len(yamlData) == 0 || yamlData[len(yamlData)-1] != '\n' {
+		yamlData = append(yamlData, '\n')
+	}
+	_, err = w.Write(yamlData)
+	return err
+}
+
+// writeBindingInspectionReportMarkdown writes a PR-comment-friendly view backed by canonical JSON.
+func writeBindingInspectionReportMarkdown(w io.Writer, report BindingInspectionReport) error {
+	report = normalizeBindingInspectionReport(report)
+	canonical, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	var builder strings.Builder
+	appendMarkdownLine(&builder, "# BindingInspectionReport")
+	appendMarkdownLine(&builder, "")
+	appendMarkdownLine(&builder, "## Summary")
+	appendMarkdownTable(&builder, []string{"Field", "Value"}, [][]string{
+		{"Status", inspectionTextStatus(report.Findings)},
+		{"Findings", textCountOrNone(len(report.Findings))},
+		{"Drift", textCountOrNone(len(report.Observed.Drift))},
+		{"Eligible workloads", fmt.Sprintf("%d", len(report.Observed.EligibleWorkloads))},
+		{"Inspection completeness", inspectionTextCompleteness(report.Capabilities)},
+	})
+
+	appendMarkdownLine(&builder, "")
+	appendMarkdownLine(&builder, "## Binding")
+	appendMarkdownTable(&builder, []string{"Field", "Value"}, [][]string{
+		{"Name", textNamespacedName(report.BindingRef.Namespace, report.BindingRef.Name)},
+		{"Generation", fmt.Sprintf("%d", report.BindingRef.Generation)},
+		{"Mode", textString(report.BindingRef.Mode)},
+		{"PoolRef", textTargetRef(report.BindingRef.PoolRef)},
+		{"ObjectiveRef", textTargetRef(report.BindingRef.ObjectiveRef)},
+	})
+
+	appendMarkdownLine(&builder, "")
+	appendMarkdownLine(&builder, "## Identity")
+	appendMarkdownTable(&builder, []string{"Field", "Value"}, [][]string{
+		{"ClusterSPIFFEID", textString(report.Desired.ClusterSPIFFEIDName)},
+		{"SPIFFE ID", textString(report.Desired.SPIFFEID)},
+		{"Hint", textString(report.Desired.Hint)},
+		{"Fallback", textBool(report.Desired.Fallback)},
+	})
+
+	appendMarkdownLine(&builder, "")
+	appendMarkdownLine(&builder, "## Findings")
+	if len(report.Findings) == 0 {
+		appendMarkdownLine(&builder, "No findings.")
+	} else {
+		rows := make([][]string, 0, len(report.Findings))
+		for _, finding := range report.Findings {
+			rows = append(rows, []string{
+				textString(finding.ID),
+				textString(string(finding.Severity)),
+				textString(finding.Reason),
+				textString(finding.Message),
+				markdownTargetRefs(finding.AffectedRefs),
+			})
+		}
+		appendMarkdownTable(&builder, []string{"ID", "Severity", "Reason", "Message", "Affected refs"}, rows)
+	}
+
+	appendMarkdownLine(&builder, "")
+	appendMarkdownLine(&builder, "## Capabilities")
+	appendMarkdownTable(&builder, []string{"Check", "Completeness"}, [][]string{
+		{"Binding", textString(string(report.Capabilities.Binding))},
+		{"GAIE resources", textString(string(report.Capabilities.GAIEResources))},
+		{"ClusterSPIFFEIDs", textString(string(report.Capabilities.ClusterSPIFFEIDs))},
+		{"Peer bindings", textString(string(report.Capabilities.PeerBindings))},
+		{"Pods", textString(string(report.Capabilities.Pods))},
+	})
+
+	appendMarkdownLine(&builder, "")
+	appendMarkdownLine(&builder, "<details>")
+	appendMarkdownLine(&builder, "<summary>Canonical JSON report</summary>")
+	appendMarkdownLine(&builder, "")
+	appendMarkdownLine(&builder, "```json")
+	appendMarkdownLine(&builder, "%s", canonical)
+	appendMarkdownLine(&builder, "```")
+	appendMarkdownLine(&builder, "</details>")
+
+	_, err = io.WriteString(w, builder.String())
+	return err
+}
+
 // writeBindingInspectionReportText writes deterministic human-oriented inspection output.
 func writeBindingInspectionReportText(w io.Writer, report BindingInspectionReport) error {
 	report = normalizeBindingInspectionReport(report)
@@ -295,9 +395,57 @@ func WriteBindingInspectionReport(w io.Writer, output string, report BindingInsp
 		return writeBindingInspectionReportText(w, report)
 	case outputJSON:
 		return writeBindingInspectionReportJSON(w, report)
+	case outputYAML:
+		return writeBindingInspectionReportYAML(w, report)
+	case outputMarkdown:
+		return writeBindingInspectionReportMarkdown(w, report)
 	default:
 		return fmt.Errorf("invalid binding inspection output %q", output)
 	}
+}
+
+func appendMarkdownLine(builder *strings.Builder, format string, args ...any) {
+	_, _ = fmt.Fprintf(builder, format, args...)
+	_ = builder.WriteByte('\n')
+}
+
+func appendMarkdownTable(builder *strings.Builder, headers []string, rows [][]string) {
+	appendMarkdownLine(builder, "| %s |", strings.Join(markdownEscapedCells(headers), " | "))
+	separators := make([]string, len(headers))
+	for i := range separators {
+		separators[i] = "---"
+	}
+	appendMarkdownLine(builder, "| %s |", strings.Join(separators, " | "))
+	for _, row := range rows {
+		appendMarkdownLine(builder, "| %s |", strings.Join(markdownEscapedCells(row), " | "))
+	}
+}
+
+func markdownEscapedCells(values []string) []string {
+	escaped := make([]string, len(values))
+	for i, value := range values {
+		escaped[i] = markdownEscapeCell(value)
+	}
+	return escaped
+}
+
+func markdownEscapeCell(value string) string {
+	value = strings.ReplaceAll(value, "\\", "\\\\")
+	value = strings.ReplaceAll(value, "|", "\\|")
+	value = strings.ReplaceAll(value, "\r\n", "<br>")
+	value = strings.ReplaceAll(value, "\n", "<br>")
+	return value
+}
+
+func markdownTargetRefs(refs []BindingInspectionTargetRef) string {
+	if len(refs) == 0 {
+		return "none"
+	}
+	values := make([]string, 0, len(refs))
+	for i := range refs {
+		values = append(values, textTargetRef(&refs[i]))
+	}
+	return strings.Join(values, "<br>")
 }
 
 func appendTextLine(builder *strings.Builder, format string, args ...any) {

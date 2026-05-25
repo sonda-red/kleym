@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/sonda-red/kleym/internal/inspection"
+	"sigs.k8s.io/yaml"
 )
 
 func TestInspectBindingJSONUsesRunner(t *testing.T) {
@@ -42,6 +43,88 @@ func TestInspectBindingJSONUsesRunner(t *testing.T) {
 	}
 	if got.BindingRef.Namespace != "tenant-a" || got.BindingRef.Name != "binding-a" {
 		t.Fatalf("bindingRef = %#v, want tenant-a/binding-a", got.BindingRef)
+	}
+}
+
+func TestInspectBindingYAMLUsesRunner(t *testing.T) {
+	originalFactory := newBindingInspectionRunner
+	t.Cleanup(func() { newBindingInspectionRunner = originalFactory })
+
+	fakeReport := inspection.NewBindingInspectionReport()
+	fakeReport.GeneratedAt = "2026-05-18T10:11:12Z"
+	fakeReport.BindingRef = inspection.BindingInspectionBindingRef{Namespace: "tenant-a", Name: "binding-a"}
+	newBindingInspectionRunner = func(_ *Options) (inspection.BindingInspector, error) {
+		return fixedInspectionRunner{report: fakeReport}, nil
+	}
+
+	cmd := NewRootCommand()
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
+	cmd.SetArgs([]string{"inspect", "binding", "binding-a", "-n", "tenant-a", "-o", "yaml"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("inspect binding returned error: %v", err)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr, got:\n%s", stderr.String())
+	}
+
+	yamlAsJSON, err := yaml.YAMLToJSON(stdout.Bytes())
+	if err != nil {
+		t.Fatalf("convert inspect YAML output: %v\n%s", err, stdout.String())
+	}
+	var got inspection.BindingInspectionReport
+	if err := json.Unmarshal(yamlAsJSON, &got); err != nil {
+		t.Fatalf("unmarshal inspect YAML output: %v\n%s", err, stdout.String())
+	}
+	if got.BindingRef.Namespace != "tenant-a" || got.BindingRef.Name != "binding-a" {
+		t.Fatalf("bindingRef = %#v, want tenant-a/binding-a", got.BindingRef)
+	}
+}
+
+func TestInspectBindingMarkdownUsesRunner(t *testing.T) {
+	originalFactory := newBindingInspectionRunner
+	t.Cleanup(func() { newBindingInspectionRunner = originalFactory })
+
+	fakeReport := inspection.NewBindingInspectionReport()
+	fakeReport.GeneratedAt = "2026-05-18T10:11:12Z"
+	fakeReport.BindingRef = inspection.BindingInspectionBindingRef{Namespace: "tenant-a", Name: "binding-a", Mode: "PerObjective"}
+	fakeReport.Desired = inspection.BindingInspectionDesiredState{
+		ClusterSPIFFEIDName: "tenant-a-binding-a-1234abcd",
+		SPIFFEID:            "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+	}
+	newBindingInspectionRunner = func(_ *Options) (inspection.BindingInspector, error) {
+		return fixedInspectionRunner{report: fakeReport}, nil
+	}
+
+	cmd := NewRootCommand()
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
+	cmd.SetArgs([]string{"inspect", "binding", "binding-a", "-n", "tenant-a", "-o", "markdown"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("inspect binding returned error: %v", err)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr, got:\n%s", stderr.String())
+	}
+
+	out := stdout.String()
+	for _, want := range []string{
+		"# BindingInspectionReport",
+		"| Name | tenant-a/binding-a |",
+		"| Mode | PerObjective |",
+		"| ClusterSPIFFEID | tenant-a-binding-a-1234abcd |",
+		"| SPIFFE ID | spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a |",
+		"<summary>Canonical JSON report</summary>",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("markdown output missing %q\n%s", want, out)
+		}
 	}
 }
 
