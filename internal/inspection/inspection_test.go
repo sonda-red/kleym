@@ -68,6 +68,40 @@ func TestInspectBindingSuccessReport(t *testing.T) {
 	}
 }
 
+func TestInspectBindingPoolOnlyEligibleWorkload(t *testing.T) {
+	binding := testInspectionPoolOnlyBinding()
+	pool := testInspectionPool("pool-a")
+	rendered, err := identity.RenderIdentity(binding, nil, pool)
+	if err != nil {
+		t.Fatalf("render test identity: %v", err)
+	}
+	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	pod := testInspectionPod("model-server-a", "model-server")
+
+	inspector := newTestBindingInspector(t, nil, binding, pool, managed, pod)
+	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
+	if err != nil {
+		t.Fatalf("InspectBinding returned error: %v", err)
+	}
+
+	if report.BindingRef.Mode != string(kleymv1alpha1.InferenceIdentityBindingModePoolOnly) {
+		t.Fatalf("bindingRef mode = %q, want PoolOnly", report.BindingRef.Mode)
+	}
+	if len(report.Observed.EligibleWorkloads) != 1 {
+		t.Fatalf("eligible workloads = %#v, want one pod", report.Observed.EligibleWorkloads)
+	}
+	workload := report.Observed.EligibleWorkloads[0]
+	if workload.Namespace != "tenant-a" || workload.Pod != "model-server-a" || workload.Container != "" {
+		t.Fatalf("eligible workload = %#v, want pod-level workload without container", workload)
+	}
+	if len(report.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", report.Findings)
+	}
+	if report.Capabilities.Pods != BindingInspectionCapabilityFull {
+		t.Fatalf("pods capability = %q, want full", report.Capabilities.Pods)
+	}
+}
+
 func TestInspectBindingMissingBindingReport(t *testing.T) {
 	inspector := newTestBindingInspector(t, nil)
 
@@ -402,6 +436,14 @@ func testInspectionBinding() *kleymv1alpha1.InferenceIdentityBinding {
 			},
 		},
 	}
+}
+
+func testInspectionPoolOnlyBinding() *kleymv1alpha1.InferenceIdentityBinding {
+	binding := testInspectionBinding()
+	binding.Spec.ObjectiveRef = nil
+	binding.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePoolOnly
+	binding.Spec.ContainerDiscriminator = nil
+	return binding
 }
 
 func testInspectionPool(name string) *unstructured.Unstructured {
