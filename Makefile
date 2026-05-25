@@ -111,7 +111,7 @@ prepare-e2e-namespace: ## Create the operator namespace with restricted Pod Secu
 	"$(KUBECTL)" label namespace kleym-system pod-security.kubernetes.io/enforce=restricted --overwrite
 
 .PHONY: test-e2e-chainsaw
-test-e2e-chainsaw: setup-test-e2e chainsaw manifests generate fmt vet ## Run Chainsaw e2e tests against a Kind cluster.
+test-e2e-chainsaw: setup-test-e2e chainsaw manifests generate fmt vet build-cli ## Run Chainsaw e2e tests against a Kind cluster.
 	@operator_kustomization="config/manager/kustomization.yaml"; \
 	saved_operator_kustomization="$$(mktemp)"; \
 	cp "$$operator_kustomization" "$$saved_operator_kustomization"; \

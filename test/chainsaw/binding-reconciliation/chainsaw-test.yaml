@@ -98,7 +98,11 @@ spec:
       try:
         - script:
             workDir: ../../..
-            content: kubectl apply -k test/reference/inference-environment
+            content: |
+              kubectl apply -k test/reference/inference-environment
+              kubectl rollout status deployment/reference-model-server \
+                -n kleym-reference-inference \
+                --timeout=120s
 
     - name: apply-binding
       try:
@@ -108,6 +112,39 @@ spec:
             file: binding-ready.yaml
         - assert:
             file: clusterspiffeid.yaml
+
+    - name: inspect-binding-json
+      try:
+        - script:
+            workDir: ../../..
+            content: |
+              set -eu
+
+              report="$(mktemp)"
+              bin/kleym inspect binding binding \
+                -n kleym-reference-inference \
+                -o json > "${report}"
+              go run ./test/e2e/inspectbindingassert "${report}" success
+
+    - name: inspect-missing-binding-json
+      try:
+        - script:
+            workDir: ../../..
+            content: |
+              set -eu
+
+              report="$(mktemp)"
+              set +e
+              bin/kleym inspect binding missing-binding \
+                -n kleym-reference-inference \
+                -o json > "${report}"
+              status="$?"
+              set -e
+              if [ "${status}" -ne 3 ]; then
+                echo "expected exit code 3 for missing binding, got ${status}" >&2
+                exit 1
+              fi
+              go run ./test/e2e/inspectbindingassert "${report}" not-found
 
     - name: reapply-binding
       try:
