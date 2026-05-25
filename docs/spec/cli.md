@@ -33,19 +33,19 @@ The command inspects one `InferenceIdentityBinding` end to end.
 
 ```bash
 -n, --namespace
--o, --output text|json
+-o, --output text|json|yaml|markdown
 --strict
 --context
 --kubeconfig
 --timeout
 ```
 
-Default namespace is `default`. Default output is `text`. Stable machine output is `json`. `--timeout` must be greater than zero.
+Default namespace is `default`. Default output is `text`. Stable machine output is `json`. YAML is a JSON-equivalent encoding of the same report shape for tools and documentation. Markdown is human-oriented for documentation and PR comments and may change between releases. `--timeout` must be greater than zero.
 
 ## Output Contract
 
-JSON is the stable contract. Text is human-oriented and may change between releases.
-Automation must consume `kleym inspect binding <name> -n <namespace> -o json`; the default text output is optimized for quick human diagnosis and leads with a summary before detailed sections.
+JSON is the stable contract. YAML encodes the same normalized report data and field names as JSON. Text and Markdown are human-oriented and may change between releases.
+Automation must consume `kleym inspect binding <name> -n <namespace> -o json`; the default text output is optimized for quick human diagnosis and leads with a summary before detailed sections. Markdown output is intended for documentation and PR comments, and must not introduce inspection semantics that are absent from the canonical report data.
 
 `kleym inspect binding` emits a `BindingInspectionReport` with four core sections:
 
