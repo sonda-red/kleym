@@ -92,6 +92,7 @@ type InferenceIdentityBindingReconciler struct {
 	client.Client
 	Scheme                 *runtime.Scheme
 	Recorder               events.EventRecorder
+	MetricsRecorder        bindingOutcomeRecorder
 	availableObjectiveGVKs []schema.GroupVersionKind
 	availablePoolGVKs      []schema.GroupVersionKind
 }
@@ -194,6 +195,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 		if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
 			return ctrl.Result{}, err
 		}
+		r.recordTerminalOutcome(binding)
 		logger.Info(
 			"applied failure status",
 			logKeyCondition, stateErr.conditionType,
@@ -224,6 +226,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 		if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
 			return ctrl.Result{}, err
 		}
+		r.recordTerminalOutcome(binding)
 		if collisionResult.currentDetected {
 			r.recordEventf(binding, corev1.EventTypeWarning, "IdentityCollision", "%s", collisionResult.currentMessage)
 		}
@@ -249,6 +252,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 			if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
 				return ctrl.Result{}, err
 			}
+			r.recordTerminalOutcome(binding)
 			logger.Info(
 				"applied failure status",
 				logKeyCondition, stateErr.conditionType,
@@ -269,6 +273,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 	if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
 		return ctrl.Result{}, err
 	}
+	r.recordTerminalOutcome(binding)
 	logger.Info(
 		"applied success status",
 		logKeyCondition, conditionTypeReady,
@@ -295,6 +300,12 @@ func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) 
 	setupLogger := logf.Log.WithName("setup").WithName("inferenceidentitybinding")
 
 	r.Recorder = mgr.GetEventRecorder("inferenceidentitybinding-controller")
+	if r.MetricsRecorder == nil {
+		r.MetricsRecorder = defaultBindingMetrics.outcomeRecorder
+	}
+	if err := defaultBindingMetrics.register(mgr.GetClient()); err != nil {
+		return err
+	}
 
 	if err := r.setupFieldIndexes(mgr); err != nil {
 		return err
