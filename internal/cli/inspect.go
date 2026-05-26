@@ -47,10 +47,16 @@ func newInspectCommand(opts *Options) *cobra.Command {
 			defer cancel()
 
 			report, inspectErr := inspector.InspectBinding(ctx, opts.Namespace, args[0])
-			if err := inspection.WriteBindingInspectionReport(cmd.OutOrStdout(), opts.Output, report); err != nil {
-				return withExitCode(exitInternal, err)
-			}
 			code, err := inspectionExitCode(report, inspectErr, opts.Strict)
+			if !shouldWriteBindingInspectionReport(inspectErr) {
+				if err != nil {
+					return withExitCode(code, err)
+				}
+				return nil
+			}
+			if writeErr := inspection.WriteBindingInspectionReport(cmd.OutOrStdout(), opts.Output, report); writeErr != nil {
+				return withExitCode(exitInternal, writeErr)
+			}
 			if err != nil {
 				return withExitCode(code, err)
 			}
@@ -60,6 +66,14 @@ func newInspectCommand(opts *Options) *cobra.Command {
 
 	inspectCmd.AddCommand(bindingCmd)
 	return inspectCmd
+}
+
+func shouldWriteBindingInspectionReport(inspectErr error) bool {
+	if inspectErr == nil {
+		return true
+	}
+	return errors.Is(inspectErr, inspection.ErrBindingInspectionNotFound) ||
+		errors.Is(inspectErr, inspection.ErrBindingInspectionErrorFindings)
 }
 
 func inspectionExitCode(report inspection.BindingInspectionReport, inspectErr error, strict bool) (int, error) {
