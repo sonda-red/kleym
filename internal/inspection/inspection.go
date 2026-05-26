@@ -142,19 +142,13 @@ func (i *bindingInspector) InspectBinding(ctx context.Context, namespace string,
 	if err := i.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, binding); err != nil {
 		if apierrors.IsNotFound(err) {
 			report.Capabilities.Binding = BindingInspectionCapabilityFull
-			report.Findings = append(report.Findings, BindingInspectionFinding{
-				ID:       findingBindingNotFound,
-				Severity: BindingInspectionFindingSeverityError,
-				Reason:   string(metav1.StatusReasonNotFound),
-				Message:  fmt.Sprintf("InferenceIdentityBinding %q was not found", identity.NamespacedBindingKey(namespace, name)),
-				AffectedRefs: []BindingInspectionTargetRef{{
-					Namespace: namespace,
-					Name:      name,
-					Group:     kleymv1alpha1.GroupVersion.Group,
-					Version:   kleymv1alpha1.GroupVersion.Version,
-					Kind:      "InferenceIdentityBinding",
-				}},
-			})
+			report.Findings = append(report.Findings, inspectionFinding(
+				findingBindingNotFound,
+				BindingInspectionFindingSeverityError,
+				string(metav1.StatusReasonNotFound),
+				fmt.Sprintf("InferenceIdentityBinding %q was not found", identity.NamespacedBindingKey(namespace, name)),
+				bindingInspectionTargetRef(namespace, name),
+			))
 			return normalizeBindingInspectionReport(report), ErrBindingInspectionNotFound
 		}
 		return report, fmt.Errorf("read InferenceIdentityBinding %q: %w", identity.NamespacedBindingKey(namespace, name), err)
@@ -213,56 +207,13 @@ func (i *bindingInspector) inspectDesiredState(
 	report *BindingInspectionReport,
 ) (identity.RenderedIdentity, bool) {
 	mode := identity.EffectiveMode(binding.Spec.Mode)
-	poolRef, err := identity.BindingPoolRef(binding)
-	if err != nil {
-		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
-		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), findingInvalidRef)
+	pool, ok := i.resolveInspectionPool(ctx, binding, availablePoolGVKs, report)
+	if !ok {
 		return identity.RenderedIdentity{}, false
 	}
-	report.Resolved.PoolRef = poolRefToReportRef(poolRef, schema.GroupVersionKind{Kind: "InferencePool"})
-
-	pool, err := identity.ResolveInferencePool(ctx, i.client, availablePoolGVKs, poolRef)
-	if err != nil {
-		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
-		i.addFindingForError(report, err, *report.Resolved.PoolRef, "")
+	objective, ok := i.resolveInspectionObjective(ctx, binding, pool, mode, availableObjectiveGVKs, report)
+	if !ok {
 		return identity.RenderedIdentity{}, false
-	}
-	report.Resolved.PoolRef = poolRefToReportRef(poolRef, pool.GroupVersionKind())
-
-	var objective *unstructured.Unstructured
-	objectiveRef, hasObjectiveRef, err := identity.BindingObjectiveRef(binding)
-	if err != nil {
-		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
-		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), findingInvalidRef)
-		return identity.RenderedIdentity{}, false
-	}
-	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective && !hasObjectiveRef {
-		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
-		i.addFindingForError(report, &identity.StateError{
-			ConditionType: identity.ConditionTypeRenderFailure,
-			Reason:        "MissingObjectiveRef",
-			Message:       "objectiveRef is required when mode is PerObjective",
-		}, bindingInspectionBindingTargetRef(binding), "")
-		return identity.RenderedIdentity{}, false
-	}
-	if hasObjectiveRef {
-		report.Resolved.ObjectiveRef = objectiveRefToReportRef(objectiveRef, schema.GroupVersionKind{Kind: "InferenceObjective"})
-		objective, err = identity.ResolveInferenceObjective(ctx, i.client, availableObjectiveGVKs, objectiveRef)
-		if err != nil {
-			report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
-			i.addFindingForError(report, err, *report.Resolved.ObjectiveRef, "")
-			return identity.RenderedIdentity{}, false
-		}
-		report.Resolved.ObjectiveRef = objectiveRefToReportRef(objectiveRef, objective.GroupVersionKind())
-		if err := identity.ValidateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
-			report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
-			i.addFindingForError(report, &identity.StateError{
-				ConditionType: identity.ConditionTypeInvalidRef,
-				Reason:        "InvalidObjectiveRef",
-				Message:       err.Error(),
-			}, *report.Resolved.ObjectiveRef, "")
-			return identity.RenderedIdentity{}, false
-		}
 	}
 
 	rendered, err := identity.RenderIdentity(binding, objective, pool)
@@ -271,7 +222,92 @@ func (i *bindingInspector) inspectDesiredState(
 		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), "")
 		return identity.RenderedIdentity{}, false
 	}
+	if !i.recordInspectionDesiredState(binding, pool, rendered, report) {
+		return identity.RenderedIdentity{}, false
+	}
+	return rendered, true
+}
 
+// resolveInspectionPool reads the binding's target pool and records partial report context on failure.
+func (i *bindingInspector) resolveInspectionPool(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	availablePoolGVKs []schema.GroupVersionKind,
+	report *BindingInspectionReport,
+) (*unstructured.Unstructured, bool) {
+	poolRef, err := identity.BindingPoolRef(binding)
+	if err != nil {
+		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
+		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), findingInvalidRef)
+		return nil, false
+	}
+	report.Resolved.PoolRef = poolRefToReportRef(poolRef, schema.GroupVersionKind{Kind: "InferencePool"})
+
+	pool, err := identity.ResolveInferencePool(ctx, i.client, availablePoolGVKs, poolRef)
+	if err != nil {
+		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
+		i.addFindingForError(report, err, *report.Resolved.PoolRef, "")
+		return nil, false
+	}
+	report.Resolved.PoolRef = poolRefToReportRef(poolRef, pool.GroupVersionKind())
+	return pool, true
+}
+
+// resolveInspectionObjective reads an optional or required objective and validates that it targets the pool.
+func (i *bindingInspector) resolveInspectionObjective(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	pool *unstructured.Unstructured,
+	mode kleymv1alpha1.InferenceIdentityBindingMode,
+	availableObjectiveGVKs []schema.GroupVersionKind,
+	report *BindingInspectionReport,
+) (*unstructured.Unstructured, bool) {
+	objectiveRef, hasObjectiveRef, err := identity.BindingObjectiveRef(binding)
+	if err != nil {
+		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
+		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), findingInvalidRef)
+		return nil, false
+	}
+	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective && !hasObjectiveRef {
+		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
+		i.addFindingForError(report, &identity.StateError{
+			ConditionType: identity.ConditionTypeRenderFailure,
+			Reason:        "MissingObjectiveRef",
+			Message:       "objectiveRef is required when mode is PerObjective",
+		}, bindingInspectionBindingTargetRef(binding), "")
+		return nil, false
+	}
+	if !hasObjectiveRef {
+		return nil, true
+	}
+
+	report.Resolved.ObjectiveRef = objectiveRefToReportRef(objectiveRef, schema.GroupVersionKind{Kind: "InferenceObjective"})
+	objective, err := identity.ResolveInferenceObjective(ctx, i.client, availableObjectiveGVKs, objectiveRef)
+	if err != nil {
+		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
+		i.addFindingForError(report, err, *report.Resolved.ObjectiveRef, "")
+		return nil, false
+	}
+	report.Resolved.ObjectiveRef = objectiveRefToReportRef(objectiveRef, objective.GroupVersionKind())
+	if err := identity.ValidateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
+		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
+		i.addFindingForError(report, &identity.StateError{
+			ConditionType: identity.ConditionTypeInvalidRef,
+			Reason:        "InvalidObjectiveRef",
+			Message:       err.Error(),
+		}, *report.Resolved.ObjectiveRef, "")
+		return nil, false
+	}
+	return objective, true
+}
+
+// recordInspectionDesiredState stores the canonical desired identity fields once rendering succeeds.
+func (i *bindingInspector) recordInspectionDesiredState(
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	pool *unstructured.Unstructured,
+	rendered identity.RenderedIdentity,
+	report *BindingInspectionReport,
+) bool {
 	poolSelector, poolDerivedSelectors, err := identity.DeriveSelectorsFromPool(pool)
 	if err != nil {
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
@@ -280,7 +316,7 @@ func (i *bindingInspector) inspectDesiredState(
 			Reason:        "InvalidPoolSelector",
 			Message:       err.Error(),
 		}, *report.Resolved.PoolRef, "")
-		return identity.RenderedIdentity{}, false
+		return false
 	}
 
 	provenance := selectorProvenance(binding, rendered, poolDerivedSelectors)
@@ -297,7 +333,7 @@ func (i *bindingInspector) inspectDesiredState(
 		Fallback:            boolPtr(rendered.Fallback),
 	}
 	report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
-	return rendered, true
+	return true
 }
 
 func (i *bindingInspector) inspectObservedState(
@@ -309,39 +345,7 @@ func (i *bindingInspector) inspectObservedState(
 ) {
 	objects, err := i.listManagedClusterSPIFFEIDs(ctx, binding)
 	if err != nil {
-		switch {
-		case meta.IsNoMatchError(err):
-			report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityUnknown
-			report.Findings = append(report.Findings, BindingInspectionFinding{
-				ID:       findingDependencyMissing,
-				Severity: BindingInspectionFindingSeverityError,
-				Reason:   "ClusterSPIFFEIDCRDMissing",
-				Message:  "ClusterSPIFFEID CRD is not installed",
-				AffectedRefs: []BindingInspectionTargetRef{{
-					Name:  clusterSPIFFEIDResourceName,
-					Group: identity.ClusterSPIFFEIDGVK().Group,
-					Kind:  identity.ClusterSPIFFEIDGVK().Kind,
-				}},
-			})
-		case apierrors.IsForbidden(err):
-			report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityPartial
-			report.Findings = append(report.Findings, BindingInspectionFinding{
-				ID:           findingRBACLimited,
-				Severity:     BindingInspectionFindingSeverityWarning,
-				Reason:       reasonRBACLimited,
-				Message:      "ClusterSPIFFEID resources are not readable",
-				AffectedRefs: []BindingInspectionTargetRef{{Name: clusterSPIFFEIDResourceName}},
-			})
-		default:
-			report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityUnknown
-			report.Findings = append(report.Findings, BindingInspectionFinding{
-				ID:           findingDependencyMissing,
-				Severity:     BindingInspectionFindingSeverityError,
-				Reason:       "ClusterSPIFFEIDListFailed",
-				Message:      err.Error(),
-				AffectedRefs: []BindingInspectionTargetRef{{Name: clusterSPIFFEIDResourceName}},
-			})
-		}
+		recordClusterSPIFFEIDListFailure(err, report)
 		return
 	}
 
@@ -359,7 +363,53 @@ func (i *bindingInspector) inspectObservedState(
 	if !desiredReady {
 		return
 	}
+	recordObservedDrift(binding, rendered, objects, report)
+}
 
+// recordClusterSPIFFEIDListFailure maps list errors to the inspection capability and finding contract.
+func recordClusterSPIFFEIDListFailure(err error, report *BindingInspectionReport) {
+	switch {
+	case meta.IsNoMatchError(err):
+		report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityUnknown
+		report.Findings = append(report.Findings, inspectionFinding(
+			findingDependencyMissing,
+			BindingInspectionFindingSeverityError,
+			"ClusterSPIFFEIDCRDMissing",
+			"ClusterSPIFFEID CRD is not installed",
+			BindingInspectionTargetRef{
+				Name:  clusterSPIFFEIDResourceName,
+				Group: identity.ClusterSPIFFEIDGVK().Group,
+				Kind:  identity.ClusterSPIFFEIDGVK().Kind,
+			},
+		))
+	case apierrors.IsForbidden(err):
+		report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityPartial
+		report.Findings = append(report.Findings, inspectionFinding(
+			findingRBACLimited,
+			BindingInspectionFindingSeverityWarning,
+			reasonRBACLimited,
+			"ClusterSPIFFEID resources are not readable",
+			BindingInspectionTargetRef{Name: clusterSPIFFEIDResourceName},
+		))
+	default:
+		report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityUnknown
+		report.Findings = append(report.Findings, inspectionFinding(
+			findingDependencyMissing,
+			BindingInspectionFindingSeverityError,
+			"ClusterSPIFFEIDListFailed",
+			err.Error(),
+			BindingInspectionTargetRef{Name: clusterSPIFFEIDResourceName},
+		))
+	}
+}
+
+// recordObservedDrift compares rendered desired state against all visible Kleym-managed outputs.
+func recordObservedDrift(
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	rendered identity.RenderedIdentity,
+	objects []*unstructured.Unstructured,
+	report *BindingInspectionReport,
+) {
 	desired := identity.DesiredClusterSPIFFEID(binding, rendered)
 	if len(objects) == 0 {
 		report.Observed.Drift = append(report.Observed.Drift, BindingInspectionDriftEntry{
@@ -378,17 +428,7 @@ func (i *bindingInspector) inspectObservedState(
 			}
 			return report.Observed.Drift[left].Field < report.Observed.Drift[right].Field
 		})
-		report.Findings = append(report.Findings, BindingInspectionFinding{
-			ID:       findingObservedDrift,
-			Severity: BindingInspectionFindingSeverityWarning,
-			Reason:   reasonObservedDrift,
-			Message:  "observed managed ClusterSPIFFEID state differs from desired state",
-			AffectedRefs: []BindingInspectionTargetRef{{
-				Name:  rendered.Name,
-				Group: identity.ClusterSPIFFEIDGVK().Group,
-				Kind:  identity.ClusterSPIFFEIDGVK().Kind,
-			}},
-		})
+		report.Findings = append(report.Findings, observedDriftFinding(rendered))
 	}
 }
 
@@ -413,25 +453,7 @@ func (i *bindingInspector) inspectEligibleWorkloads(
 
 	pods, err := i.listEligiblePods(ctx, binding, rendered)
 	if err != nil {
-		if apierrors.IsForbidden(err) {
-			report.Capabilities.Pods = BindingInspectionCapabilityPartial
-			report.Findings = append(report.Findings, BindingInspectionFinding{
-				ID:           findingRBACLimited,
-				Severity:     BindingInspectionFindingSeverityWarning,
-				Reason:       reasonRBACLimited,
-				Message:      "pods are not readable",
-				AffectedRefs: []BindingInspectionTargetRef{podResourceTargetRef(binding.Namespace)},
-			})
-			return
-		}
-		report.Capabilities.Pods = BindingInspectionCapabilityUnknown
-		report.Findings = append(report.Findings, BindingInspectionFinding{
-			ID:           findingDependencyMissing,
-			Severity:     BindingInspectionFindingSeverityWarning,
-			Reason:       "PodListFailed",
-			Message:      err.Error(),
-			AffectedRefs: []BindingInspectionTargetRef{podResourceTargetRef(binding.Namespace)},
-		})
+		recordPodListFailure(err, binding.Namespace, report)
 		return
 	}
 
@@ -444,6 +466,29 @@ func (i *bindingInspector) inspectEligibleWorkloads(
 	if len(report.Observed.EligibleWorkloads) == 0 {
 		report.Findings = append(report.Findings, zeroEligibleWorkloadsFinding(binding))
 	}
+}
+
+// recordPodListFailure maps pod read failures to partial or unknown workload inspection.
+func recordPodListFailure(err error, namespace string, report *BindingInspectionReport) {
+	if apierrors.IsForbidden(err) {
+		report.Capabilities.Pods = BindingInspectionCapabilityPartial
+		report.Findings = append(report.Findings, inspectionFinding(
+			findingRBACLimited,
+			BindingInspectionFindingSeverityWarning,
+			reasonRBACLimited,
+			"pods are not readable",
+			podResourceTargetRef(namespace),
+		))
+		return
+	}
+	report.Capabilities.Pods = BindingInspectionCapabilityUnknown
+	report.Findings = append(report.Findings, inspectionFinding(
+		findingDependencyMissing,
+		BindingInspectionFindingSeverityWarning,
+		"PodListFailed",
+		err.Error(),
+		podResourceTargetRef(namespace),
+	))
 }
 
 // listEligiblePods narrows pod reads to the rendered pod selector and binding namespace.
@@ -531,36 +576,53 @@ func (i *bindingInspector) addFindingForError(
 	report.Findings = append(report.Findings, finding)
 }
 
+// inspectionFinding keeps report findings consistent without repeating the stable JSON shape.
+func inspectionFinding(
+	id string,
+	severity BindingInspectionFindingSeverity,
+	reason string,
+	message string,
+	refs ...BindingInspectionTargetRef,
+) BindingInspectionFinding {
+	return BindingInspectionFinding{
+		ID:           id,
+		Severity:     severity,
+		Reason:       reason,
+		Message:      message,
+		AffectedRefs: refs,
+	}
+}
+
 func findingForError(err error, ref BindingInspectionTargetRef, fallbackID string) BindingInspectionFinding {
 	var stateErr *identity.StateError
 	if errors.As(err, &stateErr) {
-		return BindingInspectionFinding{
-			ID:           findingIDForStateError(stateErr, fallbackID),
-			Severity:     BindingInspectionFindingSeverityError,
-			Reason:       stateErr.Reason,
-			Message:      stateErr.Message,
-			AffectedRefs: []BindingInspectionTargetRef{ref},
-		}
+		return inspectionFinding(
+			findingIDForStateError(stateErr, fallbackID),
+			BindingInspectionFindingSeverityError,
+			stateErr.Reason,
+			stateErr.Message,
+			ref,
+		)
 	}
 	if apierrors.IsForbidden(err) {
-		return BindingInspectionFinding{
-			ID:           findingRBACLimited,
-			Severity:     BindingInspectionFindingSeverityError,
-			Reason:       reasonRBACLimited,
-			Message:      err.Error(),
-			AffectedRefs: []BindingInspectionTargetRef{ref},
-		}
+		return inspectionFinding(
+			findingRBACLimited,
+			BindingInspectionFindingSeverityError,
+			reasonRBACLimited,
+			err.Error(),
+			ref,
+		)
 	}
 	if fallbackID == "" {
 		fallbackID = findingDependencyMissing
 	}
-	return BindingInspectionFinding{
-		ID:           fallbackID,
-		Severity:     BindingInspectionFindingSeverityError,
-		Reason:       "InspectionFailed",
-		Message:      err.Error(),
-		AffectedRefs: []BindingInspectionTargetRef{ref},
-	}
+	return inspectionFinding(
+		fallbackID,
+		BindingInspectionFindingSeverityError,
+		"InspectionFailed",
+		err.Error(),
+		ref,
+	)
 }
 
 func findingIDForStateError(err *identity.StateError, fallbackID string) string {
@@ -688,57 +750,60 @@ func (i *bindingInspector) addCollisionFinding(
 	if condition == nil || condition.Status != metav1.ConditionTrue {
 		return
 	}
-	report.Findings = append(report.Findings, BindingInspectionFinding{
-		ID:       findingKleymCollision,
-		Severity: BindingInspectionFindingSeverityError,
-		Reason:   condition.Reason,
-		Message:  condition.Message,
-		AffectedRefs: []BindingInspectionTargetRef{{
-			Namespace: binding.Namespace,
-			Name:      binding.Name,
-			Group:     kleymv1alpha1.GroupVersion.Group,
-			Version:   kleymv1alpha1.GroupVersion.Version,
-			Kind:      "InferenceIdentityBinding",
-		}},
-	})
+	report.Findings = append(report.Findings, inspectionFinding(
+		findingKleymCollision,
+		BindingInspectionFindingSeverityError,
+		condition.Reason,
+		condition.Message,
+		bindingInspectionBindingTargetRef(binding),
+	))
+}
+
+// observedDriftFinding records that at least one visible managed object differs from desired state.
+func observedDriftFinding(rendered identity.RenderedIdentity) BindingInspectionFinding {
+	return inspectionFinding(
+		findingObservedDrift,
+		BindingInspectionFindingSeverityWarning,
+		reasonObservedDrift,
+		"observed managed ClusterSPIFFEID state differs from desired state",
+		BindingInspectionTargetRef{
+			Name:  rendered.Name,
+			Group: identity.ClusterSPIFFEIDGVK().Group,
+			Kind:  identity.ClusterSPIFFEIDGVK().Kind,
+		},
+	)
 }
 
 // zeroEligibleWorkloadsFinding records that readable pods did not match the rendered identity selectors.
 func zeroEligibleWorkloadsFinding(binding *kleymv1alpha1.InferenceIdentityBinding) BindingInspectionFinding {
-	return BindingInspectionFinding{
-		ID:       findingZeroEligibleWorkload,
-		Severity: BindingInspectionFindingSeverityInfo,
-		Reason:   reasonZeroEligibleWorkload,
-		Message:  "no currently readable pods match the rendered identity selectors",
-		AffectedRefs: []BindingInspectionTargetRef{{
-			Namespace: binding.Namespace,
-			Name:      binding.Name,
-			Group:     kleymv1alpha1.GroupVersion.Group,
-			Version:   kleymv1alpha1.GroupVersion.Version,
-			Kind:      "InferenceIdentityBinding",
-		}},
-	}
+	return inspectionFinding(
+		findingZeroEligibleWorkload,
+		BindingInspectionFindingSeverityInfo,
+		reasonZeroEligibleWorkload,
+		"no currently readable pods match the rendered identity selectors",
+		bindingInspectionBindingTargetRef(binding),
+	)
 }
 
 // ambiguousContainerFinding records a pod where one discriminator maps to more than one container.
 func ambiguousContainerFinding(pod corev1.Pod, selection workloadSelection) BindingInspectionFinding {
-	return BindingInspectionFinding{
-		ID:       findingAmbiguousContainer,
-		Severity: BindingInspectionFindingSeverityWarning,
-		Reason:   reasonAmbiguousContainer,
-		Message: fmt.Sprintf(
+	return inspectionFinding(
+		findingAmbiguousContainer,
+		BindingInspectionFindingSeverityWarning,
+		reasonAmbiguousContainer,
+		fmt.Sprintf(
 			"pod %q has more than one container matching %s discriminator %q",
 			identity.NamespacedBindingKey(pod.Namespace, pod.Name),
 			selection.ContainerSelectorType,
 			selection.ContainerValue,
 		),
-		AffectedRefs: []BindingInspectionTargetRef{{
+		BindingInspectionTargetRef{
 			Namespace: pod.Namespace,
 			Name:      pod.Name,
 			Version:   "v1",
 			Kind:      "Pod",
-		}},
-	}
+		},
+	)
 }
 
 // unsupportedSelectorFinding records rendered selectors that cannot be evaluated from pod data.
@@ -746,22 +811,16 @@ func unsupportedSelectorFinding(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	selectors []string,
 ) BindingInspectionFinding {
-	return BindingInspectionFinding{
-		ID:       findingUnsupportedSelector,
-		Severity: BindingInspectionFindingSeverityWarning,
-		Reason:   reasonUnsupportedSelector,
-		Message: fmt.Sprintf(
+	return inspectionFinding(
+		findingUnsupportedSelector,
+		BindingInspectionFindingSeverityWarning,
+		reasonUnsupportedSelector,
+		fmt.Sprintf(
 			"pod eligibility cannot be fully evaluated because rendered selectors are unsupported by CLI pod inspection: %s",
 			strings.Join(selectors, ", "),
 		),
-		AffectedRefs: []BindingInspectionTargetRef{{
-			Namespace: binding.Namespace,
-			Name:      binding.Name,
-			Group:     kleymv1alpha1.GroupVersion.Group,
-			Version:   kleymv1alpha1.GroupVersion.Version,
-			Kind:      "InferenceIdentityBinding",
-		}},
-	}
+		bindingInspectionBindingTargetRef(binding),
+	)
 }
 
 func podResourceTargetRef(namespace string) BindingInspectionTargetRef {
@@ -799,9 +858,13 @@ func bindingInspectionBindingRef(binding *kleymv1alpha1.InferenceIdentityBinding
 }
 
 func bindingInspectionBindingTargetRef(binding *kleymv1alpha1.InferenceIdentityBinding) BindingInspectionTargetRef {
+	return bindingInspectionTargetRef(binding.Namespace, binding.Name)
+}
+
+func bindingInspectionTargetRef(namespace string, name string) BindingInspectionTargetRef {
 	return BindingInspectionTargetRef{
-		Namespace: binding.Namespace,
-		Name:      binding.Name,
+		Namespace: namespace,
+		Name:      name,
 		Group:     kleymv1alpha1.GroupVersion.Group,
 		Version:   kleymv1alpha1.GroupVersion.Version,
 		Kind:      "InferenceIdentityBinding",

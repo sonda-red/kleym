@@ -24,11 +24,7 @@ func TestInspectBindingSuccessReport(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
-	rendered, err := identity.RenderIdentity(binding, objective, pool)
-	if err != nil {
-		t.Fatalf("render test identity: %v", err)
-	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	managed, rendered := testRenderedManagedClusterSPIFFEID(t, binding, objective, pool)
 	pod := testInspectionPod("model-server-a", "model-server")
 
 	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed, pod)
@@ -71,11 +67,7 @@ func TestInspectBindingSuccessReport(t *testing.T) {
 func TestInspectBindingPoolOnlyEligibleWorkload(t *testing.T) {
 	binding := testInspectionPoolOnlyBinding()
 	pool := testInspectionPool("pool-a")
-	rendered, err := identity.RenderIdentity(binding, nil, pool)
-	if err != nil {
-		t.Fatalf("render test identity: %v", err)
-	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	managed, _ := testRenderedManagedClusterSPIFFEID(t, binding, nil, pool)
 	pod := testInspectionPod("model-server-a", "model-server")
 
 	inspector := newTestBindingInspector(t, nil, binding, pool, managed, pod)
@@ -110,11 +102,7 @@ func TestInspectBindingUnsupportedSelectorMakesPodInspectionPartial(t *testing.T
 	)
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
-	rendered, err := identity.RenderIdentity(binding, objective, pool)
-	if err != nil {
-		t.Fatalf("render test identity: %v", err)
-	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	managed, _ := testRenderedManagedClusterSPIFFEID(t, binding, objective, pool)
 	pod := testInspectionPod("model-server-a", "model-server")
 
 	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed, pod)
@@ -183,11 +171,7 @@ func TestInspectBindingObservedDriftFinding(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
-	rendered, err := identity.RenderIdentity(binding, objective, pool)
-	if err != nil {
-		t.Fatalf("render test identity: %v", err)
-	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	managed, _ := testRenderedManagedClusterSPIFFEID(t, binding, objective, pool)
 	if err := unstructured.SetNestedField(managed.Object, "spiffe://drifted.example.test/ns/tenant-a/objective/objective-a", "spec", "spiffeIDTemplate"); err != nil {
 		t.Fatalf("set drifted spiffeIDTemplate: %v", err)
 	}
@@ -228,11 +212,7 @@ func TestInspectBindingZeroEligibleWorkloadsFinding(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
-	rendered, err := identity.RenderIdentity(binding, objective, pool)
-	if err != nil {
-		t.Fatalf("render test identity: %v", err)
-	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	managed, _ := testRenderedManagedClusterSPIFFEID(t, binding, objective, pool)
 	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed)
 
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
@@ -254,11 +234,7 @@ func TestInspectBindingAmbiguousContainerMatchFinding(t *testing.T) {
 	}
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
-	rendered, err := identity.RenderIdentity(binding, objective, pool)
-	if err != nil {
-		t.Fatalf("render test identity: %v", err)
-	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	managed, _ := testRenderedManagedClusterSPIFFEID(t, binding, objective, pool)
 	pod := testInspectionPod(
 		"model-server-a",
 		"model-server-a=registry.example.test/model-server:v1",
@@ -303,11 +279,7 @@ func TestInspectBindingRBACLimitedPods(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
-	rendered, err := identity.RenderIdentity(binding, objective, pool)
-	if err != nil {
-		t.Fatalf("render test identity: %v", err)
-	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	managed, _ := testRenderedManagedClusterSPIFFEID(t, binding, objective, pool)
 	forbidden := apierrors.NewForbidden(
 		schema.GroupResource{Resource: podResourceName},
 		"",
@@ -407,6 +379,21 @@ func newTestBindingInspectorWithListErrors(
 			return time.Date(2026, 5, 18, 10, 11, 12, 0, time.UTC)
 		},
 	}
+}
+
+func testRenderedManagedClusterSPIFFEID(
+	t *testing.T,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	objective *unstructured.Unstructured,
+	pool *unstructured.Unstructured,
+) (*unstructured.Unstructured, identity.RenderedIdentity) {
+	t.Helper()
+
+	rendered, err := identity.RenderIdentity(binding, objective, pool)
+	if err != nil {
+		t.Fatalf("render test identity: %v", err)
+	}
+	return identity.DesiredClusterSPIFFEID(binding, rendered), rendered
 }
 
 func testInspectionPod(name string, containers ...string) *corev1.Pod {
