@@ -102,6 +102,39 @@ func TestInspectBindingPoolOnlyEligibleWorkload(t *testing.T) {
 	}
 }
 
+func TestInspectBindingUnsupportedSelectorMakesPodInspectionPartial(t *testing.T) {
+	binding := testInspectionBinding()
+	binding.Spec.WorkloadSelectorTemplates = append(
+		binding.Spec.WorkloadSelectorTemplates,
+		"k8s:pod-uid:12345678-1234-1234-1234-123456789abc",
+	)
+	pool := testInspectionPool("pool-a")
+	objective := testInspectionObjective("objective-a", "pool-a")
+	rendered, err := identity.RenderIdentity(binding, objective, pool)
+	if err != nil {
+		t.Fatalf("render test identity: %v", err)
+	}
+	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	pod := testInspectionPod("model-server-a", "model-server")
+
+	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed, pod)
+	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
+	if err != nil {
+		t.Fatalf("InspectBinding returned error: %v", err)
+	}
+
+	assertFinding(t, report.Findings, findingUnsupportedSelector, BindingInspectionFindingSeverityWarning, reasonUnsupportedSelector)
+	if report.Capabilities.Pods != BindingInspectionCapabilityPartial {
+		t.Fatalf("pods capability = %q, want partial", report.Capabilities.Pods)
+	}
+	if len(report.Observed.EligibleWorkloads) != 0 {
+		t.Fatalf("eligible workloads = %#v, want none when selectors cannot be fully evaluated", report.Observed.EligibleWorkloads)
+	}
+	if findingExists(report.Findings, findingZeroEligibleWorkload) {
+		t.Fatalf("unexpected zero eligible workloads finding when eligibility was not fully evaluated: %#v", report.Findings)
+	}
+}
+
 func TestInspectBindingMissingBindingReport(t *testing.T) {
 	inspector := newTestBindingInspector(t, nil)
 
@@ -496,6 +529,15 @@ func assertFinding(
 		}
 	}
 	t.Fatalf("finding %s/%s/%s not found in %#v", id, severity, reason, findings)
+}
+
+func findingExists(findings []BindingInspectionFinding, id string) bool {
+	for _, finding := range findings {
+		if finding.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func driftContainsField(entries []BindingInspectionDriftEntry, field string) bool {
