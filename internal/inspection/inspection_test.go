@@ -102,6 +102,33 @@ func TestInspectBindingPoolOnlyEligibleWorkload(t *testing.T) {
 	}
 }
 
+func TestInspectBindingUnsupportedSelectorPartialPods(t *testing.T) {
+	binding := testInspectionBinding()
+	binding.Spec.WorkloadSelectorTemplates = append(binding.Spec.WorkloadSelectorTemplates, "k8s:node-name:worker-a")
+	pool := testInspectionPool("pool-a")
+	objective := testInspectionObjective("objective-a", "pool-a")
+	rendered, err := identity.RenderIdentity(binding, objective, pool)
+	if err != nil {
+		t.Fatalf("render test identity: %v", err)
+	}
+	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	pod := testInspectionPod("model-server-a", "model-server")
+
+	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed, pod)
+	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
+	if err != nil {
+		t.Fatalf("InspectBinding returned error: %v", err)
+	}
+
+	assertFinding(t, report.Findings, findingUnsupportedSelector, BindingInspectionFindingSeverityWarning, reasonUnsupportedSelector)
+	if report.Capabilities.Pods != BindingInspectionCapabilityPartial {
+		t.Fatalf("pods capability = %q, want partial", report.Capabilities.Pods)
+	}
+	if len(report.Observed.EligibleWorkloads) != 0 {
+		t.Fatalf("eligible workloads = %#v, want none for incomplete selector evaluation", report.Observed.EligibleWorkloads)
+	}
+}
+
 func TestInspectBindingMissingBindingReport(t *testing.T) {
 	inspector := newTestBindingInspector(t, nil)
 

@@ -103,6 +103,7 @@ Required finding classes:
 8. `ambiguous-container-match`
 9. `observed-drift`
 10. `rbac-limited`
+11. `unsupported-selector`
 
 Condition-derived findings should preserve existing Kleym condition types and reasons where possible. See [Conditions Reference][conditions-reference].
 
@@ -113,6 +114,7 @@ Finding semantics:
 3. `rbac-limited` reports a non-fatal permission limit after the binding has been read; permission failure before binding read is fatal.
 4. `zero-eligible-workloads` is informational by default because scale-to-zero can be valid.
 5. `ambiguous-container-match` is a warning from live pod inspection when a `PerObjective` discriminator maps to more than one container in an otherwise eligible pod, most commonly with `ContainerImage`.
+6. `unsupported-selector` is a warning when rendered workload selectors include SPIRE selectors that `kleym` cannot evaluate from Kubernetes pod data; pod inspection must be partial and eligible workloads must not be guessed.
 
 `capabilities` records check completeness:
 

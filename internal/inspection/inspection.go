@@ -38,10 +38,12 @@ const (
 	findingAmbiguousContainer   = "ambiguous-container-match"
 	findingObservedDrift        = "observed-drift"
 	findingRBACLimited          = "rbac-limited"
+	findingUnsupportedSelector  = "unsupported-selector"
 	reasonZeroEligibleWorkload  = "ZeroEligibleWorkloads"
 	reasonAmbiguousContainer    = "AmbiguousContainerMatch"
 	reasonObservedDrift         = "ObservedDrift"
 	reasonRBACLimited           = "Forbidden"
+	reasonUnsupportedSelector   = "UnsupportedWorkloadSelector"
 	conditionTypeConflict       = "Conflict"
 	clusterSPIFFEIDResourceName = "clusterspiffeids"
 	podResourceName             = "pods"
@@ -402,6 +404,13 @@ func (i *bindingInspector) inspectEligibleWorkloads(
 		return
 	}
 
+	selection := workloadSelectionFromSelectors(rendered.Selectors)
+	if len(selection.UnevaluatedSelectors) > 0 {
+		report.Capabilities.Pods = BindingInspectionCapabilityPartial
+		report.Findings = append(report.Findings, unsupportedSelectorFinding(binding, selection.UnevaluatedSelectors))
+		return
+	}
+
 	pods, err := i.listEligiblePods(ctx, binding, rendered)
 	if err != nil {
 		if apierrors.IsForbidden(err) {
@@ -427,7 +436,7 @@ func (i *bindingInspector) inspectEligibleWorkloads(
 	}
 
 	report.Capabilities.Pods = BindingInspectionCapabilityFull
-	report.Observed.EligibleWorkloads = eligibleWorkloadsFromPods(pods, rendered, report)
+	report.Observed.EligibleWorkloads = eligibleWorkloadsFromPods(pods, selection, report)
 	sort.Slice(report.Observed.EligibleWorkloads, func(left, right int) bool {
 		return eligibleWorkloadSortKey(report.Observed.EligibleWorkloads[left]) <
 			eligibleWorkloadSortKey(report.Observed.EligibleWorkloads[right])
@@ -481,10 +490,9 @@ func (i *bindingInspector) listManagedClusterSPIFFEIDs(
 // eligibleWorkloadsFromPods evaluates live pod/container matches for the already-rendered identity selectors.
 func eligibleWorkloadsFromPods(
 	pods []corev1.Pod,
-	rendered identity.RenderedIdentity,
+	selection workloadSelection,
 	report *BindingInspectionReport,
 ) []BindingInspectionEligibleWorkload {
-	selection := workloadSelectionFromSelectors(rendered.Selectors)
 	workloads := []BindingInspectionEligibleWorkload{}
 	for _, pod := range pods {
 		if !podMatchesSelection(pod, selection) {
@@ -580,6 +588,7 @@ type workloadSelection struct {
 	PodLabels             map[string]string
 	ContainerSelectorType string
 	ContainerValue        string
+	UnevaluatedSelectors  []string
 }
 
 // workloadSelectionFromSelectors extracts the Kubernetes selectors the CLI can evaluate from rendered SPIRE selectors.
@@ -599,9 +608,13 @@ func workloadSelectionFromSelectors(selectors []string) workloadSelection {
 			selection.ContainerValue = strings.TrimPrefix(selector, "k8s:container-image:")
 		case strings.HasPrefix(selector, "k8s:pod-label:"):
 			key, value, ok := strings.Cut(strings.TrimPrefix(selector, "k8s:pod-label:"), ":")
-			if ok {
+			if ok && key != "" {
 				selection.PodLabels[key] = value
+			} else {
+				selection.UnevaluatedSelectors = append(selection.UnevaluatedSelectors, selector)
 			}
+		default:
+			selection.UnevaluatedSelectors = append(selection.UnevaluatedSelectors, selector)
 		}
 	}
 	return selection
@@ -724,6 +737,29 @@ func ambiguousContainerFinding(pod corev1.Pod, selection workloadSelection) Bind
 			Name:      pod.Name,
 			Version:   "v1",
 			Kind:      "Pod",
+		}},
+	}
+}
+
+// unsupportedSelectorFinding records that live pod data cannot prove rendered selector eligibility.
+func unsupportedSelectorFinding(
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	selectors []string,
+) BindingInspectionFinding {
+	return BindingInspectionFinding{
+		ID:       findingUnsupportedSelector,
+		Severity: BindingInspectionFindingSeverityWarning,
+		Reason:   reasonUnsupportedSelector,
+		Message: fmt.Sprintf(
+			"eligible workload evaluation cannot evaluate rendered workload selectors from Kubernetes pod data: %s",
+			strings.Join(selectors, ", "),
+		),
+		AffectedRefs: []BindingInspectionTargetRef{{
+			Namespace: binding.Namespace,
+			Name:      binding.Name,
+			Group:     kleymv1alpha1.GroupVersion.Group,
+			Version:   kleymv1alpha1.GroupVersion.Version,
+			Kind:      "InferenceIdentityBinding",
 		}},
 	}
 }
