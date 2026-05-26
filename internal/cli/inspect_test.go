@@ -172,6 +172,134 @@ func TestInspectBindingDefaultTextUsesRunner(t *testing.T) {
 	}
 }
 
+func TestInspectBindingFatalErrorDoesNotWriteReport(t *testing.T) {
+	originalFactory := newBindingInspectionRunner
+	t.Cleanup(func() { newBindingInspectionRunner = originalFactory })
+
+	fakeReport := inspection.NewBindingInspectionReport()
+	fakeReport.GeneratedAt = "2026-05-18T10:11:12Z"
+	wantErr := errors.New("discover served GAIE resources")
+	newBindingInspectionRunner = func(_ *Options) (inspection.BindingInspector, error) {
+		return fixedInspectionRunner{report: fakeReport, err: wantErr}, nil
+	}
+
+	cmd := NewRootCommand()
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
+	cmd.SetArgs([]string{"inspect", "binding", "binding-a", "-n", "tenant-a", "-o", "json"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected inspect binding to return an error")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := codeForError(err); got != exitUsage {
+		t.Fatalf("exit code = %d, want %d", got, exitUsage)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("expected no stdout for fatal inspection error, got:\n%s", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr, got:\n%s", stderr.String())
+	}
+}
+
+func TestInspectBindingNotFoundWritesReport(t *testing.T) {
+	originalFactory := newBindingInspectionRunner
+	t.Cleanup(func() { newBindingInspectionRunner = originalFactory })
+
+	fakeReport := inspection.NewBindingInspectionReport()
+	fakeReport.GeneratedAt = "2026-05-18T10:11:12Z"
+	fakeReport.BindingRef = inspection.BindingInspectionBindingRef{Namespace: "tenant-a", Name: "missing"}
+	fakeReport.Findings = []inspection.BindingInspectionFinding{{
+		ID:       "binding-not-found",
+		Severity: inspection.BindingInspectionFindingSeverityError,
+		Reason:   "NotFound",
+		Message:  "missing",
+	}}
+	newBindingInspectionRunner = func(_ *Options) (inspection.BindingInspector, error) {
+		return fixedInspectionRunner{report: fakeReport, err: inspection.ErrBindingInspectionNotFound}, nil
+	}
+
+	cmd := NewRootCommand()
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
+	cmd.SetArgs([]string{"inspect", "binding", "missing", "-n", "tenant-a", "-o", "json"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected inspect binding to return an error")
+	}
+	if !errors.Is(err, inspection.ErrBindingInspectionNotFound) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := codeForError(err); got != exitBindingNotFound {
+		t.Fatalf("exit code = %d, want %d", got, exitBindingNotFound)
+	}
+	var got inspection.BindingInspectionReport
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal inspect output: %v\n%s", err, stdout.String())
+	}
+	if got.BindingRef.Name != "missing" || len(got.Findings) != 1 || got.Findings[0].ID != "binding-not-found" {
+		t.Fatalf("unexpected binding-not-found report: %#v", got)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr, got:\n%s", stderr.String())
+	}
+}
+
+func TestInspectBindingErrorFindingsWriteReport(t *testing.T) {
+	originalFactory := newBindingInspectionRunner
+	t.Cleanup(func() { newBindingInspectionRunner = originalFactory })
+
+	fakeReport := inspection.NewBindingInspectionReport()
+	fakeReport.GeneratedAt = "2026-05-18T10:11:12Z"
+	fakeReport.BindingRef = inspection.BindingInspectionBindingRef{Namespace: "tenant-a", Name: "binding-a"}
+	fakeReport.Findings = []inspection.BindingInspectionFinding{{
+		ID:       "dependency-missing",
+		Severity: inspection.BindingInspectionFindingSeverityError,
+		Reason:   "TargetPoolNotFound",
+		Message:  "pool missing",
+	}}
+	newBindingInspectionRunner = func(_ *Options) (inspection.BindingInspector, error) {
+		return fixedInspectionRunner{report: fakeReport, err: inspection.ErrBindingInspectionErrorFindings}, nil
+	}
+
+	cmd := NewRootCommand()
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cmd.SetOut(stdout)
+	cmd.SetErr(stderr)
+	cmd.SetArgs([]string{"inspect", "binding", "binding-a", "-n", "tenant-a", "-o", "json"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected inspect binding to return an error")
+	}
+	if !errors.Is(err, errInspectBindingHasErrorFindings) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := codeForError(err); got != exitInspectionIssue {
+		t.Fatalf("exit code = %d, want %d", got, exitInspectionIssue)
+	}
+	var got inspection.BindingInspectionReport
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal inspect output: %v\n%s", err, stdout.String())
+	}
+	if got.BindingRef.Name != "binding-a" || len(got.Findings) != 1 || got.Findings[0].ID != "dependency-missing" {
+		t.Fatalf("unexpected error findings report: %#v", got)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no stderr, got:\n%s", stderr.String())
+	}
+}
+
 func TestInspectionExitCodeMapping(t *testing.T) {
 	setupErr := errors.New("load Kubernetes config")
 	tests := []struct {
