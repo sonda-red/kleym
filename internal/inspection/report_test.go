@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 )
 
 func TestBindingInspectionReportJSONMinimalShape(t *testing.T) {
@@ -114,14 +113,9 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 			PoolSelector: map[string]any{
 				"matchLabels": map[string]any{"app": "pool-a"},
 			},
-			ContainerDiscriminator: &BindingInspectionContainerDiscriminator{
-				Type:  "ContainerName",
-				Value: "model-server",
-			},
+			ContainerName: "model-server",
 			SelectorProvenance: &BindingInspectionSelectorProvenance{
-				SelectorSource:       "DerivedFromPool",
 				PoolDerivedSelectors: []string{"k8s:pod-label:app:pool-a"},
-				WorkloadSelectors:    []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 				ContainerSelector:    "k8s:container-name:model-server",
 				SafetySelectors:      []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 			},
@@ -139,9 +133,7 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 				"k8s:container-name:model-server",
 			},
 			SelectorProvenance: &BindingInspectionSelectorProvenance{
-				SelectorSource:       "DerivedFromPool",
 				PoolDerivedSelectors: []string{"k8s:pod-label:app:pool-a"},
-				WorkloadSelectors:    []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 				ContainerSelector:    "k8s:container-name:model-server",
 				SafetySelectors:      []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 			},
@@ -200,13 +192,13 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 	}
 
 	assertObjectKeys(t, got["bindingRef"], "conditions", "generation", "mode", "name", "namespace", "objectiveRef", "poolRef")
-	assertObjectKeys(t, got["resolvedInput"], "containerDiscriminator", "objectiveRef", "poolRef", "poolSelector", "selectorProvenance", "servedGVKs")
+	assertObjectKeys(t, got["resolvedInput"], "containerName", "objectiveRef", "poolRef", "poolSelector", "selectorProvenance", "servedGVKs")
 	assertObjectKeys(t, got["desired"], "clusterSPIFFEIDName", "fallback", "hint", "podSelector", "selectorProvenance", "spiffeID", "workloadSelectors")
 	assertObjectKeys(t, got["observed"], "drift", "eligibleWorkloads", "managedClusterSPIFFEIDs")
 	assertObjectKeys(t, got["capabilities"], "binding", "clusterspiffeids", "gaieResources", "peerBindings", "pods")
 
 	resolved := got["resolvedInput"].(map[string]any)
-	assertObjectKeys(t, resolved["selectorProvenance"], "containerSelector", "poolDerivedSelectors", "safetySelectors", "selectorSource", "workloadSelectors")
+	assertObjectKeys(t, resolved["selectorProvenance"], "containerSelector", "poolDerivedSelectors", "safetySelectors")
 }
 
 func TestBindingInspectionFindingJSONFields(t *testing.T) {
@@ -289,84 +281,6 @@ func TestWriteBindingInspectionReportJSONWritesCompactJSONWithNewline(t *testing
 	}
 	if bytes.Contains(out.Bytes(), []byte("\n\n")) {
 		t.Fatalf("expected compact JSON, got %q", out.String())
-	}
-}
-
-func TestWriteBindingInspectionReportYAMLMatchesCanonicalJSON(t *testing.T) {
-	report := representativeBindingInspectionReport()
-
-	var out bytes.Buffer
-	if err := WriteBindingInspectionReport(&out, outputYAML, report); err != nil {
-		t.Fatalf("write yaml report: %v", err)
-	}
-	if got := out.String(); got == "" || got[len(got)-1] != '\n' {
-		t.Fatalf("expected newline-terminated YAML, got %q", got)
-	}
-
-	yamlAsJSON, err := yaml.YAMLToJSON(out.Bytes())
-	if err != nil {
-		t.Fatalf("convert YAML to JSON: %v\n%s", err, out.String())
-	}
-	assertJSONEquivalent(t, yamlAsJSON, canonicalReportJSON(t, report))
-}
-
-func TestWriteBindingInspectionReportYAMLReturnsWriterError(t *testing.T) {
-	wantErr := errors.New("write failed")
-	err := WriteBindingInspectionReport(errWriter{err: wantErr}, outputYAML, NewBindingInspectionReport())
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("expected writer error %v, got %v", wantErr, err)
-	}
-}
-
-func TestWriteBindingInspectionReportMarkdownRepresentativeReport(t *testing.T) {
-	report := representativeBindingInspectionReport()
-
-	var out bytes.Buffer
-	if err := WriteBindingInspectionReport(&out, outputMarkdown, report); err != nil {
-		t.Fatalf("write markdown report: %v", err)
-	}
-	markdown := out.String()
-	for _, want := range []string{
-		"# BindingInspectionReport",
-		"## Summary",
-		"| Status | Warning |",
-		"| Findings | 1 |",
-		"| Drift | 1 |",
-		"| Eligible workloads | 1 |",
-		"| Inspection completeness | partial |",
-		"## Binding",
-		"| Name | tenant-a/binding-a |",
-		"## Identity",
-		"| ClusterSPIFFEID | tenant-a-binding-a-1234abcd |",
-		"## Findings",
-		"| observed-drift | warning | ObservedDrift | observed managed ClusterSPIFFEID state differs from desired state | none |",
-		"## Capabilities",
-		"<summary>Canonical JSON report</summary>",
-		"```json",
-	} {
-		if !strings.Contains(markdown, want) {
-			t.Fatalf("markdown output missing %q\n%s", want, markdown)
-		}
-	}
-
-	assertJSONEquivalent(t, []byte(extractCanonicalJSONBlock(t, markdown)), canonicalReportJSON(t, report))
-}
-
-func TestWriteBindingInspectionReportMarkdownEmptyFindings(t *testing.T) {
-	var out bytes.Buffer
-	if err := WriteBindingInspectionReport(&out, outputMarkdown, NewBindingInspectionReport()); err != nil {
-		t.Fatalf("write markdown report: %v", err)
-	}
-	if got := out.String(); !strings.Contains(got, "No findings.") {
-		t.Fatalf("expected empty findings markdown, got:\n%s", got)
-	}
-}
-
-func TestWriteBindingInspectionReportMarkdownReturnsWriterError(t *testing.T) {
-	wantErr := errors.New("write failed")
-	err := WriteBindingInspectionReport(errWriter{err: wantErr}, outputMarkdown, NewBindingInspectionReport())
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("expected writer error %v, got %v", wantErr, err)
 	}
 }
 
@@ -628,114 +542,4 @@ func assertObjectKeys(t *testing.T, value any, want ...string) {
 	if got := sortedKeys(object); !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected object keys (-want +got):\nwant %v\ngot  %v", want, got)
 	}
-}
-
-func representativeBindingInspectionReport() BindingInspectionReport {
-	fallbackFalse := false
-	return BindingInspectionReport{
-		GeneratedAt: "2026-05-18T09:10:11Z",
-		BindingRef: BindingInspectionBindingRef{
-			Namespace:  "tenant-a",
-			Name:       "binding-a",
-			Generation: 7,
-			Mode:       "PerObjective",
-			PoolRef: &BindingInspectionTargetRef{
-				Namespace: "tenant-a",
-				Name:      "pool-a",
-				Group:     "inference.networking.k8s.io",
-				Version:   "v1",
-				Kind:      "InferencePool",
-			},
-			ObjectiveRef: &BindingInspectionTargetRef{
-				Namespace: "tenant-a",
-				Name:      "objective-a",
-				Group:     "inference.networking.k8s.io",
-				Version:   "v1",
-				Kind:      "InferenceObjective",
-			},
-		},
-		Desired: BindingInspectionDesiredState{
-			ClusterSPIFFEIDName: "tenant-a-binding-a-1234abcd",
-			SPIFFEID:            "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
-			PodSelector:         map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
-			WorkloadSelectors:   []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
-			Hint:                "tenant-a/binding-a",
-			Fallback:            &fallbackFalse,
-		},
-		Observed: BindingInspectionObservedState{
-			ManagedClusterSPIFFEIDs: []BindingInspectionManagedClusterSPIFFEID{{
-				Name:              "tenant-a-binding-a-1234abcd",
-				SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
-				PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
-				WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
-				Hint:              "tenant-a/binding-a",
-				Fallback:          &fallbackFalse,
-			}},
-			Drift: []BindingInspectionDriftEntry{{
-				Field:    "spec.workloadSelectorTemplates",
-				Desired:  "k8s:container-name:model-server",
-				Observed: "k8s:container-name:old-server",
-			}},
-			EligibleWorkloads: []BindingInspectionEligibleWorkload{{
-				Namespace: "tenant-a",
-				Pod:       "pool-a-12345",
-				Container: "model-server",
-			}},
-		},
-		Findings: []BindingInspectionFinding{{
-			ID:       findingObservedDrift,
-			Severity: BindingInspectionFindingSeverityWarning,
-			Reason:   reasonObservedDrift,
-			Message:  "observed managed ClusterSPIFFEID state differs from desired state",
-		}},
-		Capabilities: BindingInspectionCapabilities{
-			Binding:          BindingInspectionCapabilityFull,
-			GAIEResources:    BindingInspectionCapabilityFull,
-			ClusterSPIFFEIDs: BindingInspectionCapabilityFull,
-			PeerBindings:     BindingInspectionCapabilityPartial,
-			Pods:             BindingInspectionCapabilitySkipped,
-		},
-	}
-}
-
-func canonicalReportJSON(t *testing.T, report BindingInspectionReport) []byte {
-	t.Helper()
-
-	data, err := json.Marshal(normalizeBindingInspectionReport(report))
-	if err != nil {
-		t.Fatalf("marshal canonical report: %v", err)
-	}
-	return data
-}
-
-func assertJSONEquivalent(t *testing.T, gotJSON []byte, wantJSON []byte) {
-	t.Helper()
-
-	var got any
-	if err := json.Unmarshal(gotJSON, &got); err != nil {
-		t.Fatalf("unmarshal got JSON: %v\n%s", err, string(gotJSON))
-	}
-	var want any
-	if err := json.Unmarshal(wantJSON, &want); err != nil {
-		t.Fatalf("unmarshal want JSON: %v\n%s", err, string(wantJSON))
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("JSON mismatch (-want +got):\nwant %s\ngot  %s", string(wantJSON), string(gotJSON))
-	}
-}
-
-func extractCanonicalJSONBlock(t *testing.T, markdown string) string {
-	t.Helper()
-
-	const startMarker = "```json\n"
-	start := strings.LastIndex(markdown, startMarker)
-	if start == -1 {
-		t.Fatalf("markdown missing canonical JSON block:\n%s", markdown)
-	}
-	start += len(startMarker)
-	end := strings.Index(markdown[start:], "\n```")
-	if end == -1 {
-		t.Fatalf("markdown missing canonical JSON closing fence:\n%s", markdown)
-	}
-	return markdown[start : start+end]
 }
