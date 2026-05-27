@@ -92,13 +92,11 @@ type RenderedIdentity struct {
 }
 
 type renderTemplateData struct {
-	Namespace                   string
-	BindingName                 string
-	ObjectiveName               string
-	PoolName                    string
-	Mode                        string
-	ContainerDiscriminatorType  string
-	ContainerDiscriminatorValue string
+	Namespace     string
+	BindingName   string
+	ObjectiveName string
+	PoolName      string
+	Mode          string
 }
 
 // NamespacedBindingKey returns the canonical namespace/name key used in logs and messages.
