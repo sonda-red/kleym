@@ -1,9 +1,9 @@
 ---
 title: Collision Detection
 weight: 30
+aliases:
+  - /operator/design/collision-detection/
 ---
-
-This page explains the current per-objective collision logic. The intended policy still lives in the [Operator Spec](/spec/operator/).
 
 ## Problem
 
