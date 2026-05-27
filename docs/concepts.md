@@ -27,16 +27,11 @@ aliases:
 
 If you do not set `mode`, the controller defaults to `PerObjective`.
 
-## Why Container Discrimination Exists
+## Why Container Names Exist
 
 `PerObjective` only makes sense if `kleym-operator` can prove that one objective identity lands on one workload slice.
 
-When several objectives share the same `InferencePool`, the pod selector alone is not enough because every objective may resolve to the same pods. The container discriminator adds a container selector so the identity applies to the intended serving container instead of the whole pod.
-
-Current discriminator types:
-
-- `ContainerName`, which is preferred because container names are explicit and stable within a pod template
-- `ContainerImage`, which is a fallback when container names are unavailable
+When several objectives share the same `InferencePool`, the pod selector alone is not enough because every objective may resolve to the same pods. `containerName` adds a `k8s:container-name:<containerName>` selector so the identity applies to the intended serving container instead of the whole pod.
 
 Without this extra boundary, distinct objective identities could collapse onto the same workload selection.
 
@@ -49,7 +44,7 @@ Every rendered identity must include:
 - the binding namespace selector
 - the workload service account selector
 - selectors derived from the referenced pool
-- the container discriminator when the mode is `PerObjective`
+- the container-name selector when the mode is `PerObjective`
 
 `kleym-operator` refuses to reconcile when it cannot prove those constraints.
 

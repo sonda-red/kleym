@@ -42,8 +42,8 @@ import (
 //     anchored to a changed InferencePool.
 //  3. effectiveMode — used by listCollisionCandidateBindings to find all
 //     PerObjective bindings when peer names are unavailable.
-//  4. containerDiscriminatorKey — used by listCollisionCandidateBindings to
-//     find bindings with the same container discriminator for collision detection.
+//  4. containerName — used by listCollisionCandidateBindings to find bindings
+//     with the same container boundary for collision detection.
 func (r *InferenceIdentityBindingReconciler) setupFieldIndexes(mgr ctrl.Manager) error {
 	indexer := mgr.GetFieldIndexer()
 
@@ -83,12 +83,12 @@ func (r *InferenceIdentityBindingReconciler) setupFieldIndexes(mgr ctrl.Manager)
 	if err := indexer.IndexField(
 		context.Background(),
 		&kleymv1alpha1.InferenceIdentityBinding{},
-		fieldIndexContainerDiscriminatorKey,
+		fieldIndexContainerName,
 		func(rawObj client.Object) []string {
-			return bindingContainerDiscriminatorIndexValue(rawObj)
+			return bindingContainerNameIndexValue(rawObj)
 		},
 	); err != nil {
-		return fmt.Errorf("failed to index InferenceIdentityBinding container discriminator: %w", err)
+		return fmt.Errorf("failed to index InferenceIdentityBinding containerName: %w", err)
 	}
 
 	return nil
@@ -135,31 +135,18 @@ func bindingEffectiveModeIndexValue(rawObj client.Object) []string {
 	return []string{string(effectiveMode(binding.Spec.Mode))}
 }
 
-func bindingContainerDiscriminatorIndexValue(rawObj client.Object) []string {
+func bindingContainerNameIndexValue(rawObj client.Object) []string {
 	binding, ok := rawObj.(*kleymv1alpha1.InferenceIdentityBinding)
 	if !ok {
 		return nil
 	}
 
-	key := containerDiscriminatorIndexKey(binding.Spec.ContainerDiscriminator)
-	if key == "" {
+	containerName := binding.Spec.ContainerName
+	if containerName == "" {
 		return nil
 	}
 
-	return []string{key}
-}
-
-func containerDiscriminatorIndexKey(discriminator *kleymv1alpha1.ContainerDiscriminator) string {
-	if discriminator == nil {
-		return ""
-	}
-
-	value := strings.TrimSpace(discriminator.Value)
-	if value == "" {
-		return ""
-	}
-
-	return fmt.Sprintf("%s|%s", discriminator.Type, value)
+	return []string{containerName}
 }
 
 // reconcileWatchPredicate filters watch events to reduce unnecessary reconciliations.

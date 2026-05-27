@@ -35,12 +35,10 @@ const (
 	findingRenderFailure        = "render-failure"
 	findingKleymCollision       = "kleym-collision"
 	findingZeroEligibleWorkload = "zero-eligible-workloads"
-	findingAmbiguousContainer   = "ambiguous-container-match"
 	findingUnsupportedSelector  = "unsupported-selector"
 	findingObservedDrift        = "observed-drift"
 	findingRBACLimited          = "rbac-limited"
 	reasonZeroEligibleWorkload  = "ZeroEligibleWorkloads"
-	reasonAmbiguousContainer    = "AmbiguousContainerMatch"
 	reasonUnsupportedSelector   = "UnsupportedSelector"
 	reasonObservedDrift         = "ObservedDrift"
 	reasonRBACLimited           = "Forbidden"
@@ -285,7 +283,7 @@ func (i *bindingInspector) inspectDesiredState(
 
 	provenance := selectorProvenance(binding, rendered, poolDerivedSelectors)
 	report.Resolved.PoolSelector = poolSelector
-	report.Resolved.ContainerDiscriminator = containerDiscriminator(binding)
+	report.Resolved.ContainerName = binding.Spec.ContainerName
 	report.Resolved.SelectorProvenance = &provenance
 	report.Desired = BindingInspectionDesiredState{
 		ClusterSPIFFEIDName: rendered.Name,
@@ -507,9 +505,6 @@ func eligibleWorkloadsFromPods(
 			})
 			continue
 		}
-		if len(matchingContainers) > 1 {
-			report.Findings = append(report.Findings, ambiguousContainerFinding(pod, selection))
-		}
 		for _, container := range matchingContainers {
 			workloads = append(workloads, BindingInspectionEligibleWorkload{
 				Namespace: pod.Namespace,
@@ -603,9 +598,6 @@ func workloadSelectionFromSelectors(selectors []string) workloadSelection {
 		case strings.HasPrefix(selector, "k8s:container-name:"):
 			selection.ContainerSelectorType = "name"
 			selection.ContainerValue = strings.TrimPrefix(selector, "k8s:container-name:")
-		case strings.HasPrefix(selector, "k8s:container-image:"):
-			selection.ContainerSelectorType = "image"
-			selection.ContainerValue = strings.TrimPrefix(selector, "k8s:container-image:")
 		case strings.HasPrefix(selector, "k8s:pod-label:"):
 			key, value, ok := strings.Cut(strings.TrimPrefix(selector, "k8s:pod-label:"), ":")
 			if ok && key != "" {
@@ -636,7 +628,7 @@ func podMatchesSelection(pod corev1.Pod, selection workloadSelection) bool {
 	return true
 }
 
-// matchingPodContainers returns containers selected by the rendered container discriminator.
+// matchingPodContainers returns containers selected by the rendered container name.
 func matchingPodContainers(pod corev1.Pod, selection workloadSelection) []corev1.Container {
 	if selection.ContainerSelectorType == "" {
 		return nil
@@ -647,10 +639,6 @@ func matchingPodContainers(pod corev1.Pod, selection workloadSelection) []corev1
 		switch selection.ContainerSelectorType {
 		case "name":
 			if container.Name == selection.ContainerValue {
-				containers = append(containers, container)
-			}
-		case "image":
-			if container.Image == selection.ContainerValue {
 				containers = append(containers, container)
 			}
 		}
@@ -716,27 +704,6 @@ func zeroEligibleWorkloadsFinding(binding *kleymv1alpha1.InferenceIdentityBindin
 			Group:     kleymv1alpha1.GroupVersion.Group,
 			Version:   kleymv1alpha1.GroupVersion.Version,
 			Kind:      "InferenceIdentityBinding",
-		}},
-	}
-}
-
-// ambiguousContainerFinding records a pod where one discriminator maps to more than one container.
-func ambiguousContainerFinding(pod corev1.Pod, selection workloadSelection) BindingInspectionFinding {
-	return BindingInspectionFinding{
-		ID:       findingAmbiguousContainer,
-		Severity: BindingInspectionFindingSeverityWarning,
-		Reason:   reasonAmbiguousContainer,
-		Message: fmt.Sprintf(
-			"pod %q has more than one container matching %s discriminator %q",
-			identity.NamespacedBindingKey(pod.Namespace, pod.Name),
-			selection.ContainerSelectorType,
-			selection.ContainerValue,
-		),
-		AffectedRefs: []BindingInspectionTargetRef{{
-			Namespace: pod.Namespace,
-			Name:      pod.Name,
-			Version:   "v1",
-			Kind:      "Pod",
 		}},
 	}
 }
@@ -846,14 +813,13 @@ func selectorProvenance(
 	poolDerivedSelectors []string,
 ) BindingInspectionSelectorProvenance {
 	containerSelector := ""
-	if binding.Spec.ContainerDiscriminator != nil {
-		if selector, err := identity.SelectorForContainerDiscriminator(binding.Spec.ContainerDiscriminator); err == nil {
+	if binding.Spec.ContainerName != "" {
+		if selector, err := identity.SelectorForContainerName(binding.Spec.ContainerName); err == nil {
 			containerSelector = selector
 		}
 	}
 
 	poolDerived := setFromStrings(poolDerivedSelectors)
-	workloadSelectors := make([]string, 0, len(rendered.Selectors))
 	safetySelectors := make([]string, 0, 2)
 	for _, selector := range rendered.Selectors {
 		if selector == containerSelector {
@@ -862,31 +828,17 @@ func selectorProvenance(
 		if _, found := poolDerived[selector]; found {
 			continue
 		}
-		workloadSelectors = append(workloadSelectors, selector)
 		if strings.HasPrefix(selector, "k8s:ns:") || strings.HasPrefix(selector, "k8s:sa:") {
 			safetySelectors = append(safetySelectors, selector)
 		}
 	}
 	sort.Strings(poolDerivedSelectors)
-	sort.Strings(workloadSelectors)
 	sort.Strings(safetySelectors)
 
 	return BindingInspectionSelectorProvenance{
-		SelectorSource:       string(binding.Spec.SelectorSource),
 		PoolDerivedSelectors: append([]string(nil), poolDerivedSelectors...),
-		WorkloadSelectors:    workloadSelectors,
 		ContainerSelector:    containerSelector,
 		SafetySelectors:      safetySelectors,
-	}
-}
-
-func containerDiscriminator(binding *kleymv1alpha1.InferenceIdentityBinding) *BindingInspectionContainerDiscriminator {
-	if binding.Spec.ContainerDiscriminator == nil {
-		return nil
-	}
-	return &BindingInspectionContainerDiscriminator{
-		Type:  string(binding.Spec.ContainerDiscriminator.Type),
-		Value: binding.Spec.ContainerDiscriminator.Value,
 	}
 }
 

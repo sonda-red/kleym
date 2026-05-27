@@ -35,19 +35,16 @@ External SPIFFE/SPIRE references:
 | `poolRef.group` | No | Constrains pool resolution to a supported GAIE InferencePool group. |
 | `objectiveRef.name` | Conditionally | Required in `PerObjective`; references an `InferenceObjective` in the same namespace. |
 | `objectiveRef.group` | No | Constrains objective resolution to a supported GAIE InferenceObjective group. |
-| `spiffeIDTemplate` | No | Overrides the computed SPIFFE ID when provided. |
-| `selectorSource` | Yes | Current enum: `DerivedFromPool`. |
-| `workloadSelectorTemplates` | Yes | Non-empty set of user-supplied SPIRE workload selector templates. |
+| `serviceAccountName` | Yes | Kubernetes service account required in every rendered identity selector set. |
 | `mode` | No | `PoolOnly` or `PerObjective`. Defaults to `PerObjective`. |
-| `containerDiscriminator.type` | Conditionally | Required in `PerObjective`. Current enum: `ContainerName`, `ContainerImage`. |
-| `containerDiscriminator.value` | Conditionally | Required in `PerObjective`. |
+| `containerName` | Conditionally | Required in `PerObjective`; forbidden in `PoolOnly`. |
 
 Current validation rules enforced by the CRD:
 
-- `containerDiscriminator` must be empty when `mode` is `PoolOnly`.
-- `containerDiscriminator` is required when `mode` is `PerObjective`, including the defaulted case.
+- `containerName` must be empty when `mode` is `PoolOnly`.
+- `containerName` is required when `mode` is `PerObjective`, including the defaulted case.
 - `objectiveRef` is required when `mode` is `PerObjective`, including the defaulted case.
-- `workloadSelectorTemplates` must contain at least one entry.
+- `serviceAccountName` is required.
 
 ## Status Fields
 
@@ -59,7 +56,7 @@ Current validation rules enforced by the CRD:
 
 ## Current Defaults
 
-When `spiffeIDTemplate` is omitted, the controller currently renders:
+The controller always renders deterministic SPIFFE IDs:
 
 - `PoolOnly`: `spiffe://kleym.sonda.red/ns/<namespace>/pool/<pool-name>`
 - `PerObjective`: `spiffe://kleym.sonda.red/ns/<namespace>/objective/<objective-name>`

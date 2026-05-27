@@ -5,7 +5,7 @@ aliases:
   - /operator/examples/per-objective/
 ---
 
-This example shows the current `PerObjective` path, including the container discriminator that keeps one objective identity tied to one container selection.
+This example shows the current `PerObjective` path, including the container name that keeps one objective identity tied to one container selection.
 
 As in the other examples, the Gateway API Inference Extension (GAIE) snippets focus on the fields `kleym-operator` currently consumes. Your cluster may require additional GAIE fields.
 For full GAIE schema details, see [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/).
@@ -43,14 +43,9 @@ spec:
     name: pool-a
   objectiveRef:
     name: objective-a
-  selectorSource: DerivedFromPool
-  workloadSelectorTemplates:
-    - k8s:ns:default
-    - k8s:sa:inference-sa
+  serviceAccountName: inference-sa
   mode: PerObjective
-  containerDiscriminator:
-    type: ContainerName
-    value: main
+  containerName: main
 ```
 
 ## Expected Outcome
@@ -91,7 +86,7 @@ The binding status should report `Ready=True` and `Conflict=False`.
 
 ## Collision Example
 
-If another `PerObjective` binding in the same namespace resolves to the same pool selector and uses the same container discriminator, both bindings currently enter conflict.
+If another `PerObjective` binding in the same namespace resolves to the same pool selector and uses the same container name, both bindings currently enter conflict.
 
 Example conflicting binding:
 
@@ -106,14 +101,9 @@ spec:
     name: pool-a
   objectiveRef:
     name: objective-b
-  selectorSource: DerivedFromPool
-  workloadSelectorTemplates:
-    - k8s:ns:default
-    - k8s:sa:inference-sa
+  serviceAccountName: inference-sa
   mode: PerObjective
-  containerDiscriminator:
-    type: ContainerName
-    value: main
+  containerName: main
 ```
 
 Expected conflict outcome:

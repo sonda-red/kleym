@@ -79,10 +79,7 @@ func TestReconcilePerObjectiveRequiresObjectiveRef(t *testing.T) {
 
 	binding := newPoolOnlyBinding("binding-missing-objective-ref", "")
 	binding.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePerObjective
-	binding.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
-		Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
-		Value: "main",
-	}
+	binding.Spec.ContainerName = "main"
 	reconciler := &InferenceIdentityBindingReconciler{
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).

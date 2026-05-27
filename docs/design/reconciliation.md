@@ -14,10 +14,10 @@ For each `InferenceIdentityBinding`, the reconciler currently does the following
 3. Resolve `spec.objectiveRef` when present or required by `PerObjective`.
 4. Validate that any resolved objective points at the same pool as `spec.poolRef`.
 5. Derive pod-label selectors from `pool.spec.selector`.
-6. Render workload selector templates from the binding and merge them with the pool-derived selectors.
-7. Add the container discriminator selector when the effective mode is `PerObjective`.
+6. Render namespace and service-account safety selectors from the binding and merge them with the pool-derived selectors.
+7. Add the `containerName` selector when the effective mode is `PerObjective`.
 8. Validate selector safety before rendering or writing output.
-9. Render the SPIFFE ID, using either the custom template or the built-in default for the mode.
+9. Render the deterministic SPIFFE ID for the mode.
 10. Run per-objective collision detection.
 11. Create, update, or delete managed `ClusterSPIFFEID` resources to match the rendered identity.
 12. Patch binding status and emit events for success, conflict, or failure.

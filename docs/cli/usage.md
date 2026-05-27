@@ -52,7 +52,7 @@ bin/kleym inspect binding <name> -n <namespace> -o json
 | Flag | Meaning |
 | --- | --- |
 | `-n`, `--namespace` | Binding namespace. Defaults to `default`. |
-| `-o`, `--output` | Output format: `text`, `json`, `yaml`, or `markdown`. Defaults to `text`. |
+| `-o`, `--output` | Output format: `text` or `json`. Defaults to `text`. |
 | `--strict` | Treat warning-severity findings as an inspection issue exit. |
 | `--context` | Kubeconfig context name. |
 | `--kubeconfig` | Kubeconfig file path. |

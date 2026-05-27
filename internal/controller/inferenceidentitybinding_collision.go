@@ -33,7 +33,7 @@ import (
 // computePerObjectiveCollisionSet detects identity collisions between PerObjective bindings.
 //
 // Two bindings collide when they produce identical (podSelector, selectors,
-// containerDiscriminatorType, containerDiscriminatorValue) tuples — meaning
+// containerName) tuples — meaning
 // distinct objective identities would target the same container selection.
 //
 // Algorithm:
@@ -42,7 +42,7 @@ import (
 //  3. Group candidates by fingerprint — groups with 2+ members are collisions.
 //  4. Mark every member of a collision group; the controller will set the
 //     Conflict condition on all of them and block ClusterSPIFFEID reconciliation
-//     until the collision is resolved (e.g. by changing a container discriminator).
+//     until the collision is resolved (e.g. by changing the container name).
 //
 // See docs/design/collision-detection.md for the full design.
 func (r *InferenceIdentityBindingReconciler) computePerObjectiveCollisionSet(
@@ -86,7 +86,7 @@ func (r *InferenceIdentityBindingReconciler) computePerObjectiveCollisionSet(
 			candidateIdentity = resolvedIdentity
 		}
 
-		fingerprint, fingerprintErr := perObjectiveCollisionFingerprint(candidateIdentity, candidateBinding.Spec.ContainerDiscriminator)
+		fingerprint, fingerprintErr := perObjectiveCollisionFingerprint(candidateIdentity, candidateBinding.Spec.ContainerName)
 		if fingerprintErr != nil {
 			continue
 		}
@@ -157,7 +157,7 @@ func (r *InferenceIdentityBindingReconciler) computePerObjectiveCollisionSet(
 //
 // It uses two strategies to keep the candidate set small:
 //  1. If the current binding is PerObjective, look up bindings with the same
-//     container discriminator key using a field index (fast, narrow).
+//     containerName using a field index (fast, narrow).
 //  2. If the current binding was previously colliding, look up the named peers
 //     from the Conflict condition message. If no peer names are available
 //     (message format mismatch or condition cleared externally), fall back to
@@ -180,18 +180,17 @@ func (r *InferenceIdentityBindingReconciler) listCollisionCandidateBindings(
 	}
 
 	if effectiveMode(binding.Spec.Mode) == kleymv1alpha1.InferenceIdentityBindingModePerObjective {
-		discriminatorKey := containerDiscriminatorIndexKey(binding.Spec.ContainerDiscriminator)
-		matchingDiscriminatorBindings, err := r.listBindingsByField(
+		matchingContainerBindings, err := r.listBindingsByField(
 			ctx,
 			binding.Namespace,
-			fieldIndexContainerDiscriminatorKey,
-			discriminatorKey,
+			fieldIndexContainerName,
+			binding.Spec.ContainerName,
 		)
 		if err != nil {
 			return nil, err
 		}
-		for i := range matchingDiscriminatorBindings {
-			addCandidate(matchingDiscriminatorBindings[i])
+		for i := range matchingContainerBindings {
+			addCandidate(matchingContainerBindings[i])
 		}
 		addCandidate(binding.DeepCopy())
 	}
@@ -314,8 +313,8 @@ func bindingMatchesField(
 		return strings.TrimSpace(binding.Spec.PoolRef.Name) == value
 	case fieldIndexEffectiveMode:
 		return string(effectiveMode(binding.Spec.Mode)) == value
-	case fieldIndexContainerDiscriminatorKey:
-		return containerDiscriminatorIndexKey(binding.Spec.ContainerDiscriminator) == value
+	case fieldIndexContainerName:
+		return binding.Spec.ContainerName == value
 	default:
 		return false
 	}
@@ -383,12 +382,12 @@ func collisionPeerBindingNames(conditions []metav1.Condition) []string {
 // perObjectiveCollisionFingerprint produces a deterministic string key for a
 // rendered identity. Two identities with the same fingerprint would produce
 // overlapping ClusterSPIFFEID resources targeting the same container, which is
-// unsafe. The key is: podSelector JSON | selectors JSON | discriminator type | discriminator value.
+// unsafe. The key is: podSelector JSON | selectors JSON | containerName.
 func perObjectiveCollisionFingerprint(
 	rendered renderedIdentity,
-	discriminator *kleymv1alpha1.ContainerDiscriminator,
+	containerName string,
 ) (string, error) {
-	return identitypkg.PerObjectiveCollisionFingerprint(rendered, discriminator)
+	return identitypkg.PerObjectiveCollisionFingerprint(rendered, containerName)
 }
 
 func identityCollisionMessage(bindingName string, collidingBindings []string) string {

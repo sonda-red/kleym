@@ -125,7 +125,7 @@ flowchart TD
         D1Y["Clean up ClusterSPIFFEIDs\nRemove finalizer"]
         F["Ensure finalizer"]
         RESOLVE["Resolve poolRef → Pool\nOptionally resolve objectiveRef"]
-        RENDER["Derive selectors from pool\nAdd container discriminator (PerObjective)\nValidate safety selectors\nRender SPIFFE ID"]
+        RENDER["Derive selectors from pool\nAdd containerName selector (PerObjective)\nValidate safety selectors\nRender SPIFFE ID"]
         COL{"Collision?"}
         COLY["Set Conflict status\nClean up ClusterSPIFFEIDs"]
         APPLY["Reconcile ClusterSPIFFEID"]

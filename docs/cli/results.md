@@ -12,8 +12,6 @@ record typed findings.
 | --- | --- |
 | `text` | Default human-readable terminal output. It starts with status, finding count, drift count, eligible workload count, and inspection completeness. |
 | `json` | Stable machine contract for automation. |
-| `yaml` | JSON-equivalent encoding with the same normalized report data and field names. |
-| `markdown` | Human-oriented documentation or PR comments. It includes the canonical JSON report for traceability. |
 
 Automation should use:
 

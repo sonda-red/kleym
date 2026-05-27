@@ -11,23 +11,98 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
-func TestRenderIdentityRejectsUnsafeSelectors(t *testing.T) {
+func TestRenderIdentityRejectsInvalidServiceAccountName(t *testing.T) {
 	t.Parallel()
 
-	binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePoolOnly)
-	binding.Spec.WorkloadSelectorTemplates = []string{"k8s:ns:default"}
-
-	_, err := RenderIdentity(binding, testObjective("objective-a"), testPool("pool-a"))
-	if err == nil {
-		t.Fatalf("expected unsafe selector error, got nil")
+	cases := map[string]string{
+		"invalid-character":   "Invalid_ServiceAccount",
+		"leading-whitespace":  " inference-sa",
+		"trailing-whitespace": "inference-sa ",
 	}
 
-	var stateErr *StateError
-	if !errors.As(err, &stateErr) {
-		t.Fatalf("expected StateError, got %T", err)
+	for name, serviceAccountName := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePoolOnly)
+			binding.Spec.ServiceAccountName = serviceAccountName
+
+			_, err := RenderIdentity(binding, testObjective("objective-a"), testPool("pool-a"))
+			if err == nil {
+				t.Fatalf("expected invalid service account error, got nil")
+			}
+
+			var stateErr *StateError
+			if !errors.As(err, &stateErr) {
+				t.Fatalf("expected StateError, got %T", err)
+			}
+			if stateErr.ConditionType != ConditionTypeRenderFailure || stateErr.Reason != "InvalidServiceAccountName" {
+				t.Fatalf("condition/reason = %q/%q, want %q/InvalidServiceAccountName", stateErr.ConditionType, stateErr.Reason, ConditionTypeRenderFailure)
+			}
+		})
 	}
-	if stateErr.ConditionType != ConditionTypeUnsafeSelector {
-		t.Fatalf("condition = %q, want %q", stateErr.ConditionType, ConditionTypeUnsafeSelector)
+}
+
+func TestRenderIdentityRejectsInvalidContainerName(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"invalid-character":   "model_server",
+		"leading-whitespace":  " main",
+		"trailing-whitespace": "main ",
+	}
+
+	for name, containerName := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
+			binding.Spec.ContainerName = containerName
+
+			_, err := RenderIdentity(binding, testObjective("objective-a"), testPool("pool-a"))
+			if err == nil {
+				t.Fatalf("expected invalid container name error, got nil")
+			}
+
+			var stateErr *StateError
+			if !errors.As(err, &stateErr) {
+				t.Fatalf("expected StateError, got %T", err)
+			}
+			if stateErr.ConditionType != ConditionTypeRenderFailure || stateErr.Reason != "InvalidContainerName" {
+				t.Fatalf("condition/reason = %q/%q, want %q/InvalidContainerName", stateErr.ConditionType, stateErr.Reason, ConditionTypeRenderFailure)
+			}
+		})
+	}
+}
+
+func TestRenderIdentityRejectsContainerNameInPoolOnly(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"name":            "main",
+		"whitespace-only": " ",
+	}
+
+	for name, containerName := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePoolOnly)
+			binding.Spec.ContainerName = containerName
+
+			_, err := RenderIdentity(binding, testObjective("objective-a"), testPool("pool-a"))
+			if err == nil {
+				t.Fatalf("expected unexpected container name error, got nil")
+			}
+
+			var stateErr *StateError
+			if !errors.As(err, &stateErr) {
+				t.Fatalf("expected StateError, got %T", err)
+			}
+			if stateErr.ConditionType != ConditionTypeRenderFailure || stateErr.Reason != "UnexpectedContainerName" {
+				t.Fatalf("condition/reason = %q/%q, want %q/UnexpectedContainerName", stateErr.ConditionType, stateErr.Reason, ConditionTypeRenderFailure)
+			}
+		})
 	}
 }
 
@@ -82,19 +157,17 @@ func TestRenderIdentityPerObjectiveAddsContainerSelector(t *testing.T) {
 	}
 }
 
-func TestRenderIdentityUsesCustomSPIFFEIDTemplateOverride(t *testing.T) {
+func TestRenderIdentityUsesDeterministicSPIFFEID(t *testing.T) {
 	t.Parallel()
 
-	customTemplate := "spiffe://example.test/ns/{{ .Namespace }}/objective/{{ .ObjectiveName }}"
 	binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
-	binding.Spec.SpiffeIDTemplate = &customTemplate
 
 	identity, err := RenderIdentity(binding, testObjective("objective-a"), testPool("pool-a"))
 	if err != nil {
 		t.Fatalf("RenderIdentity returned error: %v", err)
 	}
 
-	expectedSPIFFEID := "spiffe://example.test/ns/default/objective/objective-a"
+	expectedSPIFFEID := "spiffe://kleym.sonda.red/ns/default/objective/objective-a"
 	if identity.SpiffeID != expectedSPIFFEID {
 		t.Fatalf("spiffeID = %q, want %q", identity.SpiffeID, expectedSPIFFEID)
 	}
@@ -148,23 +221,28 @@ func TestExtractPoolRefRejectsCrossNamespace(t *testing.T) {
 func TestPerObjectiveCollisionFingerprintValidatesInputs(t *testing.T) {
 	t.Parallel()
 
-	_, err := PerObjectiveCollisionFingerprint(RenderedIdentity{}, nil)
-	if err == nil {
-		t.Fatalf("expected nil discriminator error, got nil")
+	for name, containerName := range map[string]string{
+		"empty":              "",
+		"leading-whitespace": " main",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := PerObjectiveCollisionFingerprint(RenderedIdentity{}, containerName)
+			if err == nil {
+				t.Fatalf("expected invalid containerName error, got nil")
+			}
+		})
 	}
 
-	discriminator := &kleymv1alpha1.ContainerDiscriminator{
-		Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
-		Value: "main",
-	}
 	fingerprint, err := PerObjectiveCollisionFingerprint(RenderedIdentity{
 		PodSelector: map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
 		Selectors:   []string{"k8s:container-name:main", "k8s:ns:default", "k8s:sa:inference-sa"},
-	}, discriminator)
+	}, "main")
 	if err != nil {
 		t.Fatalf("PerObjectiveCollisionFingerprint returned error: %v", err)
 	}
-	expected := `{"matchLabels":{"app":"model-server"}}|["k8s:container-name:main","k8s:ns:default","k8s:sa:inference-sa"]|ContainerName|main`
+	expected := `{"matchLabels":{"app":"model-server"}}|["k8s:container-name:main","k8s:ns:default","k8s:sa:inference-sa"]|main`
 	if fingerprint != expected {
 		t.Fatalf("fingerprint = %q, want %q", fingerprint, expected)
 	}
@@ -177,20 +255,14 @@ func testBinding(mode kleymv1alpha1.InferenceIdentityBindingMode) *kleymv1alpha1
 			Namespace: "default",
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			PoolRef: kleymv1alpha1.InferencePoolTargetRef{Name: "pool-a"},
-			WorkloadSelectorTemplates: []string{
-				"k8s:ns:default",
-				"k8s:sa:inference-sa",
-			},
-			Mode: mode,
+			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-a"},
+			ServiceAccountName: "inference-sa",
+			Mode:               mode,
 		},
 	}
 	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective {
 		binding.Spec.ObjectiveRef = &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-a"}
-		binding.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
-			Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
-			Value: "main",
-		}
+		binding.Spec.ContainerName = "main"
 	}
 	return binding
 }

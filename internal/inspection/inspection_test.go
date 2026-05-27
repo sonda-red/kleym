@@ -102,39 +102,6 @@ func TestInspectBindingPoolOnlyEligibleWorkload(t *testing.T) {
 	}
 }
 
-func TestInspectBindingUnsupportedSelectorMakesPodInspectionPartial(t *testing.T) {
-	binding := testInspectionBinding()
-	binding.Spec.WorkloadSelectorTemplates = append(
-		binding.Spec.WorkloadSelectorTemplates,
-		"k8s:pod-uid:12345678-1234-1234-1234-123456789abc",
-	)
-	pool := testInspectionPool("pool-a")
-	objective := testInspectionObjective("objective-a", "pool-a")
-	rendered, err := identity.RenderIdentity(binding, objective, pool)
-	if err != nil {
-		t.Fatalf("render test identity: %v", err)
-	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
-	pod := testInspectionPod("model-server-a", "model-server")
-
-	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed, pod)
-	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
-	if err != nil {
-		t.Fatalf("InspectBinding returned error: %v", err)
-	}
-
-	assertFinding(t, report.Findings, findingUnsupportedSelector, BindingInspectionFindingSeverityWarning, reasonUnsupportedSelector)
-	if report.Capabilities.Pods != BindingInspectionCapabilityPartial {
-		t.Fatalf("pods capability = %q, want partial", report.Capabilities.Pods)
-	}
-	if len(report.Observed.EligibleWorkloads) != 0 {
-		t.Fatalf("eligible workloads = %#v, want none when selectors cannot be fully evaluated", report.Observed.EligibleWorkloads)
-	}
-	if findingExists(report.Findings, findingZeroEligibleWorkload) {
-		t.Fatalf("unexpected zero eligible workloads finding when eligibility was not fully evaluated: %#v", report.Findings)
-	}
-}
-
 func TestInspectBindingMissingBindingReport(t *testing.T) {
 	inspector := newTestBindingInspector(t, nil)
 
@@ -164,9 +131,9 @@ func TestInspectBindingMissingDependencyFinding(t *testing.T) {
 	}
 }
 
-func TestInspectBindingUnsafeSelectorFinding(t *testing.T) {
+func TestInspectBindingInvalidServiceAccountNameFinding(t *testing.T) {
 	binding := testInspectionBinding()
-	binding.Spec.WorkloadSelectorTemplates = []string{"k8s:ns:tenant-a"}
+	binding.Spec.ServiceAccountName = "Invalid_ServiceAccount"
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
 	inspector := newTestBindingInspector(t, nil, binding, pool, objective)
@@ -176,7 +143,7 @@ func TestInspectBindingUnsafeSelectorFinding(t *testing.T) {
 		t.Fatalf("InspectBinding error = %v, want error findings", err)
 	}
 
-	assertFinding(t, report.Findings, findingUnsafeSelector, BindingInspectionFindingSeverityError, "UnsafeSelector")
+	assertFinding(t, report.Findings, findingRenderFailure, BindingInspectionFindingSeverityError, "InvalidServiceAccountName")
 }
 
 func TestInspectBindingObservedDriftFinding(t *testing.T) {
@@ -243,37 +210,6 @@ func TestInspectBindingZeroEligibleWorkloadsFinding(t *testing.T) {
 	assertFinding(t, report.Findings, findingZeroEligibleWorkload, BindingInspectionFindingSeverityInfo, reasonZeroEligibleWorkload)
 	if report.Capabilities.Pods != BindingInspectionCapabilityFull {
 		t.Fatalf("pods capability = %q, want full", report.Capabilities.Pods)
-	}
-}
-
-func TestInspectBindingAmbiguousContainerMatchFinding(t *testing.T) {
-	binding := testInspectionBinding()
-	binding.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
-		Type:  kleymv1alpha1.ContainerDiscriminatorTypeImage,
-		Value: "registry.example.test/model-server:v1",
-	}
-	pool := testInspectionPool("pool-a")
-	objective := testInspectionObjective("objective-a", "pool-a")
-	rendered, err := identity.RenderIdentity(binding, objective, pool)
-	if err != nil {
-		t.Fatalf("render test identity: %v", err)
-	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
-	pod := testInspectionPod(
-		"model-server-a",
-		"model-server-a=registry.example.test/model-server:v1",
-		"model-server-b=registry.example.test/model-server:v1",
-	)
-	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed, pod)
-
-	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
-	if err != nil {
-		t.Fatalf("InspectBinding returned error: %v", err)
-	}
-
-	assertFinding(t, report.Findings, findingAmbiguousContainer, BindingInspectionFindingSeverityWarning, reasonAmbiguousContainer)
-	if len(report.Observed.EligibleWorkloads) != 2 {
-		t.Fatalf("eligible workloads = %#v, want two matching containers", report.Observed.EligibleWorkloads)
 	}
 }
 
@@ -457,16 +393,9 @@ func testInspectionBinding() *kleymv1alpha1.InferenceIdentityBinding {
 				Name:  "objective-a",
 				Group: identity.InferenceObjectiveGVKs()[0].Group,
 			},
-			SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
-			WorkloadSelectorTemplates: []string{
-				"k8s:ns:{{ .Namespace }}",
-				"k8s:sa:model-sa",
-			},
-			Mode: kleymv1alpha1.InferenceIdentityBindingModePerObjective,
-			ContainerDiscriminator: &kleymv1alpha1.ContainerDiscriminator{
-				Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
-				Value: "model-server",
-			},
+			ServiceAccountName: "model-sa",
+			Mode:               kleymv1alpha1.InferenceIdentityBindingModePerObjective,
+			ContainerName:      "model-server",
 		},
 	}
 }
@@ -475,7 +404,7 @@ func testInspectionPoolOnlyBinding() *kleymv1alpha1.InferenceIdentityBinding {
 	binding := testInspectionBinding()
 	binding.Spec.ObjectiveRef = nil
 	binding.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePoolOnly
-	binding.Spec.ContainerDiscriminator = nil
+	binding.Spec.ContainerName = ""
 	return binding
 }
 
@@ -529,15 +458,6 @@ func assertFinding(
 		}
 	}
 	t.Fatalf("finding %s/%s/%s not found in %#v", id, severity, reason, findings)
-}
-
-func findingExists(findings []BindingInspectionFinding, id string) bool {
-	for _, finding := range findings {
-		if finding.ID == id {
-			return true
-		}
-	}
-	return false
 }
 
 func driftContainsField(entries []BindingInspectionDriftEntry, field string) bool {

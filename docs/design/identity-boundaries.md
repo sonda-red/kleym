@@ -14,15 +14,14 @@ aliases:
 
 The pool defines where inference runs. The objective defines what is served.
 
-## Container Discriminator
+## Container Name
 
-`PerObjective` uses a container discriminator to add a container-level selector
-to the pool-level pod selection.
+`PerObjective` uses `containerName` to add a container-level selector to the
+pool-level pod selection.
 
-| Type | SPIRE selector | Notes |
+| Field | SPIRE selector | Notes |
 | --- | --- | --- |
-| `ContainerName` | `k8s:container-name:<value>` | Preferred. |
-| `ContainerImage` | `k8s:container-image:<value>` | Weaker fallback because one image can serve multiple objectives. |
+| `containerName` | `k8s:container-name:<value>` | Required for `PerObjective`; forbidden for `PoolOnly`. |
 
 When multiple objectives share one pool, each objective should use a different
 container name. If two `PerObjective` bindings resolve to the same pod set and

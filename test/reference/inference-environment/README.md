@@ -43,8 +43,7 @@ Tests and demos can rely on these values:
 
 An `InferenceIdentityBinding` that uses this reference environment should be
 applied by the test or demo layer, not by this directory. For `PerObjective`
-mode, use `containerDiscriminator.type: ContainerName` and
-`containerDiscriminator.value: model-server`.
+mode, use `containerName: model-server`.
 
 ## Not Included
 

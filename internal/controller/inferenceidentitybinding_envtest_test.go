@@ -95,7 +95,7 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 		return objective
 	}
 
-	It("initializes the full canonical condition set for unsafe selectors", func() {
+	It("initializes the full canonical condition set for render failures", func() {
 		poolName := newName("pool-unsafe")
 		objectiveName := newName("objective-unsafe")
 		bindingName := newName("binding-unsafe")
@@ -106,12 +106,9 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 		binding := &kleymv1alpha1.InferenceIdentityBinding{
 			ObjectMeta: metav1.ObjectMeta{Namespace: testNamespace, Name: bindingName},
 			Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-				PoolRef:        kleymv1alpha1.InferencePoolTargetRef{Name: poolName},
-				SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
-				WorkloadSelectorTemplates: []string{
-					"k8s:sa:inference-sa",
-				},
-				Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+				PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName},
+				ServiceAccountName: "bad_service_account",
+				Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 			},
 		}
 		Expect(k8sClient.Create(ctx, binding)).To(Succeed())
@@ -132,10 +129,10 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 			Expect(condition.ObservedGeneration).To(Equal(fetched.Generation), "unexpected observedGeneration for %s", conditionType)
 		}
 
-		unsafeSelector := meta.FindStatusCondition(fetched.Status.Conditions, conditionTypeUnsafeSelector)
-		Expect(unsafeSelector).NotTo(BeNil())
-		Expect(unsafeSelector.Status).To(Equal(metav1.ConditionTrue))
-		Expect(unsafeSelector.Reason).To(Equal("UnsafeSelector"))
+		renderFailure := meta.FindStatusCondition(fetched.Status.Conditions, conditionTypeRenderFailure)
+		Expect(renderFailure).NotTo(BeNil())
+		Expect(renderFailure.Status).To(Equal(metav1.ConditionTrue))
+		Expect(renderFailure.Reason).To(Equal("InvalidServiceAccountName"))
 	})
 
 	It("advances observedGeneration on all conditions after spec changes", func() {
@@ -149,13 +146,9 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 		binding := &kleymv1alpha1.InferenceIdentityBinding{
 			ObjectMeta: metav1.ObjectMeta{Namespace: testNamespace, Name: bindingName},
 			Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-				PoolRef:        kleymv1alpha1.InferencePoolTargetRef{Name: poolName},
-				SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
-				WorkloadSelectorTemplates: []string{
-					"k8s:ns:default",
-					"k8s:sa:inference-sa",
-				},
-				Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+				PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName},
+				ServiceAccountName: "inference-sa",
+				Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 			},
 		}
 		Expect(k8sClient.Create(ctx, binding)).To(Succeed())
@@ -171,10 +164,7 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: bindingName}, fetched)).To(Succeed())
 		previousGeneration := fetched.Generation
 
-		fetched.Spec.WorkloadSelectorTemplates = []string{
-			"k8s:ns:default",
-			"k8s:sa:inference-sa-v2",
-		}
+		fetched.Spec.ServiceAccountName = "inference-sa-v2"
 		Expect(k8sClient.Update(ctx, fetched)).To(Succeed())
 
 		_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: bindingName}})
@@ -255,7 +245,7 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 		currentB := &kleymv1alpha1.InferenceIdentityBinding{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: bindingBName}, currentB)).To(Succeed())
 		currentB.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePoolOnly
-		currentB.Spec.ContainerDiscriminator = nil
+		currentB.Spec.ContainerName = ""
 		Expect(k8sClient.Update(ctx, currentB)).To(Succeed())
 
 		Eventually(func(g Gomega) {

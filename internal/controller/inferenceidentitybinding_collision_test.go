@@ -96,7 +96,7 @@ func TestReconcilePerObjectiveCollisionResolutionClearsConflictAndResumes(t *tes
 	if err := reconciler.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: "binding-b"}, bindingB); err != nil {
 		t.Fatalf("failed to get binding-b: %v", err)
 	}
-	bindingB.Spec.ContainerDiscriminator.Value = "sidecar"
+	bindingB.Spec.ContainerName = "sidecar"
 	if err := reconciler.Update(ctx, bindingB); err != nil {
 		t.Fatalf("failed to update binding-b: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestReconcilePerObjectiveCollisionResolutionRefreshesPeersOnSingleReconcile
 	if err := reconciler.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: "binding-b"}, bindingB); err != nil {
 		t.Fatalf("failed to get binding-b: %v", err)
 	}
-	bindingB.Spec.ContainerDiscriminator.Value = "sidecar"
+	bindingB.Spec.ContainerName = "sidecar"
 	if err := reconciler.Update(ctx, bindingB); err != nil {
 		t.Fatalf("failed to update binding-b: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestChangingBindingToPoolOnlyResolvesPeerCollision(t *testing.T) {
 		t.Fatalf("failed to get binding-b: %v", err)
 	}
 	bindingB.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePoolOnly
-	bindingB.Spec.ContainerDiscriminator = nil
+	bindingB.Spec.ContainerName = ""
 	if err := reconciler.Update(ctx, bindingB); err != nil {
 		t.Fatalf("failed to update binding-b: %v", err)
 	}
@@ -372,16 +372,9 @@ func newPerObjectiveBindingWithServiceAccount(
 			ObjectiveRef: &kleymv1alpha1.InferenceObjectiveTargetRef{
 				Name: objectiveName,
 			},
-			SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
-			WorkloadSelectorTemplates: []string{
-				"k8s:ns:" + testNamespace,
-				"k8s:sa:" + serviceAccount,
-			},
-			Mode: kleymv1alpha1.InferenceIdentityBindingModePerObjective,
-			ContainerDiscriminator: &kleymv1alpha1.ContainerDiscriminator{
-				Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
-				Value: "main",
-			},
+			ServiceAccountName: serviceAccount,
+			Mode:               kleymv1alpha1.InferenceIdentityBindingModePerObjective,
+			ContainerName:      "main",
 		},
 	}
 }
@@ -396,12 +389,8 @@ func newPoolOnlyBinding(name, objectiveName string) *kleymv1alpha1.InferenceIden
 			PoolRef: kleymv1alpha1.InferencePoolTargetRef{
 				Name: "pool-a",
 			},
-			SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
-			WorkloadSelectorTemplates: []string{
-				"k8s:ns:" + testNamespace,
-				"k8s:sa:inference-sa",
-			},
-			Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+			ServiceAccountName: "inference-sa",
+			Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 		},
 	}
 }

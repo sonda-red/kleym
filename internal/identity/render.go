@@ -16,13 +16,11 @@ limitations under the License.
 package identity
 
 import (
-	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
-	"text/template"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -82,38 +80,33 @@ func RenderIdentity(
 		PoolName:      pool.GetName(),
 		Mode:          string(mode),
 	}
-	if binding.Spec.ContainerDiscriminator != nil {
-		templateData.ContainerDiscriminatorType = string(binding.Spec.ContainerDiscriminator.Type)
-		templateData.ContainerDiscriminatorValue = binding.Spec.ContainerDiscriminator.Value
-	}
 
-	renderedSelectors, err := renderSelectorTemplates(binding.Spec.WorkloadSelectorTemplates, templateData)
+	renderedSelectors, err := renderSafetySelectors(binding.Namespace, binding.Spec.ServiceAccountName)
 	if err != nil {
 		return RenderedIdentity{}, newStateError(
 			ConditionTypeRenderFailure,
-			"SelectorTemplateRenderFailed",
+			"InvalidServiceAccountName",
 			err.Error(),
 		)
 	}
 
 	selectors := append(renderedSelectors, poolDerivedSelectors...)
 	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective {
-		if binding.Spec.ContainerDiscriminator == nil {
-			return RenderedIdentity{}, newStateError(
-				ConditionTypeRenderFailure,
-				"MissingContainerDiscriminator",
-				"containerDiscriminator is required when mode is PerObjective",
-			)
-		}
-		containerSelector, selectorErr := SelectorForContainerDiscriminator(binding.Spec.ContainerDiscriminator)
+		containerSelector, selectorErr := SelectorForContainerName(binding.Spec.ContainerName)
 		if selectorErr != nil {
 			return RenderedIdentity{}, newStateError(
 				ConditionTypeRenderFailure,
-				"InvalidContainerDiscriminator",
+				"InvalidContainerName",
 				selectorErr.Error(),
 			)
 		}
 		selectors = append(selectors, containerSelector)
+	} else if binding.Spec.ContainerName != "" {
+		return RenderedIdentity{}, newStateError(
+			ConditionTypeRenderFailure,
+			"UnexpectedContainerName",
+			"containerName must be empty when mode is PoolOnly",
+		)
 	}
 
 	selectors = UniqueAndSorted(selectors)
@@ -125,14 +118,7 @@ func RenderIdentity(
 		)
 	}
 
-	spiffeID, err := renderSPIFFEID(binding.Spec.SpiffeIDTemplate, mode, templateData)
-	if err != nil {
-		return RenderedIdentity{}, newStateError(
-			ConditionTypeRenderFailure,
-			"SPIFFEIDRenderFailed",
-			err.Error(),
-		)
-	}
+	spiffeID := renderSPIFFEID(mode, templateData)
 	if !strings.HasPrefix(spiffeID, "spiffe://") {
 		return RenderedIdentity{}, newStateError(
 			ConditionTypeRenderFailure,
@@ -152,6 +138,46 @@ func RenderIdentity(
 		Hint:         BuildClusterSPIFFEIDHint(binding),
 		Fallback:     false,
 	}, nil
+}
+
+// renderSafetySelectors returns the mandatory namespace and service-account selectors.
+func renderSafetySelectors(namespace, serviceAccountName string) ([]string, error) {
+	if strings.TrimSpace(serviceAccountName) == "" {
+		return nil, fmt.Errorf("serviceAccountName must not be empty")
+	}
+	if errs := validation.IsDNS1123Subdomain(serviceAccountName); len(errs) > 0 {
+		return nil, fmt.Errorf("serviceAccountName %q is invalid: %s", serviceAccountName, strings.Join(errs, "; "))
+	}
+	return []string{
+		"k8s:ns:" + namespace,
+		"k8s:sa:" + serviceAccountName,
+	}, nil
+}
+
+// SelectorForContainerName renders the SPIRE selector for the per-objective container boundary.
+func SelectorForContainerName(containerName string) (string, error) {
+	if strings.TrimSpace(containerName) == "" {
+		return "", fmt.Errorf("containerName is required when mode is PerObjective")
+	}
+	if errs := validation.IsDNS1123Label(containerName); len(errs) > 0 {
+		return "", fmt.Errorf("containerName %q is invalid: %s", containerName, strings.Join(errs, "; "))
+	}
+	return "k8s:container-name:" + containerName, nil
+}
+
+// renderSPIFFEID computes the fixed SPIFFE ID forms defined by docs/spec/operator.md.
+func renderSPIFFEID(
+	mode kleymv1alpha1.InferenceIdentityBindingMode,
+	data renderTemplateData,
+) string {
+	switch mode {
+	case kleymv1alpha1.InferenceIdentityBindingModePoolOnly:
+		return fmt.Sprintf("spiffe://%s/ns/%s/pool/%s", defaultTrustDomain, data.Namespace, data.PoolName)
+	case kleymv1alpha1.InferenceIdentityBindingModePerObjective:
+		return fmt.Sprintf("spiffe://%s/ns/%s/objective/%s", defaultTrustDomain, data.Namespace, data.ObjectiveName)
+	default:
+		return ""
+	}
 }
 
 // BuildClusterSPIFFEIDHint builds the traceability hint for a generated ClusterSPIFFEID.
@@ -229,35 +255,6 @@ func DeriveSelectorsFromPool(pool *unstructured.Unstructured) (map[string]any, [
 	return selectorMap, derivedSelectors, nil
 }
 
-func renderSelectorTemplates(templates []string, data renderTemplateData) ([]string, error) {
-	rendered := make([]string, 0, len(templates))
-	for i, selectorTemplate := range templates {
-		value, err := renderTemplate("selector", fmt.Sprintf("selector-%d", i), selectorTemplate, data)
-		if err != nil {
-			return nil, err
-		}
-		rendered = append(rendered, value)
-	}
-	return rendered, nil
-}
-
-// SelectorForContainerDiscriminator renders the SPIRE selector for a container discriminator.
-func SelectorForContainerDiscriminator(discriminator *kleymv1alpha1.ContainerDiscriminator) (string, error) {
-	value := strings.TrimSpace(discriminator.Value)
-	if value == "" {
-		return "", fmt.Errorf("containerDiscriminator.value must not be empty")
-	}
-
-	switch discriminator.Type {
-	case kleymv1alpha1.ContainerDiscriminatorTypeName:
-		return "k8s:container-name:" + value, nil
-	case kleymv1alpha1.ContainerDiscriminatorTypeImage:
-		return "k8s:container-image:" + value, nil
-	default:
-		return "", fmt.Errorf("unsupported containerDiscriminator.type %q", discriminator.Type)
-	}
-}
-
 // ValidateSafetySelectors enforces namespace and service account safety selectors.
 func ValidateSafetySelectors(namespace string, selectors []string) error {
 	hasNamespaceSelector := false
@@ -288,44 +285,6 @@ func ValidateSafetySelectors(namespace string, selectors []string) error {
 	}
 
 	return nil
-}
-
-func renderSPIFFEID(
-	customTemplate *string,
-	mode kleymv1alpha1.InferenceIdentityBindingMode,
-	data renderTemplateData,
-) (string, error) {
-	if customTemplate == nil {
-		switch mode {
-		case kleymv1alpha1.InferenceIdentityBindingModePoolOnly:
-			return fmt.Sprintf("spiffe://%s/ns/%s/pool/%s", defaultTrustDomain, data.Namespace, data.PoolName), nil
-		case kleymv1alpha1.InferenceIdentityBindingModePerObjective:
-			return fmt.Sprintf("spiffe://%s/ns/%s/objective/%s", defaultTrustDomain, data.Namespace, data.ObjectiveName), nil
-		default:
-			return "", fmt.Errorf("unsupported mode %q", mode)
-		}
-	}
-
-	return renderTemplate("spiffeID", "spiffeIDTemplate", *customTemplate, data)
-}
-
-func renderTemplate(kind, name, source string, data renderTemplateData) (string, error) {
-	parsed, err := template.New(name).Option("missingkey=error").Parse(source)
-	if err != nil {
-		return "", fmt.Errorf("%s template parse failed: %w", kind, err)
-	}
-
-	var rendered bytes.Buffer
-	if err := parsed.Execute(&rendered, data); err != nil {
-		return "", fmt.Errorf("%s template render failed: %w", kind, err)
-	}
-
-	value := strings.TrimSpace(rendered.String())
-	if value == "" {
-		return "", fmt.Errorf("%s template rendered to an empty value", kind)
-	}
-
-	return value, nil
 }
 
 // BuildClusterSPIFFEIDName produces a deterministic, DNS-label-safe ClusterSPIFFEID name.

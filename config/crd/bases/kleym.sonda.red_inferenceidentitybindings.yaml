@@ -40,28 +40,13 @@ spec:
           spec:
             description: spec defines the desired state of InferenceIdentityBinding.
             properties:
-              containerDiscriminator:
+              containerName:
                 description: |-
-                  containerDiscriminator specifies how to discriminate between containers when
-                  generating identities in PerObjective mode.
+                  containerName specifies the serving container when generating identities in PerObjective mode.
                   Required when mode is PerObjective; must be empty when mode is PoolOnly.
-                properties:
-                  type:
-                    description: type specifies the kind of discriminator to use (ContainerName
-                      or ContainerImage).
-                    enum:
-                    - ContainerName
-                    - ContainerImage
-                    type: string
-                  value:
-                    description: value is the container name or image to match, depending
-                      on type.
-                    minLength: 1
-                    type: string
-                required:
-                - type
-                - value
-                type: object
+                maxLength: 63
+                minLength: 1
+                type: string
               mode:
                 default: PerObjective
                 description: mode selects the identity granularity for this binding.
@@ -107,40 +92,22 @@ spec:
                 required:
                 - name
                 type: object
-              selectorSource:
-                description: selectorSource defines how the workload selectors are
-                  derived.
-                enum:
-                - DerivedFromPool
-                type: string
-              spiffeIDTemplate:
-                description: |-
-                  spiffeIDTemplate optionally overrides the SPIFFE ID template for this binding.
-                  If not specified, the default template from the controller configuration will be used.
+              serviceAccountName:
+                description: serviceAccountName is the Kubernetes service account
+                  required in every rendered identity selector set.
+                maxLength: 253
                 minLength: 1
                 type: string
-              workloadSelectorTemplates:
-                description: |-
-                  workloadSelectorTemplates are Go-template strings that produce SPIFFE workload
-                  selectors for this binding. At least one template is required.
-                items:
-                  minLength: 1
-                  type: string
-                minItems: 1
-                type: array
-                x-kubernetes-list-type: set
             required:
             - poolRef
-            - selectorSource
-            - workloadSelectorTemplates
+            - serviceAccountName
             type: object
             x-kubernetes-validations:
-            - message: containerDiscriminator must be empty when mode is PoolOnly
-              rule: '!has(self.mode) || self.mode != ''PoolOnly'' || !has(self.containerDiscriminator)'
-            - message: containerDiscriminator is required when mode is PerObjective
-                (including default mode)
-              rule: has(self.containerDiscriminator) || (has(self.mode) && self.mode
-                == 'PoolOnly')
+            - message: containerName must be empty when mode is PoolOnly
+              rule: '!has(self.mode) || self.mode != ''PoolOnly'' || !has(self.containerName)'
+            - message: containerName is required when mode is PerObjective (including
+                default mode)
+              rule: has(self.containerName) || (has(self.mode) && self.mode == 'PoolOnly')
             - message: objectiveRef is required when mode is PerObjective (including
                 default mode)
               rule: has(self.objectiveRef) || (has(self.mode) && self.mode == 'PoolOnly')
@@ -149,7 +116,7 @@ spec:
             properties:
               computedSpiffeIDs:
                 description: computedSpiffeIDs lists the SPIFFE IDs produced from
-                  the SpiffeIDTemplate and references.
+                  the binding references.
                 items:
                   description: ComputedSpiffeIDStatus holds a single computed SPIFFE
                     ID and the mode that produced it.
@@ -240,9 +207,8 @@ spec:
                 description: renderedSelectors shows the final workload selectors
                   for each rendered identity.
                 items:
-                  description: |-
-                    RenderedSelectorStatus describes the final selectors for one rendered identity,
-                    after processing WorkloadSelectorTemplates and SelectorSource.
+                  description: RenderedSelectorStatus describes the final selectors
+                    for one rendered identity.
                   properties:
                     selectors:
                       description: selectors are the final set of workload selectors
