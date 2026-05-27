@@ -22,13 +22,12 @@ Dependency facts live in [Dependencies][dependencies]. Supported GAIE inputs liv
 1. `poolRef` references one [`InferencePool`][gaie-inferencepool]. The pool is the required workload anchor and selector provenance source.
 2. `objectiveRef` references one [`InferenceObjective`][gaie-inferenceobjective]. It is required for `PerObjective`; the objective must reference the same pool as `poolRef`.
 3. `mode` is `PoolOnly` or `PerObjective`. These are the only identity boundaries. The default is `PerObjective`.
-4. `spiffeIDTemplate` may override the computed SPIFFE ID. Defaults are deterministic:
+4. `serviceAccountName` is required. Kleym renders safety selectors internally as `k8s:ns:<binding namespace>` and `k8s:sa:<serviceAccountName>`.
+5. SPIFFE IDs are always deterministic:
    - `PoolOnly`: `spiffe://kleym.sonda.red/ns/<namespace>/pool/<pool-name>`
    - `PerObjective`: `spiffe://kleym.sonda.red/ns/<namespace>/objective/<objective-name>`
-5. `selectorSource` is `DerivedFromPool`.
-6. `workloadSelectorTemplates` are required safety constraints. Rendered selectors must include `k8s:ns:<namespace>` and `k8s:sa:<service-account>`.
-7. `containerDiscriminator` is required for `PerObjective` and must be empty for `PoolOnly`.
-8. Status records `computedSpiffeIDs`, `renderedSelectors`, and conditions. Conditions include `Ready`, `Conflict`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure`.
+6. `containerName` is required for `PerObjective` and must be empty for `PoolOnly`.
+7. Status records `computedSpiffeIDs`, `renderedSelectors`, and conditions. Conditions include `Ready`, `Conflict`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure`.
 
 Field details live in [API Reference][api-reference]. Condition details live in [Conditions Reference][conditions-reference].
 
@@ -37,7 +36,7 @@ Field details live in [API Reference][api-reference]. Condition details live in 
 1. Discover supported GAIE pool and objective GVKs served by the cluster and watch only that subset.
 2. Fail startup when no supported `InferencePool` GVK is available. Objective GVKs are optional for `PoolOnly`.
 3. Resolve `poolRef` and `objectiveRef` only to documented supported GAIE groups.
-4. Derive pod selection from the referenced pool, then intersect it with rendered safety selectors and, in `PerObjective` mode, the container discriminator.
+4. Derive pod selection from the referenced pool, then combine it with internal namespace and service-account safety selectors and, in `PerObjective` mode, `k8s:container-name:<containerName>`.
 5. Refuse unsafe selectors. If the selector set cannot be proven to stay within the binding namespace and required service account boundary, set `UnsafeSelector` and produce no managed output.
 6. Render the SPIFFE ID and managed `ClusterSPIFFEID` shape deterministically. Rendered output fields are documented in [Managed Resources][managed-resources].
 7. Refuse identity collisions. If two `PerObjective` bindings would match the same pod set and same container-name value, set `Conflict=True` with reason `IdentityCollision` on both resources and reconcile neither until fixed.
