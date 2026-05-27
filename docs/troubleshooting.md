@@ -34,14 +34,13 @@ If reconciliation fails, `Ready=False` and the triggering condition becomes `Tru
 | `InvalidRef` | `InferenceObjectiveCRDMissing` | The GAIE `InferenceObjective` CRD is not installed and the binding needs an objective. | Install the objective CRD or use `PoolOnly` without `objectiveRef`. |
 | `InvalidRef` | `InferencePoolCRDMissing` | The GAIE `InferencePool` CRD is not installed in the cluster. | Install the required GAIE CRDs before reconciling bindings. |
 | `UnsafeSelector` | `InvalidPoolSelector` | The pool selector cannot be normalized into a rendered selector set, or its label keys or values are malformed. | Use a deterministic `matchLabels`-style selector with valid Kubernetes label keys and values. Do not rely on whitespace trimming. |
-| `UnsafeSelector` | `UnsafeSelector` | The rendered selector set is missing namespace or service account safety constraints, or would widen beyond the tenant boundary. | Ensure the binding renders the required namespace and service account selectors and that the pool-derived selector is safe. |
-| `Conflict` | `IdentityCollision` | Two `PerObjective` bindings resolve to the same workload slice, usually the same pool plus the same container discriminator. | Give each objective a distinct discriminator, change the pool mapping, or use `PoolOnly` if model-level separation is not required. |
+| `UnsafeSelector` | `UnsafeSelector` | The rendered selector set is missing namespace or service account safety constraints, or would widen beyond the tenant boundary. | Ensure `serviceAccountName` and the pool-derived selector stay within the intended workload boundary. |
+| `Conflict` | `IdentityCollision` | Two `PerObjective` bindings resolve to the same workload slice, usually the same pool plus the same container name. | Give each objective a distinct `containerName`, change the pool mapping, or use `PoolOnly` if model-level separation is not required. |
+| `RenderFailure` | `InvalidServiceAccountName` | `spec.serviceAccountName` is empty or not a valid Kubernetes service account name. | Set `serviceAccountName` to the exact workload service account. |
 | `RenderFailure` | `MissingObjectiveRef` | The effective mode is `PerObjective` but no objective subject was provided. | Add `objectiveRef` or switch to `PoolOnly`. |
-| `RenderFailure` | `MissingContainerDiscriminator` | The effective mode is `PerObjective` but no discriminator was provided. | Add `containerDiscriminator` or switch to `PoolOnly`. |
-| `RenderFailure` | `InvalidContainerDiscriminator` | The discriminator type or value is invalid. | Use a supported discriminator type with a non-empty value. |
-| `RenderFailure` | `SelectorTemplateRenderFailed` | A workload selector template could not be rendered. | Fix the selector template values so they render to valid SPIRE workload selectors. |
-| `RenderFailure` | `SPIFFEIDRenderFailed` | The SPIFFE ID template could not be rendered. | Fix the template or remove it to use the built-in default. |
-| `RenderFailure` | `InvalidSPIFFEID` | The rendered SPIFFE ID is not valid. | Correct the template output so it is a valid SPIFFE ID. |
+| `RenderFailure` | `InvalidContainerName` | The effective mode is `PerObjective` but `spec.containerName` is empty or not a valid Kubernetes container name. | Set `containerName` to the serving container name or switch to `PoolOnly`. |
+| `RenderFailure` | `UnexpectedContainerName` | `mode` is `PoolOnly` but `spec.containerName` is set. | Remove `containerName` or switch to `PerObjective`. |
+| `RenderFailure` | `InvalidSPIFFEID` | The computed SPIFFE ID is not valid. | Check the referenced namespace, pool, and objective names. |
 | `RenderFailure` | `UnsupportedMode` | The binding mode is not one of the supported values. | Use `PoolOnly` or `PerObjective`. |
 | `RenderFailure` | `ClusterSPIFFEIDCRDMissing` | SPIRE Controller Manager or its `ClusterSPIFFEID` CRD is missing. | Install SPIRE Controller Manager and confirm the `clusterspiffeids.spire.spiffe.io` CRD exists. |
 
@@ -99,12 +98,12 @@ If you install a newly supported GAIE CRD after `kleym-operator` has already sta
 
 ## Collision Triage
 
-If you hit `IdentityCollision`, compare all `PerObjective` bindings in the namespace that target the same pool and container discriminator.
+If you hit `IdentityCollision`, compare all `PerObjective` bindings in the namespace that target the same pool and container name.
 
 Most collisions come from one of these situations:
 
 - two bindings point at objectives backed by the same pool and the same serving container
-- a copied manifest changed the objective name but kept the same discriminator
+- a copied manifest changed the objective name but kept the same `containerName`
 - a workload only has one serving container, so `PerObjective` cannot safely separate identities
 
 Read [Collision Detection](/design/collision-detection/) if you need the exact controller rule.

@@ -13,7 +13,7 @@ aliases:
 | `Conflict` | A per-objective collision blocks reconciliation. | `IdentityCollision` |
 | `InvalidRef` | `poolRef`, `objectiveRef`, or a required CRD could not be resolved or validated. | `TargetObjectiveNotFound`, `TargetPoolNotFound`, `InvalidPoolRef`, `InvalidObjectiveRef`, `InferenceObjectiveCRDMissing`, `InferencePoolCRDMissing` |
 | `UnsafeSelector` | The rendered selector set is missing required safety constraints or the pool selector cannot be rendered safely. | `UnsafeSelector`, `InvalidPoolSelector` |
-| `RenderFailure` | Rendering failed after reference resolution succeeded. | `SelectorTemplateRenderFailed`, `MissingContainerDiscriminator`, `MissingObjectiveRef`, `InvalidContainerDiscriminator`, `SPIFFEIDRenderFailed`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing`, `UnsupportedMode` |
+| `RenderFailure` | Rendering failed after reference resolution succeeded. | `InvalidServiceAccountName`, `MissingObjectiveRef`, `InvalidContainerName`, `UnexpectedContainerName`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing`, `UnsupportedMode` |
 
 ## Current Status Behavior
 

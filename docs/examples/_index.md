@@ -29,7 +29,7 @@ For SPIFFE and SPIRE background, see [SPIFFE overview](https://spiffe.io/docs/la
 | Example | Use it when | Outcome |
 | --- | --- | --- |
 | [Basic Binding](/examples/basic-binding/) | You need one identity per serving pool. | One managed `ClusterSPIFFEID` in `PoolOnly` mode. |
-| [PerObjective](/examples/per-objective/) | Multiple objectives share a pool but need distinct identities. | One managed `ClusterSPIFFEID` per objective with a container discriminator. |
+| [PerObjective](/examples/per-objective/) | Multiple objectives share a pool but need distinct identities. | One managed `ClusterSPIFFEID` per objective with a container-name selector. |
 
 ## Recommended Reading Order
 

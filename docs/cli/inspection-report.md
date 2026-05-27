@@ -6,8 +6,7 @@ aliases:
 ---
 
 `BindingInspectionReport` is the canonical inspection result. JSON is the stable
-machine contract. YAML mirrors JSON. Text and Markdown are human-oriented views
-over the same report data.
+machine contract. Text is the human-oriented view over the same report data.
 
 Generate the canonical report with:
 
@@ -36,7 +35,7 @@ kleym inspect binding <name> -n <namespace> -o json
 | Field | Meaning |
 | --- | --- |
 | `bindingRef` | Binding identity, generation, mode, refs, and current conditions. |
-| `resolvedInput` | Resolved GAIE inputs, served GVKs, selector provenance, and container discriminator. |
+| `resolvedInput` | Resolved GAIE inputs, served GVKs, selector provenance, and container name. |
 | `desired` | Desired `ClusterSPIFFEID` name, SPIFFE ID, selectors, hint, and fallback value. |
 | `observed` | Managed `ClusterSPIFFEID` resources, status, drift, and eligible workloads when pod reads are available. |
 | `findings` | Typed inspection findings. |

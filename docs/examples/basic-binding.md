@@ -35,10 +35,7 @@ metadata:
 spec:
   poolRef:
     name: pool-a
-  selectorSource: DerivedFromPool
-  workloadSelectorTemplates:
-    - k8s:ns:default
-    - k8s:sa:inference-sa
+  serviceAccountName: inference-sa
   mode: PoolOnly
 ```
 
