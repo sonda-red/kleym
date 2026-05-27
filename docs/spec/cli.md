@@ -3,33 +3,25 @@ title: CLI Spec
 weight: 20
 ---
 
-`kleym` is a read-only inspection CLI for `InferenceIdentityBinding` state. It explains how one binding becomes a deterministic SPIFFE identity registration by recomputing desired state with the same pure render, resolve, selector, naming, and collision logic as `kleym-operator`; comparing that desired state with observed Kleym-managed `ClusterSPIFFEID` output; and reporting findings from current Kubernetes API state.
+`kleym` is a read-only inspection CLI for `InferenceIdentityBinding` state. It recomputes desired identity state, compares it with observed Kleym-managed `ClusterSPIFFEID` output, and reports findings from current Kubernetes API state.
 
-The CLI stays inside Kleym's identity registration boundary. It does not reconcile, mutate, issue credentials, configure gateways, evaluate policy, or talk directly to SPIRE Server.
+The CLI does not reconcile, mutate resources, issue credentials, configure gateways, evaluate policy, or talk directly to SPIRE Server.
 
-The current controller implementation is `kleym-operator`. The CLI implementation is `kleym`.
-
-## Dependencies
-
-`kleym` requires Kubernetes API access, Kleym CRDs, served GAIE `InferencePool` and optional `InferenceObjective` CRDs, and the SPIRE Controller Manager `ClusterSPIFFEID` CRD. Pod read access is required only for eligible workload reporting. Direct SPIRE Server access is not required.
-
-## Operator Contract References
-
-`kleym` must follow the [Operator Spec][operator-spec], [API Reference][api-reference], [Managed Resources][managed-resources], [Conditions Reference][conditions-reference], and [Collision Detection][collision-detection] contracts, including the same served GVK discovery model as `kleym-operator`.
-
-## CLI Surface
+## Command Surface
 
 ```bash
 kleym --version
 ```
 
-The root version flag prints the linked CLI version string and exits without contacting Kubernetes. Released binaries must report the release tag. Unreleased local builds default to `dev`.
+Prints the linked CLI version string and exits without contacting Kubernetes. Released binaries report the release tag. Unreleased local builds default to `dev`.
 
 ```bash
 kleym inspect binding <name> -n <namespace>
 ```
 
-The command inspects one `InferenceIdentityBinding` end to end.
+Inspects one `InferenceIdentityBinding` end to end.
+
+Supported flags:
 
 ```bash
 -n, --namespace
@@ -40,12 +32,19 @@ The command inspects one `InferenceIdentityBinding` end to end.
 --timeout
 ```
 
-Default namespace is `default`. Default output is `text`. Stable machine output is `json`. YAML is a JSON-equivalent encoding of the same report shape for tools and documentation. Markdown is human-oriented for documentation and PR comments and may change between releases. `--timeout` must be greater than zero.
+Default namespace is `default`. Default output is `text`. `--timeout` must be greater than zero.
 
 ## Output Contract
 
-JSON is the stable contract. YAML encodes the same normalized report data and field names as JSON. Text and Markdown are human-oriented and may change between releases.
-Automation must consume `kleym inspect binding <name> -n <namespace> -o json`; the default text output is optimized for quick human diagnosis and leads with a summary before detailed sections. Markdown output is intended for documentation and PR comments, and must not introduce inspection semantics that are absent from the canonical report data.
+JSON is the stable machine contract. YAML mirrors the same normalized report data and field names as JSON. Text and Markdown are human-oriented and may change between releases.
+
+Automation must consume:
+
+```bash
+kleym inspect binding <name> -n <namespace> -o json
+```
+
+Text output leads with a summary. Markdown is for documentation and PR comments. Neither format may introduce inspection semantics absent from the canonical report data.
 
 `kleym inspect binding` emits a `BindingInspectionReport` with four core sections:
 
@@ -70,113 +69,38 @@ Top-level JSON shape:
 }
 ```
 
-Core fields:
-
-1. `bindingRef`: namespace, name, generation, mode, `poolRef`, `objectiveRef`, and current conditions.
-2. `resolvedInput`: resolved pool, resolved objective when present or required, served GVKs, pool selector, container discriminator, and selector provenance.
-3. `desired`: deterministic `ClusterSPIFFEID` name, SPIFFE ID, pod selector, workload selectors, selector provenance, hint, and fallback value, computed with shared Kleym logic.
-4. `observed`: Kleym-managed `ClusterSPIFFEID` resources, rendered spec fields, status fields, desired-versus-observed drift, and eligible workloads when pod reads are available.
-
-Workload eligibility means a pod or container currently matches the rendered identity selectors. It is a selector result, not proof that an application fetched, loaded, or used an SVID. In `PerObjective` mode, the container discriminator narrows an otherwise eligible pod to a specific container name or image.
-
-`findings` contains typed issues:
-
-```json
-{
-  "id": "",
-  "severity": "info|warning|error",
-  "reason": "",
-  "message": "",
-  "affectedRefs": []
-}
-```
-
-Required finding classes:
-
-1. `binding-not-found`
-2. `invalid-ref`
-3. `dependency-missing`
-4. `unsafe-selector`
-5. `render-failure`
-6. `kleym-collision`
-7. `zero-eligible-workloads`
-8. `ambiguous-container-match`
-9. `observed-drift`
-10. `rbac-limited`
-11. `unsupported-selector`
-
-Condition-derived findings should preserve existing Kleym condition types and reasons where possible. See [Conditions Reference][conditions-reference].
-
-Finding semantics:
-
-1. `binding-not-found` is an error when the API lookup succeeds and the requested binding is absent.
-2. `dependency-missing` is an error only when the missing dependency is required to inspect the requested binding; missing optional checks belong in `capabilities`.
-3. `rbac-limited` reports a non-fatal permission limit after the binding has been read; permission failure before binding read is fatal.
-4. `zero-eligible-workloads` is informational by default because scale-to-zero can be valid.
-5. `ambiguous-container-match` is a warning from live pod inspection when a `PerObjective` discriminator maps to more than one container in an otherwise eligible pod, most commonly with `ContainerImage`.
-6. `unsupported-selector` is a warning when rendered identity selectors include SPIRE selector types that cannot be evaluated from Kubernetes pod data. Pod inspection must be partial and eligible workloads must not be reported as fully evaluated.
-
-`capabilities` records check completeness:
-
-```json
-{
-  "binding": "full",
-  "gaieResources": "full",
-  "clusterspiffeids": "full",
-  "peerBindings": "partial",
-  "pods": "skipped"
-}
-```
-
-If RBAC or missing CRDs prevent a non-fatal check, `kleym` must report partial or unknown state instead of guessing.
-
-If usage, connection, authentication, discovery, or permission failure prevents reading the requested binding at all, the command exits as a fatal failure and no complete inspection report is required.
-
-Default text output summarizes status, finding count, drift count, eligible workload count, and inspection completeness before resource details. Status is `OK` when there are no warning or error findings, `Warning` when warning findings exist without errors, and `Error` when at least one error finding exists. Inspection completeness is `full` only when all relevant capabilities are full; partial, skipped, or unknown capability states must remain visible in the capabilities section, and may also be called out in the summary when useful for quick diagnosis.
-
-Text output should not repeat full observed selector state when observed managed `ClusterSPIFFEID` resources match desired state. In the healthy case, it reports each managed resource as `matches desired`. When drift exists, text output expands only the differing fields. Condition output should prefer compact `Type=Status` lines and include reason and message for unhealthy or otherwise relevant conditions.
-
-## Inspection Boundaries
-
-1. `kleym` reports eligibility, not credential use.
-2. `kleym` reports deterministic Kleym collisions and visible drift. It does not fully simulate SPIRE selection behavior or analyze unrelated non-Kleym `ClusterSPIFFEID` overlap.
-3. Event correlation, external `ClusterSPIFFEID` overlap analysis, federation hints, and JWT audience hints are outside the core CLI contract.
+Report fields and findings are documented in [Inspection Report][inspection-report-reference] and [Findings][findings-reference]. User-facing command guidance lives in [CLI Usage][cli-usage] and [CLI Results][cli-results].
 
 ## Inspect Binding Behavior
 
 1. Resolve the binding, `poolRef`, and required or present `objectiveRef`; validate that an objective references the same pool.
 2. Recompute desired identity state with shared Kleym logic.
-3. Evaluate Kleym collision state from peer binding fingerprints when available; otherwise use only the inspected binding's current `Conflict` condition and mark peer analysis partial or unknown.
+3. Evaluate Kleym collision state from peer binding fingerprints when available; otherwise use the inspected binding's current `Conflict` condition and mark peer analysis partial or unknown.
 4. Locate Kleym-managed `ClusterSPIFFEID` resources, compare desired and observed state, and evaluate eligible workloads when pod reads are available.
 5. Emit the report and exit according to finding severity and inspection completeness.
+
+`kleym` reports eligibility, not credential use. It reports deterministic Kleym collisions and visible drift; it does not fully simulate SPIRE selection behavior or analyze unrelated non-Kleym `ClusterSPIFFEID` overlap.
 
 ## Exit Behavior
 
 1. `0`: inspection succeeded and no error-severity findings exist.
 2. `2`: inspection succeeded and error-severity findings exist.
-3. `3`: binding lookup succeeded and the requested binding was not found. Emit a `binding-not-found` report when output can be serialized.
+3. `3`: binding lookup succeeded and the requested binding was not found.
 4. `4`: usage, connection, discovery, or permission failure prevented inspection.
 5. `5`: internal CLI or serialization failure.
 
-`--strict` treats warning-severity findings as exit code `2`.
+`--strict` treats warning-severity findings as exit code `2`. See [Exit Codes][exit-codes-reference].
 
 ## Implementation Boundary
 
-The CLI and operator share pure logic for:
-
-1. GAIE GVK discovery and resolution.
-2. Pool selector derivation.
-3. Selector rendering.
-4. SPIFFE ID rendering.
-5. Deterministic `ClusterSPIFFEID` naming.
-6. Kleym collision fingerprinting.
+The CLI and operator share pure logic for GAIE GVK discovery and resolution, pool selector derivation, selector rendering, SPIFFE ID rendering, deterministic `ClusterSPIFFEID` naming, and Kleym collision fingerprinting.
 
 `kleym` does not import controller orchestration, finalizer handling, watches, status patching, or resource mutation logic.
 
 ## References
 
-[operator-spec]: operator.md
-[api-reference]: ../reference/api.md
-[managed-resources]: ../reference/resources.md
-[conditions-reference]: ../reference/conditions.md
-[collision-detection]: ../design/collision-detection.md
+[cli-usage]: /cli/usage/
+[cli-results]: /cli/results/
+[inspection-report-reference]: /cli/inspection-report/
+[findings-reference]: /cli/findings/
+[exit-codes-reference]: /cli/exit-codes/

@@ -1,9 +1,9 @@
 ---
 title: Conditions
 weight: 20
+aliases:
+  - /operator/reference/conditions/
 ---
-
-This page records the current status condition set exposed by `InferenceIdentityBinding`. The [Operator Spec](/spec/operator/) remains authoritative for intended behavior.
 
 ## Condition Types
 

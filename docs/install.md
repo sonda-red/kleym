@@ -1,9 +1,13 @@
 ---
 title: Install
 weight: 30
+aliases:
+  - /operator/install/
 ---
 
-This page covers the practical commands for running `kleym-operator`, deploying it, testing it, and previewing the documentation site locally.
+Practical commands for running `kleym-operator`, deploying it, testing it, and
+previewing the documentation site locally. CLI usage is documented separately in
+[CLI Usage](/cli/usage/).
 
 ## Prerequisites
 
@@ -291,7 +295,7 @@ Keep the Kind cluster for faster local iteration:
 make test-e2e-chainsaw KEEP_KIND=true
 ```
 
-Use the smallest command set that proves the change. See [contributing](contributing) for the repository validation expectations.
+Use the smallest command set that proves the change. See [contributing](/contributing/) for the repository validation expectations.
 
 ## Preview Docs
 

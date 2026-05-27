@@ -1,15 +1,17 @@
 ---
 title: Basic Binding
 weight: 10
+aliases:
+  - /operator/examples/basic-binding/
 ---
 
 This example shows the simplest `PoolOnly` flow.
 
-`kleym` currently consumes only a small slice of the referenced Gateway API Inference Extension (GAIE) objects:
+`kleym-operator` currently consumes only a small slice of the referenced Gateway API Inference Extension (GAIE) objects:
 
 - from the pool: `spec.selector`
 
-Your installed GAIE version may require additional fields on that object. The snippets below focus on the fields that matter to `kleym`.
+Your installed GAIE version may require additional fields on that object. The snippets below focus on the fields that matter to `kleym-operator`.
 For full GAIE schema details, see [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/).
 Reference docs: [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/overview/), [SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/), and [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md).
 

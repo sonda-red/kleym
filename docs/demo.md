@@ -1,6 +1,8 @@
 ---
 title: Demo
 weight: 35
+aliases:
+  - /operator/demo/
 ---
 
 This demo verifies the base identity attachment flow:
@@ -9,17 +11,17 @@ This demo verifies the base identity attachment flow:
 
 It reuses the reference inference environment from
 `test/reference/inference-environment/`. Those manifests are externally owned
-inputs: `kleym` does not create, modify, or manage the workload, pool,
+inputs: `kleym-operator` does not create, modify, or manage the workload, pool,
 objective, gateway, route, or policy layer.
 
 ## Scope
 
-This demo proves that `kleym` reconciles deterministic registration output. It
+This demo proves that `kleym-operator` reconciles deterministic registration output. It
 does not prove request-time authorization, mTLS enforcement, or SVID
 consumption by a gateway, mesh, proxy, or application.
 
-mTLS enforcement is external to `kleym`. For downstream consumption patterns,
-read [Downstream Enforcement](/reference/downstream-enforcement/).
+mTLS enforcement is external to `kleym-operator`. For downstream consumption
+patterns, read [Downstream Patterns](/design/downstream-patterns/).
 
 ## Prerequisites
 
@@ -28,7 +30,7 @@ Use a Kubernetes cluster with these dependencies already installed:
 - Gateway API Inference Extension CRDs for the reference `InferencePool` and
   `InferenceObjective`
 - SPIRE Controller Manager with the `ClusterSPIFFEID` CRD
-- `kleym` installed and running
+- `kleym-operator` installed and running
 
 Confirm the external CRDs and controller are present:
 
@@ -41,7 +43,7 @@ kubectl -n kleym-system rollout status deployment/kleym-operator --timeout=120s
 
 Expected observation: the CRDs exist and the controller deployment is available.
 
-If `kleym` is not installed yet, use the install commands in
+If `kleym-operator` is not installed yet, use the install commands in
 [Install](/install/).
 
 ## Apply The Reference Environment
@@ -153,7 +155,7 @@ For detailed field-level examples, read [Examples](/examples/).
 
 ## Clean Up
 
-Delete the binding first so `kleym` can remove its managed output:
+Delete the binding first so `kleym-operator` can remove its managed output:
 
 ```sh
 kubectl -n kleym-reference-inference delete inferenceidentitybinding reference-objective-binding
