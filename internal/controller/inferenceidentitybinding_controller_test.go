@@ -81,12 +81,8 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 						PoolRef: kleymv1alpha1.InferencePoolTargetRef{
 							Name: "example-pool",
 						},
-						SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
-						WorkloadSelectorTemplates: []string{
-							"k8s:ns:default",
-							"k8s:sa:inference-sa",
-						},
-						Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+						ServiceAccountName: "inference-sa",
+						Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
@@ -199,23 +195,16 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 					PoolRef: kleymv1alpha1.InferencePoolTargetRef{
 						Name: "example-pool",
 					},
-					SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
-					WorkloadSelectorTemplates: []string{
-						"k8s:ns:default",
-						"k8s:sa:inference-sa",
-					},
+					ServiceAccountName: "inference-sa",
 				},
 			}
 		}
 
-		It("should allow PerObjective mode with a containerDiscriminator", func() {
+		It("should allow PerObjective mode with a containerName", func() {
 			resource := newResource("test-resource-perobjective")
 			resource.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePerObjective
 			resource.Spec.ObjectiveRef = &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "example-objective"}
-			resource.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
-				Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
-				Value: "main",
-			}
+			resource.Spec.ContainerName = "main"
 
 			By("creating a valid PerObjective resource")
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
@@ -239,13 +228,10 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			))
 		})
 
-		It("should default omitted mode to PerObjective and allow a containerDiscriminator", func() {
+		It("should default omitted mode to PerObjective and allow a containerName", func() {
 			resource := newResource("test-resource-default-perobjective")
 			resource.Spec.ObjectiveRef = &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "example-objective"}
-			resource.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
-				Type:  kleymv1alpha1.ContainerDiscriminatorTypeImage,
-				Value: "example/image:latest",
-			}
+			resource.Spec.ContainerName = "main"
 
 			By("creating a resource without an explicit mode")
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
@@ -257,15 +243,12 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			fetched := &kleymv1alpha1.InferenceIdentityBinding{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: resource.Name, Namespace: resource.Namespace}, fetched)).To(Succeed())
 			Expect(fetched.Spec.Mode).To(BeEquivalentTo(kleymv1alpha1.InferenceIdentityBindingModePerObjective))
-			Expect(fetched.Spec.ContainerDiscriminator).NotTo(BeNil())
+			Expect(fetched.Spec.ContainerName).To(Equal("main"))
 		})
 
 		It("should reject omitted objectiveRef when mode defaults to PerObjective", func() {
 			resource := newResource("test-resource-missing-objective")
-			resource.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
-				Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
-				Value: "main",
-			}
+			resource.Spec.ContainerName = "main"
 
 			err := k8sClient.Create(ctx, resource)
 			Expect(err).To(HaveOccurred())
@@ -273,19 +256,16 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			Expect(err.Error()).To(ContainSubstring("objectiveRef is required when mode is PerObjective"))
 		})
 
-		It("should reject containerDiscriminator when mode is PoolOnly", func() {
+		It("should reject containerName when mode is PoolOnly", func() {
 			resource := newResource("test-resource-poolonly-invalid")
 			resource.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePoolOnly
-			resource.Spec.ContainerDiscriminator = &kleymv1alpha1.ContainerDiscriminator{
-				Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
-				Value: "main",
-			}
+			resource.Spec.ContainerName = "main"
 
 			By("creating an invalid PoolOnly resource")
 			err := k8sClient.Create(ctx, resource)
 			Expect(err).To(HaveOccurred())
 			Expect(errors.IsInvalid(err)).To(BeTrue())
-			Expect(err.Error()).To(ContainSubstring("containerDiscriminator must be empty when mode is PoolOnly"))
+			Expect(err.Error()).To(ContainSubstring("containerName must be empty when mode is PoolOnly"))
 		})
 	})
 

@@ -8,11 +8,6 @@ spec:
     name: reference-pool
   objectiveRef:
     name: reference-objective
-  selectorSource: DerivedFromPool
-  workloadSelectorTemplates:
-    - k8s:ns:kleym-reference-inference
-    - k8s:sa:reference-inference
+  serviceAccountName: reference-inference
   mode: PerObjective
-  containerDiscriminator:
-    type: ContainerName
-    value: model-server
+  containerName: model-server

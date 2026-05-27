@@ -49,15 +49,15 @@ const (
 
 	noIdentityCollisionMessage = "No identity collision detected"
 
-	fieldIndexObjectiveRefName          = "spec.objectiveRef.name"
-	fieldIndexPoolRefName               = "spec.poolRef.name"
-	fieldIndexEffectiveMode             = "spec.effectiveMode"
-	fieldIndexContainerDiscriminatorKey = "spec.containerDiscriminatorKey"
-	infraNotReadyRequeueAfter           = 30 * time.Second
-	deleteVerificationRequeueAfter      = 2 * time.Second
-	identityCollisionMessagePrefix      = "identity collision with bindings "
-	identityCollisionMessageSuffix      = ": PerObjective bindings must not share the same pod selector and container discriminator"
-	modeValuePerObjective               = string(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
+	fieldIndexObjectiveRefName     = "spec.objectiveRef.name"
+	fieldIndexPoolRefName          = "spec.poolRef.name"
+	fieldIndexEffectiveMode        = "spec.effectiveMode"
+	fieldIndexContainerName        = "spec.containerName"
+	infraNotReadyRequeueAfter      = 30 * time.Second
+	deleteVerificationRequeueAfter = 2 * time.Second
+	identityCollisionMessagePrefix = "identity collision with bindings "
+	identityCollisionMessageSuffix = ": PerObjective bindings must not share the same pod selector and container name"
+	modeValuePerObjective          = string(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
 
 	logKeyBinding          = "binding"
 	logKeyNamespace        = "namespace"

@@ -10,7 +10,7 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
-func TestRenderIdentityRejectsUnsafeSelectors(t *testing.T) {
+func TestRenderIdentityRejectsInvalidServiceAccountName(t *testing.T) {
 	t.Parallel()
 
 	reconciler := &InferenceIdentityBindingReconciler{}
@@ -20,11 +20,9 @@ func TestRenderIdentityRejectsUnsafeSelectors(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			PoolRef: kleymv1alpha1.InferencePoolTargetRef{Name: "pool-a"},
-			WorkloadSelectorTemplates: []string{
-				"k8s:ns:default",
-			},
-			Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-a"},
+			ServiceAccountName: "Invalid_ServiceAccount",
+			Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 		},
 	}
 	objective := &unstructured.Unstructured{
@@ -47,15 +45,15 @@ func TestRenderIdentityRejectsUnsafeSelectors(t *testing.T) {
 
 	_, err := reconciler.renderIdentity(binding, objective, pool)
 	if err == nil {
-		t.Fatalf("expected unsafe selector error, got nil")
+		t.Fatalf("expected invalid service account error, got nil")
 	}
 
 	var stateErr reconcileStateError
 	if !errorsAsStateError(err, &stateErr) {
 		t.Fatalf("expected reconcileStateError, got %T", err)
 	}
-	if stateErr.conditionType != conditionTypeUnsafeSelector {
-		t.Fatalf("expected condition %q, got %q", conditionTypeUnsafeSelector, stateErr.conditionType)
+	if stateErr.conditionType != conditionTypeRenderFailure || stateErr.reason != "InvalidServiceAccountName" {
+		t.Fatalf("expected condition/reason %q/InvalidServiceAccountName, got %q/%q", conditionTypeRenderFailure, stateErr.conditionType, stateErr.reason)
 	}
 }
 
@@ -80,12 +78,9 @@ func TestRenderIdentityRejectsNonStringPoolMatchLabelValues(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-					PoolRef: kleymv1alpha1.InferencePoolTargetRef{Name: "pool-non-string-label"},
-					WorkloadSelectorTemplates: []string{
-						"k8s:ns:default",
-						"k8s:sa:inference-sa",
-					},
-					Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+					PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-non-string-label"},
+					ServiceAccountName: "inference-sa",
+					Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 				},
 			}
 			objective := &unstructured.Unstructured{
@@ -151,12 +146,9 @@ func TestRenderIdentityRejectsInvalidPoolMatchLabelSyntax(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-					PoolRef: kleymv1alpha1.InferencePoolTargetRef{Name: "pool-invalid-label-syntax"},
-					WorkloadSelectorTemplates: []string{
-						"k8s:ns:default",
-						"k8s:sa:inference-sa",
-					},
-					Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+					PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-invalid-label-syntax"},
+					ServiceAccountName: "inference-sa",
+					Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 				},
 			}
 			objective := &unstructured.Unstructured{
@@ -204,12 +196,9 @@ func TestRenderIdentityRendersStringPoolMatchLabels(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			PoolRef: kleymv1alpha1.InferencePoolTargetRef{Name: "pool-string-labels"},
-			WorkloadSelectorTemplates: []string{
-				"k8s:ns:default",
-				"k8s:sa:inference-sa",
-			},
-			Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-string-labels"},
+			ServiceAccountName: "inference-sa",
+			Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 		},
 	}
 	objective := &unstructured.Unstructured{
@@ -292,17 +281,11 @@ func TestRenderIdentityPerObjectiveAddsContainerSelector(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			PoolRef:      kleymv1alpha1.InferencePoolTargetRef{Name: "pool-b"},
-			ObjectiveRef: &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-b"},
-			WorkloadSelectorTemplates: []string{
-				"k8s:ns:default",
-				"k8s:sa:inference-sa",
-			},
-			Mode: kleymv1alpha1.InferenceIdentityBindingModePerObjective,
-			ContainerDiscriminator: &kleymv1alpha1.ContainerDiscriminator{
-				Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
-				Value: "main",
-			},
+			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-b"},
+			ObjectiveRef:       &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-b"},
+			ServiceAccountName: "inference-sa",
+			Mode:               kleymv1alpha1.InferenceIdentityBindingModePerObjective,
+			ContainerName:      "main",
 		},
 	}
 	objective := &unstructured.Unstructured{
@@ -344,29 +327,21 @@ func TestRenderIdentityPerObjectiveAddsContainerSelector(t *testing.T) {
 	}
 }
 
-func TestRenderIdentityUsesCustomSPIFFEIDTemplateOverride(t *testing.T) {
+func TestRenderIdentityUsesDeterministicSPIFFEID(t *testing.T) {
 	t.Parallel()
 
 	reconciler := &InferenceIdentityBindingReconciler{}
-	customTemplate := "spiffe://example.test/ns/{{ .Namespace }}/objective/{{ .ObjectiveName }}"
 	binding := &kleymv1alpha1.InferenceIdentityBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "binding-custom-template",
 			Namespace: "default",
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			PoolRef:          kleymv1alpha1.InferencePoolTargetRef{Name: "pool-custom"},
-			ObjectiveRef:     &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-custom"},
-			SpiffeIDTemplate: &customTemplate,
-			WorkloadSelectorTemplates: []string{
-				"k8s:ns:default",
-				"k8s:sa:inference-sa",
-			},
-			Mode: kleymv1alpha1.InferenceIdentityBindingModePerObjective,
-			ContainerDiscriminator: &kleymv1alpha1.ContainerDiscriminator{
-				Type:  kleymv1alpha1.ContainerDiscriminatorTypeName,
-				Value: "main",
-			},
+			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-custom"},
+			ObjectiveRef:       &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-custom"},
+			ServiceAccountName: "inference-sa",
+			Mode:               kleymv1alpha1.InferenceIdentityBindingModePerObjective,
+			ContainerName:      "main",
 		},
 	}
 	objective := &unstructured.Unstructured{
@@ -392,7 +367,7 @@ func TestRenderIdentityUsesCustomSPIFFEIDTemplateOverride(t *testing.T) {
 		t.Fatalf("renderIdentity returned error: %v", err)
 	}
 
-	expectedSPIFFEID := "spiffe://example.test/ns/default/objective/objective-custom"
+	expectedSPIFFEID := "spiffe://kleym.sonda.red/ns/default/objective/objective-custom"
 	if identity.SpiffeID != expectedSPIFFEID {
 		t.Fatalf("rendered spiffeID = %q, want %q", identity.SpiffeID, expectedSPIFFEID)
 	}
@@ -408,12 +383,9 @@ func TestRenderIdentityIncludesHintAndFallback(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			PoolRef: kleymv1alpha1.InferencePoolTargetRef{Name: "pool-hint"},
-			WorkloadSelectorTemplates: []string{
-				"k8s:ns:default",
-				"k8s:sa:inference-sa",
-			},
-			Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-hint"},
+			ServiceAccountName: "inference-sa",
+			Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 		},
 	}
 	objective := &unstructured.Unstructured{
