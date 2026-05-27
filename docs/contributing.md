@@ -3,19 +3,22 @@ title: Contributing
 weight: 110
 ---
 
-Kleym connects Gateway API Inference Extension resources to SPIFFE workload identity for Kubernetes. `kleym-operator` is the controller binary and operator image; `kleym` is the read-only inspection CLI.
-
-`kleym-operator` compiles inference identity intent into SPIFFE Runtime Environment (SPIRE) Controller Manager resources. The repo is still early, so contributors should prefer small, explicit changes that keep the spec, code, and generated artifacts aligned.
-
 ## Sources Of Truth
 
 - [Operator Spec](/spec/operator/) is the authoritative operator product and API behavior document.
 - [CLI Spec](/spec/cli/) is the read-only inspection CLI contract.
+- Operator docs live in the default docs section: [Install](/install/), [Concepts](/concepts/), [Architecture](/architecture/), [Reference](/reference/), [Troubleshooting](/troubleshooting/), and [Design](/design/).
+- [CLI docs](/cli/) cover user-facing inspection usage, results, report shape, findings, and exit codes.
 - `README.md` is the project entry point and quickstart.
 - `AGENTS.md` is the minimal repository contract for coding agents.
 - `RELEASING.md` describes the manual release procedure.
 
 If code and docs disagree, fix the disagreement instead of silently choosing one.
+
+## Core Stabilization Focus
+
+Prioritize API stability, selector safety, collision behavior, managed output,
+finalizer cleanup, and read-only inspection.
 
 ## Check GitHub Context First
 
@@ -25,12 +28,12 @@ Issues and pull requests are part of the design history for this repository. Che
 - intended behavior is unclear from the current code and either the [Operator Spec](/spec/operator/) or [CLI Spec](/spec/cli/)
 - you are changing API contracts, reconciliation semantics, CI, release flow, or project policy
 
-Keep that review narrow. Read the issue or PR that motivated the change and any directly related follow-ups. Avoid broad history searches unless the task genuinely requires it.
+Keep that review focused. Read the issue or PR that motivated the change and any directly related follow-ups. Avoid broad history searches unless the task genuinely requires it.
 
 ## Ticket Workflow
 
 - If work is tied to an issue, follow the issue instructions explicitly.
-- Keep scope tight. If adjacent cleanup looks useful but is not required, propose a follow-up ticket instead of bundling it in.
+- Keep scope tight. If adjacent cleanup is not required, propose a follow-up ticket instead of bundling it in.
 - Start the work on a dedicated branch, not on `main`.
 - Open a PR for the branch and include an automatic issue-closing reference when an issue number exists, for example `Fixes #123` or `Closes #123`.
 - Use the PR description to separate delivered scope from follow-up ideas.
@@ -49,8 +52,10 @@ The repository bootstraps local tool binaries under `bin/` through `make` target
 ## Repository Map
 
 - `cmd/kleym-operator/main.go`: operator entry point
+- `cmd/kleym/main.go`: CLI entry point
 - `api/v1alpha1`: API types and generated deepcopy code for `InferenceIdentityBinding`
 - `internal/controller`: reconciliation logic and controller-focused tests
+- `internal/cli` and `internal/inspection`: read-only inspection CLI and report generation
 - `config/`: CRD, RBAC, operator deployment, samples, and kustomize overlays
 - `test/chainsaw`: Chainsaw scenarios for declarative cluster reconciliation checks
 - `.github/workflows`: CI, release, and maintenance automation
@@ -62,6 +67,7 @@ The repository bootstraps local tool binaries under `bin/` through `make` target
 - `make docs-serve`: serve docs locally with Hugo
 - `make run`: run the controller locally against the current kubeconfig
 - `make build-operator`: build the operator binary
+- `make build-cli`: build the read-only inspection CLI binary
 - `make build`: compatibility alias for `make build-operator`
 - `make test`: run non-e2e tests with envtest setup
 - `make lint`: run `golangci-lint`
@@ -95,6 +101,7 @@ Run `make lint` as well when you touch Go code, build logic, or CI-sensitive beh
 
 - Update `README.md` when setup, scope, or entry-point commands change.
 - Update the [Operator Spec](/spec/operator/) or [CLI Spec](/spec/cli/) when the matching product contract changes.
+- Update the default operator docs or [CLI docs](/cli/) when user-facing guidance changes without changing the authoritative contract.
 - Update this page when workflow, tooling, or contributor expectations change.
 
 ### Dependency And Build Changes

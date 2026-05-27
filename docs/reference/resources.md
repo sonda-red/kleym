@@ -1,28 +1,26 @@
 ---
 title: Managed Resources
 weight: 30
+aliases:
+  - /operator/reference/resources/
 ---
-
-This page records the Kubernetes resources `kleym` writes and the objects it depends on to do that work.
-
-External references:
-
-- [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/overview/)
-- [SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/)
-- [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager)
-- [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md)
 
 ## Primary Managed Output
 
-`kleym` manages [`ClusterSPIFFEID`](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md) resources in `spire.spiffe.io`.
+`kleym-operator` manages
+[`ClusterSPIFFEID`](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md)
+resources in `spire.spiffe.io`.
 
-Each managed object currently includes:
+## Rendered Field Mapping
 
-- `spec.spiffeIDTemplate`: the fully rendered SPIFFE ID
-- `spec.podSelector`: the selector derived from the referenced pool
-- `spec.workloadSelectorTemplates`: rendered safety selectors, pool-derived selectors, and the optional per-objective container selector
-- `spec.fallback`: false for all managed identities
-- `spec.hint`: the originating binding reference in the form `<namespace>/<binding-name>`
+| Field | Rendered value |
+| --- | --- |
+| `spec.spiffeIDTemplate` | Fully rendered SPIFFE ID. |
+| `spec.podSelector` | Validated selector derived from the referenced pool. |
+| `spec.workloadSelectorTemplates` | Rendered safety selectors, pool-derived selectors, and the optional per-objective container discriminator. |
+| `spec.fallback` | `false` for all managed identities. |
+| `spec.hint` | Originating binding reference in the form `<namespace>/<binding-name>`. |
+| JWT-SVID-related fields | Not rendered today. Requires a user story and SPIRE Controller Manager/SPIRE version gate. |
 
 Managed `ClusterSPIFFEID` objects are labeled with:
 
@@ -30,13 +28,15 @@ Managed `ClusterSPIFFEID` objects are labeled with:
 - `kleym.sonda.red/binding-name=<binding-name>`
 - `kleym.sonda.red/binding-namespace=<binding-namespace>`
 
-The controller also uses the finalizer `kleym.sonda.red/inferenceidentitybinding-finalizer` to clean up managed `ClusterSPIFFEID` objects on deletion.
+The controller also uses the finalizer
+`kleym.sonda.red/inferenceidentitybinding-finalizer` to clean up managed
+`ClusterSPIFFEID` objects on deletion.
 
 ## Naming
 
 Managed `ClusterSPIFFEID` names are deterministic and derived from:
 
-- the `kleym` controller name
+- the `kleym-operator` controller name
 - binding namespace
 - binding name
 - rendered mode (`pool` or `objective`)
@@ -48,7 +48,7 @@ That keeps names DNS-safe while allowing the SPIFFE ID to remain the real identi
 
 | Resource | Role |
 | --- | --- |
-| `InferenceIdentityBinding` | Primary namespaced API owned by `kleym`. |
+| `InferenceIdentityBinding` | Source resource for managed output. |
 | [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) | Required selector source resolved from `spec.poolRef.name`. |
 | [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) | Optional objective subject resolved from `spec.objectiveRef.name` and validated against `spec.poolRef`. |
 | [`ClusterSPIFFEID`](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md) | Managed output resource written by the reconciler. |

@@ -1,9 +1,11 @@
 ---
 title: Troubleshooting
 weight: 60
+aliases:
+  - /operator/troubleshooting/
 ---
 
-For the full condition set, read [reference/conditions](reference/conditions).
+For the full condition set, read [Conditions](/reference/conditions/).
 
 ## Start Here
 
@@ -31,7 +33,7 @@ If reconciliation fails, `Ready=False` and the triggering condition becomes `Tru
 | `InvalidRef` | `TargetPoolNotFound` | The binding points to an `InferencePool` that does not exist. | Create the pool or correct `spec.poolRef`. |
 | `InvalidRef` | `InferenceObjectiveCRDMissing` | The GAIE `InferenceObjective` CRD is not installed and the binding needs an objective. | Install the objective CRD or use `PoolOnly` without `objectiveRef`. |
 | `InvalidRef` | `InferencePoolCRDMissing` | The GAIE `InferencePool` CRD is not installed in the cluster. | Install the required GAIE CRDs before reconciling bindings. |
-| `UnsafeSelector` | `InvalidPoolSelector` | The pool selector cannot be normalized into the narrow selector shape `kleym` accepts, or its label keys or values are malformed. | Use a deterministic `matchLabels`-style selector with valid Kubernetes label keys and values. Do not rely on whitespace trimming. |
+| `UnsafeSelector` | `InvalidPoolSelector` | The pool selector cannot be normalized into a rendered selector set, or its label keys or values are malformed. | Use a deterministic `matchLabels`-style selector with valid Kubernetes label keys and values. Do not rely on whitespace trimming. |
 | `UnsafeSelector` | `UnsafeSelector` | The rendered selector set is missing namespace or service account safety constraints, or would widen beyond the tenant boundary. | Ensure the binding renders the required namespace and service account selectors and that the pool-derived selector is safe. |
 | `Conflict` | `IdentityCollision` | Two `PerObjective` bindings resolve to the same workload slice, usually the same pool plus the same container discriminator. | Give each objective a distinct discriminator, change the pool mapping, or use `PoolOnly` if model-level separation is not required. |
 | `RenderFailure` | `MissingObjectiveRef` | The effective mode is `PerObjective` but no objective subject was provided. | Add `objectiveRef` or switch to `PoolOnly`. |
@@ -45,7 +47,7 @@ If reconciliation fails, `Ready=False` and the triggering condition becomes `Tru
 
 ## Missing CRDs
 
-`kleym` depends on external CRDs as inputs and outputs. `InferencePool` is required for all bindings; `InferenceObjective` is only required for `PerObjective` or when `objectiveRef` is set.
+`kleym-operator` depends on external CRDs as inputs and outputs. `InferencePool` is required for all bindings; `InferenceObjective` is only required for `PerObjective` or when `objectiveRef` is set.
 
 `GVK` means `GroupVersionKind` (`<api-group>/<version>, Kind=<kind>`). In this context:
 
@@ -66,13 +68,14 @@ kubectl get crd clusterspiffeids.spire.spiffe.io
 
 If your cluster uses the alternate GAIE API group version supported by the controller, confirm those CRDs are installed instead.
 
-During startup, `kleym` discovers supported GAIE GVKs and logs a warning for each unavailable one:
+During startup, `kleym-operator` discovers supported GAIE GVKs and logs a warning for each unavailable one:
 
 ```text
 ... skipping unavailable GVK ...
 ```
 
-These warnings are expected when your cluster intentionally serves only part of the compatibility matrix.
+These warnings are expected when your cluster serves only part of the
+compatibility matrix.
 Example: cluster has `InferencePool` only in `inference.networking.k8s.io/v1`, so startup logs skip messages for the other supported GAIE GVKs but can still reconcile `PoolOnly` bindings.
 
 You can confirm what is actually served via:
@@ -92,7 +95,7 @@ Reference docs:
 - [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md)
 
 When a CRD is missing, the reconciler keeps retrying automatically on a timer, so it can recover after installation without waiting for unrelated watch events.
-If you install a newly supported GAIE CRD after `kleym` has already started, restart the controller so startup-time GVK discovery can register the new watches.
+If you install a newly supported GAIE CRD after `kleym-operator` has already started, restart the controller so startup-time GVK discovery can register the new watches.
 
 ## Collision Triage
 
@@ -104,4 +107,4 @@ Most collisions come from one of these situations:
 - a copied manifest changed the objective name but kept the same discriminator
 - a workload only has one serving container, so `PerObjective` cannot safely separate identities
 
-Read [collision detection](design/collision-detection) if you need the exact controller rule.
+Read [Collision Detection](/design/collision-detection/) if you need the exact controller rule.

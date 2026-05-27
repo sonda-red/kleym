@@ -1,122 +1,61 @@
 ---
 title: Compatibility
-weight: 55
+weight: 50
+aliases:
+  - /operator/reference/compatibility/
 ---
 
-This page records version support, external API assumptions, and upgrade checks.
-The [Operator Spec](/spec/operator/) remains the behavior contract.
+This page records the compatibility surfaces that matter when installing,
+upgrading, or changing Kleym. The [Operator Spec](/spec/operator/) remains the
+behavior contract.
 
-For Gateway API Inference Extension (GAIE), `kleym` compatibility is guaranteed
-only for the objective and pool shapes listed below.
+## Current Baseline
 
-## Terms
-
-| Term | Meaning |
+| Surface | Current source of truth |
 | --- | --- |
-| Supported | Intended to work for the documented input or output surface. |
-| Tested | Exercised by project tests or an explicit upgrade check. |
-| Pinned | Resolved to a release, module version, CRD schema, or install bundle before promotion. |
-| External | Required by the deployment, but not implemented or guaranteed by `kleym`. |
+| Go toolchain | `go.mod`, README, and [Install](/install/) |
+| Kubernetes libraries | `go.mod` |
+| GAIE inputs | [GAIE Compatibility](/reference/gaie-compatibility/) |
+| `ClusterSPIFFEID` output | [Managed Resources](/reference/resources/) |
+| Runtime dependencies | [Dependencies](/reference/dependencies/) |
+| Conditions | [Conditions](/reference/conditions/) |
 
-## Release Matrix
+The `main` branch is the development baseline until a versioned release is
+published. Released installs should pin the manifest ref and controller image tag
+to the same release version.
 
-The `main` row records the development baseline until the first versioned
-release.
+## Compatibility Policy
 
-| `kleym` version | Status | Go | Kubernetes libraries | GAIE inputs | SPIRE Controller Manager output | Validation |
-| --- | --- | --- | --- | --- | --- | --- |
-| `main` | Development | `1.26+` | `k8s.io/api`, `apimachinery`, and `client-go` `v0.36.0`; `controller-runtime v0.24.0` | See [GAIE Inputs](#gaie-inputs). | See [ClusterSPIFFEID Output](#clusterspiffeid-output). | `make test`, `make lint`, `make docs-build` |
+Kleym supports only the documented input and output surface:
 
-## Compatibility Surfaces
+- supported GAIE `InferencePool` and `InferenceObjective` GVKs and consumed
+  fields
+- Kleym-owned `InferenceIdentityBinding` API fields and status conditions
+- rendered `ClusterSPIFFEID` fields documented in Managed Resources
 
-| Surface | `kleym` position | Source of truth |
-| --- | --- | --- |
-| Go | Root module defines the public toolchain floor. | `go.mod`, README, install docs |
-| Kubernetes API clients | Follows `client-go`, `apimachinery`, and controller-runtime module versions. | `go.mod` |
-| Gateway API | External; no route object is a direct `kleym` input. | Selected gateway/inference stack docs |
-| GAIE | Supported only for documented objective and pool GVKs and fields. | [API](api), [Operator Spec](/spec/operator/) |
-| Inference stack | External; workloads, schedulers, routes, and gateways stay outside `kleym`. | Selected stack release docs |
-| SPIRE | External unless a rendered SPIRE Controller Manager field changes SPIRE registration behavior. | SPIRE release docs |
-| SPIRE Controller Manager | Supported for the documented `ClusterSPIFFEID` output fields. | [Managed Resources](resources), `ClusterSPIFFEID` CRD schema |
-
-## GAIE Inputs
-
-| Object | Supported GVKs | Consumed fields |
-| --- | --- | --- |
-| `InferencePool` | `inference.networking.k8s.io/v1`; `inference.networking.x-k8s.io/v1alpha2` | `spec.selector.matchLabels`; flat string label maps are normalized for compatibility |
-| `InferenceObjective` | `inference.networking.x-k8s.io/v1alpha2`; `inference.networking.k8s.io/v1` when served | `spec.poolRef`; only required for `PerObjective` or when `objectiveRef` is set |
-
-`InferencePool` selectors must render deterministically. Accepted label keys
-and values must satisfy Kubernetes label syntax; malformed labels are rejected
-instead of being rendered into SPIRE workload selectors. Non-empty
-`spec.selector.matchExpressions` are not supported.
-
-When `poolRef.group`, `objectiveRef.group`, or objective `spec.poolRef.group` is
-set, the controller constrains resolution to that group using supported GAIE
-candidates. Groups outside the documented GVKs are rejected instead of being
-looked up best-effort.
-
-| Startup case | Behavior |
-| --- | --- |
-| Some supported GAIE GVKs are unavailable | Log and skip unavailable GVKs. |
-| No supported pool GVK is served | Startup fails. |
-| No supported objective GVK is served | `PoolOnly` bindings can reconcile; `PerObjective` waits for objective CRDs. |
-| A supported GVK is installed after startup | Restart the controller to register new watches. |
-| Binding references a missing objective or pool | Reconcile fails with `InvalidRef`. |
-
-## ClusterSPIFFEID Output
-
-`kleym` currently renders only these `ClusterSPIFFEID` spec fields:
-
-| Field | Status |
-| --- | --- |
-| `spec.spiffeIDTemplate` | Rendered. |
-| `spec.podSelector` | Rendered from the referenced pool. |
-| `spec.workloadSelectorTemplates` | Rendered safety selectors, pool-derived selectors, and optional container discriminator. |
-| `spec.fallback` | Rendered as `false` for managed identities. |
-| `spec.hint` | Rendered as the originating binding reference `<namespace>/<binding-name>`. |
-| JWT-SVID-related fields | Not rendered. Requires user story and SPIRE Controller Manager/SPIRE version gate. |
-
-Managed `ClusterSPIFFEID` objects are labeled with:
-
-| Label | Purpose |
-| --- | --- |
-| `kleym.sonda.red/managed-by=kleym` | Marks controller ownership. |
-| `kleym.sonda.red/binding-name=<binding-name>` | Finds children for a binding. |
-| `kleym.sonda.red/binding-namespace=<binding-namespace>` | Disambiguates namespaced bindings for a cluster-scoped output resource. |
-
-Related design issue: [#109](https://github.com/sonda-red/kleym/issues/109).
+Inference workloads, schedulers, routes, gateways, SPIRE installation details,
+and policy systems are external compatibility surfaces. Validate those with the
+owning project or platform.
 
 ## Change Checklist
 
-| Change | Required updates | Required validation |
+| Change | Update | Validate |
 | --- | --- | --- |
-| Go, Kubernetes, controller-runtime, build, or CI-sensitive dependency | README or install docs if the public floor changes | `make test`, `make lint` |
-| GAIE GVK or consumed field | [API](api), [Operator Spec](/spec/operator/), `docs/troubleshooting.md` | Resolver and partial-CRD tests |
-| Rendered `ClusterSPIFFEID` field | [Managed Resources](resources), this page, design issue when behavior changes | Create, update, delete, and resync tests |
-| Reconciliation or status behavior | [Operator Spec](/spec/operator/), [Conditions](conditions), troubleshooting docs | `make test`; `make test-e2e-chainsaw` when cluster behavior changes |
-| Docs-only compatibility policy | This page | `make docs-build` |
+| Go, Kubernetes, controller-runtime, build, or CI dependency | README or install docs when the public floor changes | `make test`, `make lint` |
+| GAIE GVK or consumed field | GAIE compatibility, API reference, operator spec, troubleshooting | resolver and partial-CRD tests |
+| Rendered `ClusterSPIFFEID` field | Managed resources and operator spec | create, update, delete, and resync tests |
+| Reconciliation or status behavior | Operator spec, conditions, troubleshooting | `make test`; e2e when cluster behavior changes |
+| Docs-only compatibility guidance | This page and linked reference page | `make docs-build` |
 
 ## Upgrade Checks
 
 Before promoting a dependency or external API upgrade:
 
-| Check | Expected result |
-| --- | --- |
-| Pin component versions. | Kubernetes libraries, GAIE bundle, inference stack, SPIRE, and SPIRE Controller Manager versions are known. |
-| Verify served APIs. | Required GAIE resources and `clusterspiffeids.spire.spiffe.io` exist. |
-| Apply a representative binding. | Status reaches `Ready=True`. |
-| Inspect managed output. | SPIFFE IDs, selectors, labels, and `ClusterSPIFFEID` fields match this page. |
-| Reconcile unchanged inputs again. | No managed-object drift. |
-| Validate downstream consumers. | Gateway, mesh, and policy behavior is checked outside `kleym`. |
-
-## References
-
-- Gateway API versioning: <https://gateway-api.sigs.k8s.io/concepts/versioning/>
-- Gateway API implementer guidance: <https://gateway-api.sigs.k8s.io/guides/implementers/>
-- GAIE conformance: <https://gateway-api-inference-extension.sigs.k8s.io/concepts/conformance/>
-- GAIE migration guide: <https://gateway-api-inference-extension.sigs.k8s.io/guides/ga-migration/>
-- llm-d infrastructure docs: <https://llm-d.ai/docs/architecture/Components/infra>
-- SPIRE concepts: <https://spiffe.io/docs/latest/spire-about/spire-concepts/>
-- SPIRE configuration: <https://spiffe.io/docs/latest/deploying/configuring/>
-- SPIRE Controller Manager `ClusterSPIFFEID` docs: <https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md>
+1. Pin component versions for Kubernetes libraries, GAIE CRDs, SPIRE Controller
+   Manager, and SPIRE.
+2. Confirm required CRDs are served in the target cluster.
+3. Apply a representative `InferenceIdentityBinding`.
+4. Confirm the binding reaches `Ready=True`.
+5. Inspect managed `ClusterSPIFFEID` output for expected SPIFFE IDs, selectors,
+   labels, and rendered fields.
+6. Validate downstream identity consumption outside Kleym.

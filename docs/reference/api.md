@@ -1,9 +1,9 @@
 ---
 title: API
 weight: 10
+aliases:
+  - /operator/reference/api/
 ---
-
-This page records the stable API facts exposed by the current scaffold. Behavioral contract still lives in the [Operator Spec](/spec/operator/).
 
 ## Primary Resource
 
@@ -68,15 +68,7 @@ When `mode` is omitted, the controller behaves as `PerObjective`.
 
 ## External Objects Resolved
 
-The current controller resolves `InferenceObjective` and `InferencePool` from these candidate GVKs:
-
-- `inference.networking.k8s.io/v1`
-- `inference.networking.x-k8s.io/v1alpha2`
-
-For pools, `kleym` currently reads `spec.selector`.
-
-For objectives, `kleym` currently reads `spec.poolRef` only when `objectiveRef`
-is set or required by `PerObjective`.
-
-If `poolRef.group`, `objectiveRef.group`, or objective `spec.poolRef.group` is
-set, it must match one of the supported GAIE groups listed above.
+The controller resolves `InferencePool` and, when needed, `InferenceObjective`
+from supported GAIE GVKs. See [GAIE Compatibility](/reference/gaie-compatibility/) for the
+compatibility matrix, consumed fields, group-constrained reference behavior, and
+startup discovery rules.

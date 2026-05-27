@@ -1,9 +1,9 @@
 ---
 title: Reconciliation
 weight: 10
+aliases:
+  - /operator/design/reconciliation/
 ---
-
-This page explains the current controller flow. The behavior contract remains in the [Operator Spec](/spec/operator/).
 
 ## Current Flow
 

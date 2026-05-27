@@ -84,8 +84,8 @@ kubectl apply -k https://github.com/sonda-red/kleym//deployment?ref=main
 ```
 
 For release-pinned installs, pin the manifest ref and controller image tag
-together. See [`docs/install.md`](docs/install.md) for Kustomize, Flux, and Argo
-CD examples.
+together. See [`docs/install.md`](docs/install.md) for
+Kustomize, Flux, and Argo CD examples.
 
 Run validation:
 
@@ -94,6 +94,16 @@ make test
 make lint
 make test-e2e-chainsaw KEEP_KIND=true
 ```
+
+Build the inspection CLI:
+
+```sh
+make build-cli
+bin/kleym inspect binding <name> -n <namespace>
+```
+
+Use `-o json` for automation. See [`docs/cli/`](docs/cli/) for CLI usage,
+results, inspection report fields, findings, and exit codes.
 
 ## Reconcile Flow
 
@@ -161,16 +171,17 @@ Docs live under [`docs/`](docs/), with the published site at <https://kleym.sond
 
 | Topic | What it covers |
 | --- | --- |
-| [`docs/install.md`](docs/install.md) | Local run, deployment, and test commands |
-| [`docs/concepts.md`](docs/concepts.md) | Identity boundaries, selector safety, and scope |
+| [`docs/install.md`](docs/install.md) | Local run, deployment, GitOps install, metrics, and validation commands |
+| [`docs/concepts.md`](docs/concepts.md) | GAIE inputs, identity modes, container discrimination, and selector safety |
 | [`docs/architecture.md`](docs/architecture.md) | End-to-end controller flow |
-| [`docs/demo.md`](docs/demo.md) | Reproducible binding-to-`ClusterSPIFFEID` walkthrough |
+| [`docs/demo.md`](docs/demo.md) | Reference binding-to-`ClusterSPIFFEID` walkthrough |
 | [`docs/examples/`](docs/examples/) | Concrete manifests and expected outcomes |
-| [`docs/reference/`](docs/reference/) | API surface, conditions, and managed resources |
-| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Condition-driven debugging and dependency checks |
+| [`docs/reference/`](docs/reference/) | API fields, conditions, managed resources, compatibility, dependencies, and GAIE compatibility |
+| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Binding conditions, missing CRDs, and collision triage |
+| [`docs/design/`](docs/design/) | Controller design notes and downstream handoff patterns |
+| [`docs/cli/`](docs/cli/) | CLI usage, results, inspection report, findings, and exit codes |
 | [`docs/spec/operator.md`](docs/spec/operator.md) | Authoritative operator product, API, and reconciliation behavior |
 | [`docs/spec/cli.md`](docs/spec/cli.md) | Read-only inspection CLI contract |
-| [`docs/design/`](docs/design/) | Internal design notes |
 | [`docs/contributing.md`](docs/contributing.md) | Contributor workflow and validation expectations |
 
 Preview the docs site locally:

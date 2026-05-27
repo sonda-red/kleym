@@ -8,5 +8,5 @@ the CLI contract without changing the operator contract by accident.
 
 | Spec | Scope |
 | --- | --- |
-| [Operator Spec](operator) | Authoritative product, API, and reconciliation behavior for `kleym-operator`. |
-| [CLI Spec](cli) | Read-only inspection CLI contract for `kleym`. |
+| [Operator Spec](/spec/operator/) | Authoritative product, API, and reconciliation behavior for `kleym-operator`. |
+| [CLI Spec](/spec/cli/) | Read-only inspection CLI contract for `kleym`. |

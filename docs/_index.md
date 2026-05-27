@@ -2,24 +2,20 @@
 title: Introduction
 toc: false
 summary: Project scope, intent, and documentation map for kleym.
-description: kleym translates Gateway API Inference Extension (GAIE) inference intent into deterministic Secure Production Identity Framework for Everyone (SPIFFE) identities and keeps a narrow scope around identity registration and selector provenance.
+description: kleym translates Gateway API Inference Extension (GAIE) inference intent into deterministic Secure Production Identity Framework for Everyone (SPIFFE) identities.
 cascade:
   type: docs
+aliases:
+  - /operator/
 ---
 
 <div class="kleym-about-mark">
   <img src="/images/sondrd-512.png" alt="Sonda Red square logo" width="180" height="180">
 </div>
 
-`kleym` is a Kubernetes operator that compiles inference identity intent into deterministic Secure Production Identity Framework for Everyone (SPIFFE) identities for Gateway API Inference Extension (GAIE)-aligned inference workloads.
+Kleym connects [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/) resources to SPIFFE workload identity for Kubernetes.
 
-It exists to make workload identity legible, repeatable, and safe across inference stacks. Instead of treating SPIFFE registration as manual cluster glue, `kleym` derives stable `ClusterSPIFFEID` resources from the same namespaced objects operators already use to describe inference intent.
-
-It is an identity registration compiler. The project is intentionally narrow:
-
-- it translates intent into identity registration
-- it validates selector safety and refuses ambiguous or unsafe state
-- it does not deploy workloads, route traffic, or evaluate request policy
+The in-cluster `kleym-operator` watches inference intent from resources such as [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/), then compiles that intent into deterministic SPIFFE identities and materializes them as SPIRE Controller Manager `ClusterSPIFFEID` resources. The companion `kleym` CLI is a read-only inspection tool for the rendered identity state.
 
 ## Overview
 
@@ -30,20 +26,26 @@ It is an identity registration compiler. The project is intentionally narrow:
 
 ## Documentation Map
 
-### Core docs
+### Operator docs
 
-- [Operator Spec](/spec/operator): authoritative operator behavior and API contract
-- [CLI Spec](/spec/cli): read-only inspection CLI contract
-- [API reference](/reference/api): fields, conditions, and managed resources
-- [Concepts](/concepts): identity boundaries, selector safety, and scope
-- [Architecture](/architecture): controller flow from intent to SPIRE resources
+- [Install](/install/): local run, deployment, GitOps install, metrics, and validation commands
+- [Concepts](/concepts/): GAIE inputs, identity modes, container discrimination, and selector safety
+- [Architecture](/architecture/): end-to-end reconcile flow from binding intent to SPIRE registration resources
+- [Demo](/demo/): reference binding-to-`ClusterSPIFFEID` walkthrough
+- [Examples](/examples/): concrete manifests and expected reconciliation outcomes
+- [Reference](/reference/): API fields, conditions, managed resources, compatibility, dependencies, and GAIE compatibility
+- [Troubleshooting](/troubleshooting/): binding conditions, missing CRDs, and collision triage
+- [Design](/design/): controller design notes and downstream handoff patterns
 
-### Use and contribute
+### CLI docs
 
-- [Install](/install): local run, deploy, and test commands
-- [Examples](/examples): concrete manifests and expected outcomes
-- [Troubleshooting](/troubleshooting): condition-driven debugging
-- [Contributing](/contributing): workflow, validation, and repository conventions
+- [CLI](/cli/): read-only inspection usage, results, report shape, findings, and exit codes
+
+### Reference and specs
+
+- [Operator Spec](/spec/operator/): authoritative operator behavior and API contract
+- [CLI Spec](/spec/cli/): authoritative read-only inspection CLI contract
+- [Contributing](/contributing/): workflow, validation, and repository conventions
 
 ## Project Links
 
