@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	"github.com/sonda-red/kleym/internal/gaie"
 	"github.com/sonda-red/kleym/internal/identity"
 )
 
@@ -29,14 +30,32 @@ func (r *InferenceIdentityBindingReconciler) renderIdentity(
 	objective *unstructured.Unstructured,
 	pool *unstructured.Unstructured,
 ) (identity.RenderedIdentity, error) {
-	return identity.RenderIdentity(binding, objective, pool)
+	podSelector, poolDerivedSelectors, err := gaie.DeriveSelectorsFromPool(pool)
+	if err != nil {
+		return identity.RenderedIdentity{}, &identity.StateError{
+			ConditionType: identity.ConditionTypeUnsafeSelector,
+			Reason:        "InvalidPoolSelector",
+			Message:       err.Error(),
+		}
+	}
+	objectiveName := ""
+	if objective != nil {
+		objectiveName = objective.GetName()
+	}
+	return identity.PlanIdentity(identity.PlanInput{
+		Binding:              binding,
+		ObjectiveName:        objectiveName,
+		PoolName:             pool.GetName(),
+		PodSelector:          podSelector,
+		PoolDerivedSelectors: poolDerivedSelectors,
+	})
 }
 
 func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 ) (identity.RenderedIdentity, error) {
-	poolRef, err := identity.BindingPoolRef(binding)
+	poolRef, err := gaie.BindingPoolRef(binding)
 	if err != nil {
 		return identity.RenderedIdentity{}, err
 	}
@@ -47,7 +66,7 @@ func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
 	}
 
 	var objective *unstructured.Unstructured
-	objectiveRef, hasObjectiveRef, err := identity.BindingObjectiveRef(binding)
+	objectiveRef, hasObjectiveRef, err := gaie.BindingObjectiveRef(binding)
 	if err != nil {
 		return identity.RenderedIdentity{}, err
 	}
@@ -56,7 +75,7 @@ func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
 		if err != nil {
 			return identity.RenderedIdentity{}, err
 		}
-		if err := identity.ValidateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
+		if err := gaie.ValidateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
 			return identity.RenderedIdentity{}, err
 		}
 	}
@@ -65,5 +84,5 @@ func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
 }
 
 func deriveSelectorsFromPool(pool *unstructured.Unstructured) (map[string]any, []string, error) {
-	return identity.DeriveSelectorsFromPool(pool)
+	return gaie.DeriveSelectorsFromPool(pool)
 }

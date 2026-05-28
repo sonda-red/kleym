@@ -1,8 +1,9 @@
-package identity
+package gaie
 
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -230,6 +231,59 @@ func TestExtractPoolRefNormalizesDefaultNamespaceAndGroup(t *testing.T) {
 	}
 }
 
+func TestExtractPoolRefRejectsCrossNamespace(t *testing.T) {
+	t.Parallel()
+
+	objective := &unstructured.Unstructured{
+		Object: map[string]any{
+			"spec": map[string]any{
+				"poolRef": map[string]any{
+					"name":      "pool-a",
+					"namespace": "other",
+				},
+			},
+		},
+	}
+
+	_, err := ExtractPoolRef(objective, "default")
+	if err == nil {
+		t.Fatalf("expected cross-namespace error, got nil")
+	}
+}
+
+func TestDeriveSelectorsFromPoolKeepsFlatStringMapCompatibility(t *testing.T) {
+	t.Parallel()
+
+	pool := &unstructured.Unstructured{
+		Object: map[string]any{
+			"metadata": map[string]any{"name": "pool-flat-selector"},
+			"spec": map[string]any{
+				"selector": map[string]any{
+					"app":  "model-server",
+					"role": "prefill",
+				},
+			},
+		},
+	}
+
+	podSelector, derivedSelectors, err := DeriveSelectorsFromPool(pool)
+	if err != nil {
+		t.Fatalf("DeriveSelectorsFromPool returned error: %v", err)
+	}
+	if _, ok := podSelector["matchLabels"].(map[string]any); !ok {
+		t.Fatalf("expected flat selector to normalize into matchLabels, got %v", podSelector)
+	}
+
+	for _, expectedSelector := range []string{
+		"k8s:pod-label:app:model-server",
+		"k8s:pod-label:role:prefill",
+	} {
+		if !slices.Contains(derivedSelectors, expectedSelector) {
+			t.Fatalf("expected selector %q, selectors: %v", expectedSelector, derivedSelectors)
+		}
+	}
+}
+
 func TestValidateObjectiveTargetsPool(t *testing.T) {
 	t.Parallel()
 
@@ -272,6 +326,29 @@ func objectiveWithPoolRef(poolRef map[string]any) *unstructured.Unstructured {
 			"spec": map[string]any{
 				"poolRef": poolRef,
 			},
+		},
+	}
+}
+
+func testPool(name string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"metadata": map[string]any{"name": name},
+			"spec": map[string]any{
+				"selector": map[string]any{
+					"matchLabels": map[string]any{
+						"app": "model-server",
+					},
+				},
+			},
+		},
+	}
+}
+
+func testObjective(name string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"metadata": map[string]any{"name": name},
 		},
 	}
 }

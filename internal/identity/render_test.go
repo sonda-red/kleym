@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
@@ -27,7 +26,7 @@ func TestRenderIdentityRejectsInvalidServiceAccountName(t *testing.T) {
 			binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePoolOnly)
 			binding.Spec.ServiceAccountName = serviceAccountName
 
-			_, err := RenderIdentity(binding, testObjective("objective-a"), testPool("pool-a"))
+			_, err := PlanIdentity(testPlanInput(binding, "objective-a", "pool-a"))
 			if err == nil {
 				t.Fatalf("expected invalid service account error, got nil")
 			}
@@ -59,7 +58,7 @@ func TestRenderIdentityRejectsInvalidContainerName(t *testing.T) {
 			binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
 			binding.Spec.ContainerName = containerName
 
-			_, err := RenderIdentity(binding, testObjective("objective-a"), testPool("pool-a"))
+			_, err := PlanIdentity(testPlanInput(binding, "objective-a", "pool-a"))
 			if err == nil {
 				t.Fatalf("expected invalid container name error, got nil")
 			}
@@ -90,7 +89,7 @@ func TestRenderIdentityRejectsContainerNameInPoolOnly(t *testing.T) {
 			binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePoolOnly)
 			binding.Spec.ContainerName = containerName
 
-			_, err := RenderIdentity(binding, testObjective("objective-a"), testPool("pool-a"))
+			_, err := PlanIdentity(testPlanInput(binding, "objective-a", "pool-a"))
 			if err == nil {
 				t.Fatalf("expected unexpected container name error, got nil")
 			}
@@ -106,47 +105,14 @@ func TestRenderIdentityRejectsContainerNameInPoolOnly(t *testing.T) {
 	}
 }
 
-func TestDeriveSelectorsFromPoolKeepsFlatStringMapCompatibility(t *testing.T) {
-	t.Parallel()
-
-	pool := &unstructured.Unstructured{
-		Object: map[string]any{
-			"metadata": map[string]any{"name": "pool-flat-selector"},
-			"spec": map[string]any{
-				"selector": map[string]any{
-					"app":  "model-server",
-					"role": "prefill",
-				},
-			},
-		},
-	}
-
-	podSelector, derivedSelectors, err := DeriveSelectorsFromPool(pool)
-	if err != nil {
-		t.Fatalf("DeriveSelectorsFromPool returned error: %v", err)
-	}
-	if _, ok := podSelector["matchLabels"].(map[string]any); !ok {
-		t.Fatalf("expected flat selector to normalize into matchLabels, got %v", podSelector)
-	}
-
-	for _, expectedSelector := range []string{
-		"k8s:pod-label:app:model-server",
-		"k8s:pod-label:role:prefill",
-	} {
-		if !slices.Contains(derivedSelectors, expectedSelector) {
-			t.Fatalf("expected selector %q, selectors: %v", expectedSelector, derivedSelectors)
-		}
-	}
-}
-
 func TestRenderIdentityPerObjectiveAddsContainerSelector(t *testing.T) {
 	t.Parallel()
 
 	binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
 
-	identity, err := RenderIdentity(binding, testObjective("objective-a"), testPool("pool-a"))
+	identity, err := PlanIdentity(testPlanInput(binding, "objective-a", "pool-a"))
 	if err != nil {
-		t.Fatalf("RenderIdentity returned error: %v", err)
+		t.Fatalf("PlanIdentity returned error: %v", err)
 	}
 
 	if identity.Mode != kleymv1alpha1.InferenceIdentityBindingModePerObjective {
@@ -162,59 +128,14 @@ func TestRenderIdentityUsesDeterministicSPIFFEID(t *testing.T) {
 
 	binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
 
-	identity, err := RenderIdentity(binding, testObjective("objective-a"), testPool("pool-a"))
+	identity, err := PlanIdentity(testPlanInput(binding, "objective-a", "pool-a"))
 	if err != nil {
-		t.Fatalf("RenderIdentity returned error: %v", err)
+		t.Fatalf("PlanIdentity returned error: %v", err)
 	}
 
 	expectedSPIFFEID := "spiffe://kleym.sonda.red/ns/default/objective/objective-a"
 	if identity.SpiffeID != expectedSPIFFEID {
 		t.Fatalf("spiffeID = %q, want %q", identity.SpiffeID, expectedSPIFFEID)
-	}
-}
-
-func TestDesiredClusterSPIFFEIDIncludesHintAndFallback(t *testing.T) {
-	t.Parallel()
-
-	binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePoolOnly)
-	identity, err := RenderIdentity(binding, testObjective("objective-a"), testPool("pool-a"))
-	if err != nil {
-		t.Fatalf("RenderIdentity returned error: %v", err)
-	}
-
-	desired := DesiredClusterSPIFFEID(binding, identity)
-	spec, found, err := unstructured.NestedMap(desired.Object, "spec")
-	if err != nil {
-		t.Fatalf("failed to inspect desired ClusterSPIFFEID spec: %v", err)
-	}
-	if !found {
-		t.Fatal("desired ClusterSPIFFEID spec missing")
-	}
-	if spec["hint"] != "default/binding-a" {
-		t.Fatalf("hint = %q, want %q", spec["hint"], "default/binding-a")
-	}
-	if spec["fallback"] != false {
-		t.Fatalf("fallback = %v, want false", spec["fallback"])
-	}
-}
-
-func TestExtractPoolRefRejectsCrossNamespace(t *testing.T) {
-	t.Parallel()
-
-	objective := &unstructured.Unstructured{
-		Object: map[string]any{
-			"spec": map[string]any{
-				"poolRef": map[string]any{
-					"name":      "pool-a",
-					"namespace": "other",
-				},
-			},
-		},
-	}
-
-	_, err := ExtractPoolRef(objective, "default")
-	if err == nil {
-		t.Fatalf("expected cross-namespace error, got nil")
 	}
 }
 
@@ -267,25 +188,16 @@ func testBinding(mode kleymv1alpha1.InferenceIdentityBindingMode) *kleymv1alpha1
 	return binding
 }
 
-func testPool(name string) *unstructured.Unstructured {
-	return &unstructured.Unstructured{
-		Object: map[string]any{
-			"metadata": map[string]any{"name": name},
-			"spec": map[string]any{
-				"selector": map[string]any{
-					"matchLabels": map[string]any{
-						"app": "model-server",
-					},
-				},
-			},
-		},
-	}
-}
-
-func testObjective(name string) *unstructured.Unstructured {
-	return &unstructured.Unstructured{
-		Object: map[string]any{
-			"metadata": map[string]any{"name": name},
-		},
+func testPlanInput(
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	objectiveName string,
+	poolName string,
+) PlanInput {
+	return PlanInput{
+		Binding:              binding,
+		ObjectiveName:        objectiveName,
+		PoolName:             poolName,
+		PodSelector:          map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
+		PoolDerivedSelectors: []string{"k8s:pod-label:app:model-server"},
 	}
 }

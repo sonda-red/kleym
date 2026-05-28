@@ -16,85 +16,57 @@ limitations under the License.
 package identity
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
-const (
-	// maxDNSLabelLength is the maximum length of a single DNS label per RFC 1123.
-	maxDNSLabelLength = 63
-
-	// nameHashBytes controls the deterministic ClusterSPIFFEID name hash suffix length.
-	nameHashBytes = 4
-)
-
-// RenderIdentity computes desired identity state without mutating Kubernetes resources.
-func RenderIdentity(
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-	objective *unstructured.Unstructured,
-	pool *unstructured.Unstructured,
-) (RenderedIdentity, error) {
+// PlanIdentity computes desired identity state from resolved, read-only inputs.
+func PlanIdentity(input PlanInput) (Plan, error) {
+	binding := input.Binding
 	mode := EffectiveMode(binding.Spec.Mode)
 	if mode != kleymv1alpha1.InferenceIdentityBindingModePoolOnly &&
 		mode != kleymv1alpha1.InferenceIdentityBindingModePerObjective {
-		return RenderedIdentity{}, newStateError(
+		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
 			"UnsupportedMode",
 			fmt.Sprintf("unsupported mode %q", mode),
 		)
 	}
-	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective && objective == nil {
-		return RenderedIdentity{}, newStateError(
+	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective && strings.TrimSpace(input.ObjectiveName) == "" {
+		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
 			"MissingObjectiveRef",
 			"objectiveRef is required when mode is PerObjective",
 		)
 	}
 
-	podSelector, poolDerivedSelectors, err := DeriveSelectorsFromPool(pool)
-	if err != nil {
-		return RenderedIdentity{}, newStateError(
-			ConditionTypeUnsafeSelector,
-			"InvalidPoolSelector",
-			err.Error(),
-		)
-	}
-
-	objectiveName := ""
-	if objective != nil {
-		objectiveName = objective.GetName()
-	}
-
 	templateData := renderTemplateData{
 		Namespace:     binding.Namespace,
 		BindingName:   binding.Name,
-		ObjectiveName: objectiveName,
-		PoolName:      pool.GetName(),
+		ObjectiveName: input.ObjectiveName,
+		PoolName:      input.PoolName,
 		Mode:          string(mode),
 	}
 
 	renderedSelectors, err := renderSafetySelectors(binding.Namespace, binding.Spec.ServiceAccountName)
 	if err != nil {
-		return RenderedIdentity{}, newStateError(
+		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
 			"InvalidServiceAccountName",
 			err.Error(),
 		)
 	}
 
-	selectors := append(renderedSelectors, poolDerivedSelectors...)
+	selectors := append(renderedSelectors, input.PoolDerivedSelectors...)
 	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective {
 		containerSelector, selectorErr := SelectorForContainerName(binding.Spec.ContainerName)
 		if selectorErr != nil {
-			return RenderedIdentity{}, newStateError(
+			return Plan{}, newStateError(
 				ConditionTypeRenderFailure,
 				"InvalidContainerName",
 				selectorErr.Error(),
@@ -102,7 +74,7 @@ func RenderIdentity(
 		}
 		selectors = append(selectors, containerSelector)
 	} else if binding.Spec.ContainerName != "" {
-		return RenderedIdentity{}, newStateError(
+		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
 			"UnexpectedContainerName",
 			"containerName must be empty when mode is PoolOnly",
@@ -111,7 +83,7 @@ func RenderIdentity(
 
 	selectors = UniqueAndSorted(selectors)
 	if err := ValidateSafetySelectors(binding.Namespace, selectors); err != nil {
-		return RenderedIdentity{}, newStateError(
+		return Plan{}, newStateError(
 			ConditionTypeUnsafeSelector,
 			"UnsafeSelector",
 			err.Error(),
@@ -120,23 +92,20 @@ func RenderIdentity(
 
 	spiffeID := renderSPIFFEID(mode, templateData)
 	if !strings.HasPrefix(spiffeID, "spiffe://") {
-		return RenderedIdentity{}, newStateError(
+		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
 			"InvalidSPIFFEID",
 			fmt.Sprintf("computed SPIFFE ID %q must start with spiffe://", spiffeID),
 		)
 	}
 
-	return RenderedIdentity{
-		Name:         BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, mode, spiffeID),
+	return Plan{
 		Mode:         mode,
 		SpiffeID:     spiffeID,
 		Selectors:    selectors,
-		PodSelector:  podSelector,
-		ObjectiveRef: objectiveName,
-		PoolRef:      pool.GetName(),
-		Hint:         BuildClusterSPIFFEIDHint(binding),
-		Fallback:     false,
+		PodSelector:  input.PodSelector,
+		ObjectiveRef: input.ObjectiveName,
+		PoolRef:      input.PoolName,
 	}, nil
 }
 
@@ -180,81 +149,6 @@ func renderSPIFFEID(
 	}
 }
 
-// BuildClusterSPIFFEIDHint builds the traceability hint for a generated ClusterSPIFFEID.
-func BuildClusterSPIFFEIDHint(binding *kleymv1alpha1.InferenceIdentityBinding) string {
-	return binding.Namespace + "/" + binding.Name
-}
-
-// DeriveSelectorsFromPool extracts deterministic pod-level selectors from an InferencePool.
-func DeriveSelectorsFromPool(pool *unstructured.Unstructured) (map[string]any, []string, error) {
-	selectorMap, found, err := unstructured.NestedMap(pool.Object, "spec", "selector")
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to decode pool spec.selector: %w", err)
-	}
-	if !found || len(selectorMap) == 0 {
-		return nil, nil, fmt.Errorf("pool spec.selector must be set")
-	}
-
-	var matchLabels map[string]any
-	if rawMatchLabels, hasMatchLabels := selectorMap["matchLabels"]; hasMatchLabels {
-		typedMatchLabels, ok := rawMatchLabels.(map[string]any)
-		if !ok {
-			return nil, nil, fmt.Errorf("pool spec.selector.matchLabels must be an object")
-		}
-		matchLabels = typedMatchLabels
-	} else {
-		isFlatSelector := true
-		for _, value := range selectorMap {
-			if _, ok := value.(string); !ok {
-				isFlatSelector = false
-				break
-			}
-		}
-		if !isFlatSelector {
-			return nil, nil, fmt.Errorf("pool selector must use matchLabels for deterministic rendering")
-		}
-		matchLabels = selectorMap
-		selectorMap = map[string]any{"matchLabels": matchLabels}
-	}
-
-	if rawExpressions, hasExpressions := selectorMap["matchExpressions"]; hasExpressions {
-		expressions, ok := rawExpressions.([]any)
-		if !ok {
-			return nil, nil, fmt.Errorf("pool spec.selector.matchExpressions must be an array")
-		}
-		if len(expressions) > 0 {
-			return nil, nil, fmt.Errorf("pool spec.selector.matchExpressions are not supported")
-		}
-	}
-
-	if len(matchLabels) == 0 {
-		return nil, nil, fmt.Errorf("pool spec.selector.matchLabels must not be empty")
-	}
-
-	derivedSelectors := make([]string, 0, len(matchLabels))
-	for key, value := range matchLabels {
-		valueText, ok := value.(string)
-		if !ok {
-			return nil, nil, fmt.Errorf("pool spec.selector.matchLabels[%q] must be a string", key)
-		}
-		if key == "" {
-			return nil, nil, fmt.Errorf("pool selector labels must contain non-empty keys")
-		}
-		if valueText == "" {
-			return nil, nil, fmt.Errorf("pool selector labels must contain non-empty values")
-		}
-		if errs := validation.IsQualifiedName(key); len(errs) > 0 {
-			return nil, nil, fmt.Errorf("pool spec.selector.matchLabels key %q is invalid: %s", key, strings.Join(errs, "; "))
-		}
-		if errs := validation.IsValidLabelValue(valueText); len(errs) > 0 {
-			return nil, nil, fmt.Errorf("pool spec.selector.matchLabels[%q] value %q is invalid: %s", key, valueText, strings.Join(errs, "; "))
-		}
-		derivedSelectors = append(derivedSelectors, fmt.Sprintf("k8s:pod-label:%s:%s", key, valueText))
-	}
-
-	return selectorMap, derivedSelectors, nil
-}
-
 // ValidateSafetySelectors enforces namespace and service account safety selectors.
 func ValidateSafetySelectors(namespace string, selectors []string) error {
 	hasNamespaceSelector := false
@@ -285,65 +179,6 @@ func ValidateSafetySelectors(namespace string, selectors []string) error {
 	}
 
 	return nil
-}
-
-// BuildClusterSPIFFEIDName produces a deterministic, DNS-label-safe ClusterSPIFFEID name.
-func BuildClusterSPIFFEIDName(
-	namespace string,
-	bindingName string,
-	mode kleymv1alpha1.InferenceIdentityBindingMode,
-	spiffeID string,
-) string {
-	modeText := "pool"
-	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective {
-		modeText = "objective"
-	}
-
-	hashSum := sha1.Sum([]byte(spiffeID))
-	hashSuffix := hex.EncodeToString(hashSum[:nameHashBytes])
-	base := sanitizeDNSLabel(fmt.Sprintf("%s-%s-%s", defaultNameValue, namespace, bindingName))
-
-	maxBaseLen := maxDNSLabelLength - len(modeText) - len(hashSuffix) - 2
-	if maxBaseLen < 1 {
-		maxBaseLen = 1
-	}
-	if len(base) > maxBaseLen {
-		base = strings.Trim(base[:maxBaseLen], "-")
-		if base == "" {
-			base = defaultNameValue
-		}
-	}
-
-	return fmt.Sprintf("%s-%s-%s", base, modeText, hashSuffix)
-}
-
-func sanitizeDNSLabel(input string) string {
-	lower := strings.ToLower(strings.TrimSpace(input))
-	if lower == "" {
-		return defaultNameValue
-	}
-
-	var labelBuilder strings.Builder
-	lastHyphen := false
-	for _, character := range lower {
-		isAlphaNum := (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9')
-		if isAlphaNum {
-			labelBuilder.WriteRune(character)
-			lastHyphen = false
-			continue
-		}
-		if !lastHyphen {
-			labelBuilder.WriteRune('-')
-			lastHyphen = true
-		}
-	}
-
-	sanitized := strings.Trim(labelBuilder.String(), "-")
-	if sanitized == "" {
-		return defaultNameValue
-	}
-
-	return sanitized
 }
 
 // UniqueAndSorted canonicalizes selector lists for stable rendering and fingerprints.

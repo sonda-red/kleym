@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package identity
+package gaie
 
 import "k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -26,11 +26,6 @@ var (
 		{Group: "inference.networking.k8s.io", Version: "v1", Kind: "InferencePool"},
 		{Group: "inference.networking.x-k8s.io", Version: "v1alpha2", Kind: "InferencePool"},
 	}
-	clusterSPIFFEIDGVK = schema.GroupVersionKind{
-		Group:   "spire.spiffe.io",
-		Version: "v1alpha1",
-		Kind:    "ClusterSPIFFEID",
-	}
 )
 
 // InferenceObjectiveGVKs returns the GAIE objective GVKs supported by kleym.
@@ -41,11 +36,6 @@ func InferenceObjectiveGVKs() []schema.GroupVersionKind {
 // InferencePoolGVKs returns the GAIE pool GVKs supported by kleym.
 func InferencePoolGVKs() []schema.GroupVersionKind {
 	return append([]schema.GroupVersionKind(nil), inferencePoolGVKs...)
-}
-
-// ClusterSPIFFEIDGVK returns the SPIRE Controller Manager ClusterSPIFFEID GVK.
-func ClusterSPIFFEIDGVK() schema.GroupVersionKind {
-	return clusterSPIFFEIDGVK
 }
 
 // ResolveObjectiveGVKs falls back to all supported objective GVKs when discovery has not narrowed them.

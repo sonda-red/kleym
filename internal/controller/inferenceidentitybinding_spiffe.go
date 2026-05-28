@@ -17,7 +17,6 @@ package controller
 
 import (
 	"context"
-	"reflect"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -26,7 +25,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
-	identitypkg "github.com/sonda-red/kleym/internal/identity"
+	"github.com/sonda-red/kleym/internal/spirecm"
 )
 
 func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
@@ -49,13 +48,14 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 	desiredNames := make(map[string]struct{}, len(identities))
 	for _, identity := range identities {
 		desired := desiredClusterSPIFFEID(binding, identity)
-		desiredNames[identity.Name] = struct{}{}
+		desiredName := desired.GetName()
+		desiredNames[desiredName] = struct{}{}
 
-		current, exists := existingByName[identity.Name]
+		current, exists := existingByName[desiredName]
 		if !exists {
 			logger.Info(
 				"creating managed ClusterSPIFFEID",
-				logKeyClusterSPIFFEID, identity.Name,
+				logKeyClusterSPIFFEID, desiredName,
 				logKeyMode, identity.Mode,
 				logKeySpiffeID, identity.SpiffeID,
 			)
@@ -68,7 +68,7 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 		if !clusterSPIFFEIDInSync(current, desired) {
 			logger.Info(
 				"updating drifted managed ClusterSPIFFEID",
-				logKeyClusterSPIFFEID, identity.Name,
+				logKeyClusterSPIFFEID, desiredName,
 				logKeyMode, identity.Mode,
 				logKeySpiffeID, identity.SpiffeID,
 			)
@@ -80,7 +80,7 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 		}
 		logger.V(1).Info(
 			"managed ClusterSPIFFEID already in sync",
-			logKeyClusterSPIFFEID, identity.Name,
+			logKeyClusterSPIFFEID, desiredName,
 			logKeyMode, identity.Mode,
 			logKeySpiffeID, identity.SpiffeID,
 		)
@@ -103,45 +103,15 @@ func desiredClusterSPIFFEID(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	identity renderedIdentity,
 ) *unstructured.Unstructured {
-	return identitypkg.DesiredClusterSPIFFEID(binding, identity)
+	return spirecm.DesiredClusterSPIFFEID(binding, identity)
 }
 
 func clusterSPIFFEIDInSync(current *unstructured.Unstructured, desired *unstructured.Unstructured) bool {
-	currentSpec, _, currentErr := unstructured.NestedMap(current.Object, "spec")
-	desiredSpec, _, desiredErr := unstructured.NestedMap(desired.Object, "spec")
-	if currentErr != nil || desiredErr != nil {
-		return false
-	}
-
-	if !reflect.DeepEqual(currentSpec, desiredSpec) {
-		return false
-	}
-
-	currentLabels := current.GetLabels()
-	for key, value := range desired.GetLabels() {
-		if currentLabels[key] != value {
-			return false
-		}
-	}
-
-	return true
+	return spirecm.ClusterSPIFFEIDInSync(current, desired)
 }
 
 func mergeDesiredClusterSPIFFEID(current *unstructured.Unstructured, desired *unstructured.Unstructured) {
-	desiredSpec, _, _ := unstructured.NestedMap(desired.Object, "spec")
-	if current.Object == nil {
-		current.Object = map[string]any{}
-	}
-	current.Object["spec"] = desiredSpec
-
-	labels := current.GetLabels()
-	if labels == nil {
-		labels = map[string]string{}
-	}
-	for key, value := range desired.GetLabels() {
-		labels[key] = value
-	}
-	current.SetLabels(labels)
+	spirecm.MergeDesiredClusterSPIFFEID(current, desired)
 }
 
 func (r *InferenceIdentityBindingReconciler) listManagedClusterSPIFFEIDs(
@@ -154,7 +124,7 @@ func (r *InferenceIdentityBindingReconciler) listManagedClusterSPIFFEIDs(
 	if err := r.List(
 		ctx,
 		list,
-		client.MatchingLabels(identitypkg.ManagedClusterSPIFFEIDLabels(binding)),
+		client.MatchingLabels(spirecm.ManagedClusterSPIFFEIDLabels(binding)),
 	); err != nil {
 		return nil, err
 	}

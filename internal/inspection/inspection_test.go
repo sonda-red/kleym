@@ -17,18 +17,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	"github.com/sonda-red/kleym/internal/gaie"
 	"github.com/sonda-red/kleym/internal/identity"
+	"github.com/sonda-red/kleym/internal/spirecm"
 )
 
 func TestInspectBindingSuccessReport(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
-	rendered, err := identity.RenderIdentity(binding, objective, pool)
+	rendered, err := inspectionPlan(binding, objective, pool)
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
 	pod := testInspectionPod("model-server-a", "model-server")
 
 	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed, pod)
@@ -43,8 +45,9 @@ func TestInspectBindingSuccessReport(t *testing.T) {
 	if report.BindingRef.Name != "binding-a" || report.BindingRef.Mode != string(kleymv1alpha1.InferenceIdentityBindingModePerObjective) {
 		t.Fatalf("bindingRef = %#v", report.BindingRef)
 	}
-	if report.Desired.ClusterSPIFFEIDName != rendered.Name {
-		t.Fatalf("desired name = %q, want %q", report.Desired.ClusterSPIFFEIDName, rendered.Name)
+	expectedName := spirecm.BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, rendered.Mode, rendered.SpiffeID)
+	if report.Desired.ClusterSPIFFEIDName != expectedName {
+		t.Fatalf("desired name = %q, want %q", report.Desired.ClusterSPIFFEIDName, expectedName)
 	}
 	if len(report.Observed.ManagedClusterSPIFFEIDs) != 1 {
 		t.Fatalf("managed ClusterSPIFFEIDs = %d, want 1", len(report.Observed.ManagedClusterSPIFFEIDs))
@@ -71,11 +74,11 @@ func TestInspectBindingSuccessReport(t *testing.T) {
 func TestInspectBindingPoolOnlyEligibleWorkload(t *testing.T) {
 	binding := testInspectionPoolOnlyBinding()
 	pool := testInspectionPool("pool-a")
-	rendered, err := identity.RenderIdentity(binding, nil, pool)
+	rendered, err := inspectionPlan(binding, nil, pool)
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
 	pod := testInspectionPod("model-server-a", "model-server")
 
 	inspector := newTestBindingInspector(t, nil, binding, pool, managed, pod)
@@ -150,11 +153,11 @@ func TestInspectBindingObservedDriftFinding(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
-	rendered, err := identity.RenderIdentity(binding, objective, pool)
+	rendered, err := inspectionPlan(binding, objective, pool)
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
 	if err := unstructured.SetNestedField(managed.Object, "spiffe://drifted.example.test/ns/tenant-a/objective/objective-a", "spec", "spiffeIDTemplate"); err != nil {
 		t.Fatalf("set drifted spiffeIDTemplate: %v", err)
 	}
@@ -195,11 +198,11 @@ func TestInspectBindingZeroEligibleWorkloadsFinding(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
-	rendered, err := identity.RenderIdentity(binding, objective, pool)
+	rendered, err := inspectionPlan(binding, objective, pool)
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
 	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed)
 
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
@@ -218,7 +221,7 @@ func TestInspectBindingRBACLimitedClusterSPIFFEIDs(t *testing.T) {
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
 	forbidden := apierrors.NewForbidden(
-		schema.GroupResource{Group: identity.ClusterSPIFFEIDGVK().Group, Resource: clusterSPIFFEIDResourceName},
+		schema.GroupResource{Group: spirecm.ClusterSPIFFEIDGVK().Group, Resource: clusterSPIFFEIDResourceName},
 		"",
 		errors.New("denied"),
 	)
@@ -239,11 +242,11 @@ func TestInspectBindingRBACLimitedPods(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
-	rendered, err := identity.RenderIdentity(binding, objective, pool)
+	rendered, err := inspectionPlan(binding, objective, pool)
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := identity.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
 	forbidden := apierrors.NewForbidden(
 		schema.GroupResource{Resource: podResourceName},
 		"",
@@ -267,8 +270,8 @@ func TestInspectBindingNoMatchClusterSPIFFEIDCapability(t *testing.T) {
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
 	noMatch := &meta.NoKindMatchError{
-		GroupKind:        identity.ClusterSPIFFEIDGVK().GroupKind(),
-		SearchedVersions: []string{identity.ClusterSPIFFEIDGVK().Version},
+		GroupKind:        spirecm.ClusterSPIFFEIDGVK().GroupKind(),
+		SearchedVersions: []string{spirecm.ClusterSPIFFEIDGVK().Version},
 	}
 	inspector := newTestBindingInspector(t, noMatch, binding, pool, objective)
 
@@ -336,8 +339,8 @@ func newTestBindingInspectorWithListErrors(
 	return &bindingInspector{
 		client: kubeClient,
 		mapper: newInspectionTestRESTMapper(
-			append(identity.InferenceObjectiveGVKs(), identity.InferencePoolGVKs()...),
-			append(identity.InferenceObjectiveGVKs(), identity.InferencePoolGVKs()...),
+			append(gaie.InferenceObjectiveGVKs(), gaie.InferencePoolGVKs()...),
+			append(gaie.InferenceObjectiveGVKs(), gaie.InferencePoolGVKs()...),
 		),
 		now: func() time.Time {
 			return time.Date(2026, 5, 18, 10, 11, 12, 0, time.UTC)
@@ -387,11 +390,11 @@ func testInspectionBinding() *kleymv1alpha1.InferenceIdentityBinding {
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
 			PoolRef: kleymv1alpha1.InferencePoolTargetRef{
 				Name:  "pool-a",
-				Group: identity.InferencePoolGVKs()[0].Group,
+				Group: gaie.InferencePoolGVKs()[0].Group,
 			},
 			ObjectiveRef: &kleymv1alpha1.InferenceObjectiveTargetRef{
 				Name:  "objective-a",
-				Group: identity.InferenceObjectiveGVKs()[0].Group,
+				Group: gaie.InferenceObjectiveGVKs()[0].Group,
 			},
 			ServiceAccountName: "model-sa",
 			Mode:               kleymv1alpha1.InferenceIdentityBindingModePerObjective,
@@ -422,7 +425,7 @@ func testInspectionPool(name string) *unstructured.Unstructured {
 			},
 		},
 	}}
-	pool.SetGroupVersionKind(identity.InferencePoolGVKs()[0])
+	pool.SetGroupVersionKind(gaie.InferencePoolGVKs()[0])
 	return pool
 }
 
@@ -435,11 +438,11 @@ func testInspectionObjective(name string, poolName string) *unstructured.Unstruc
 		"spec": map[string]any{
 			"poolRef": map[string]any{
 				"name":  poolName,
-				"group": identity.InferencePoolGVKs()[0].Group,
+				"group": gaie.InferencePoolGVKs()[0].Group,
 			},
 		},
 	}}
-	objective.SetGroupVersionKind(identity.InferenceObjectiveGVKs()[0])
+	objective.SetGroupVersionKind(gaie.InferenceObjectiveGVKs()[0])
 	return objective
 }
 
@@ -493,8 +496,8 @@ func (c listErrorClient) List(
 		return c.podErr
 	}
 	gvk := list.GetObjectKind().GroupVersionKind()
-	if gvk.Group == identity.ClusterSPIFFEIDGVK().Group &&
-		strings.HasPrefix(gvk.Kind, identity.ClusterSPIFFEIDGVK().Kind) &&
+	if gvk.Group == spirecm.ClusterSPIFFEIDGVK().Group &&
+		strings.HasPrefix(gvk.Kind, spirecm.ClusterSPIFFEIDGVK().Kind) &&
 		c.clusterSPIFFEIDErr != nil {
 		return c.clusterSPIFFEIDErr
 	}
@@ -524,11 +527,26 @@ func uniqueInspectionGroupVersions(gvks []schema.GroupVersionKind) []schema.Grou
 	return versions
 }
 
-func TestStableValueString(t *testing.T) {
-	got := stableValueString(map[string]any{"b": "two", "a": "one"})
-	if got != `{"a":"one","b":"two"}` {
-		t.Fatalf("stableValueString map = %q", got)
+func inspectionPlan(
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	objective *unstructured.Unstructured,
+	pool *unstructured.Unstructured,
+) (identity.Plan, error) {
+	poolSelector, poolDerivedSelectors, err := gaie.DeriveSelectorsFromPool(pool)
+	if err != nil {
+		return identity.Plan{}, err
 	}
+	objectiveName := ""
+	if objective != nil {
+		objectiveName = objective.GetName()
+	}
+	return identity.PlanIdentity(identity.PlanInput{
+		Binding:              binding,
+		ObjectiveName:        objectiveName,
+		PoolName:             pool.GetName(),
+		PodSelector:          poolSelector,
+		PoolDerivedSelectors: poolDerivedSelectors,
+	})
 }
 
 func TestStringSliceFromAnySkipsNonStrings(t *testing.T) {
