@@ -20,25 +20,21 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/sonda-red/kleym/internal/identity"
+	"github.com/sonda-red/kleym/internal/gaie"
 )
 
 func (r *InferenceIdentityBindingReconciler) resolveInferenceObjective(
 	ctx context.Context,
-	objectiveRef identity.ObjectiveRef,
+	objectiveRef gaie.ObjectiveRef,
 ) (*unstructured.Unstructured, error) {
-	return identity.ResolveInferenceObjective(ctx, r.Client, r.resolveObjectiveGVKs(), objectiveRef)
+	return gaie.ResolveInferenceObjective(ctx, r.Client, r.resolveObjectiveGVKs(), objectiveRef)
 }
 
 func (r *InferenceIdentityBindingReconciler) resolveInferencePool(
 	ctx context.Context,
-	poolRef identity.PoolRef,
+	poolRef gaie.PoolRef,
 ) (*unstructured.Unstructured, error) {
-	return identity.ResolveInferencePool(ctx, r.Client, r.resolvePoolGVKs(), poolRef)
-}
-
-func extractPoolRef(objective *unstructured.Unstructured, defaultNamespace string) (identity.PoolRef, error) {
-	return identity.ExtractPoolRef(objective, defaultNamespace)
+	return gaie.ResolveInferencePool(ctx, r.Client, r.resolvePoolGVKs(), poolRef)
 }
 
 func shouldCleanupManagedClusterSPIFFEIDs(conditionType string) bool {

@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package identity
+package gaie
 
 import (
 	"context"
@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -197,8 +198,8 @@ func ValidateObjectiveTargetsPool(
 		return fmt.Errorf(
 			"objectiveRef %q points at poolRef %q, want %q",
 			objective.GetName(),
-			NamespacedBindingKey(objectivePoolRef.Namespace, objectivePoolRef.Name),
-			NamespacedBindingKey(pool.GetNamespace(), pool.GetName()),
+			namespacedKey(objectivePoolRef.Namespace, objectivePoolRef.Name),
+			namespacedKey(pool.GetNamespace(), pool.GetName()),
 		)
 	}
 
@@ -212,4 +213,78 @@ func ValidateObjectiveTargetsPool(
 	}
 
 	return nil
+}
+
+// DeriveSelectorsFromPool extracts deterministic pod-level selectors from an InferencePool.
+func DeriveSelectorsFromPool(pool *unstructured.Unstructured) (map[string]any, []string, error) {
+	selectorMap, found, err := unstructured.NestedMap(pool.Object, "spec", "selector")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to decode pool spec.selector: %w", err)
+	}
+	if !found || len(selectorMap) == 0 {
+		return nil, nil, fmt.Errorf("pool spec.selector must be set")
+	}
+
+	var matchLabels map[string]any
+	if rawMatchLabels, hasMatchLabels := selectorMap["matchLabels"]; hasMatchLabels {
+		typedMatchLabels, ok := rawMatchLabels.(map[string]any)
+		if !ok {
+			return nil, nil, fmt.Errorf("pool spec.selector.matchLabels must be an object")
+		}
+		matchLabels = typedMatchLabels
+	} else {
+		isFlatSelector := true
+		for _, value := range selectorMap {
+			if _, ok := value.(string); !ok {
+				isFlatSelector = false
+				break
+			}
+		}
+		if !isFlatSelector {
+			return nil, nil, fmt.Errorf("pool selector must use matchLabels for deterministic rendering")
+		}
+		matchLabels = selectorMap
+		selectorMap = map[string]any{"matchLabels": matchLabels}
+	}
+
+	if rawExpressions, hasExpressions := selectorMap["matchExpressions"]; hasExpressions {
+		expressions, ok := rawExpressions.([]any)
+		if !ok {
+			return nil, nil, fmt.Errorf("pool spec.selector.matchExpressions must be an array")
+		}
+		if len(expressions) > 0 {
+			return nil, nil, fmt.Errorf("pool spec.selector.matchExpressions are not supported")
+		}
+	}
+
+	if len(matchLabels) == 0 {
+		return nil, nil, fmt.Errorf("pool spec.selector.matchLabels must not be empty")
+	}
+
+	derivedSelectors := make([]string, 0, len(matchLabels))
+	for key, value := range matchLabels {
+		valueText, ok := value.(string)
+		if !ok {
+			return nil, nil, fmt.Errorf("pool spec.selector.matchLabels[%q] must be a string", key)
+		}
+		if key == "" {
+			return nil, nil, fmt.Errorf("pool selector labels must contain non-empty keys")
+		}
+		if valueText == "" {
+			return nil, nil, fmt.Errorf("pool selector labels must contain non-empty values")
+		}
+		if errs := validation.IsQualifiedName(key); len(errs) > 0 {
+			return nil, nil, fmt.Errorf("pool spec.selector.matchLabels key %q is invalid: %s", key, strings.Join(errs, "; "))
+		}
+		if errs := validation.IsValidLabelValue(valueText); len(errs) > 0 {
+			return nil, nil, fmt.Errorf("pool spec.selector.matchLabels[%q] value %q is invalid: %s", key, valueText, strings.Join(errs, "; "))
+		}
+		derivedSelectors = append(derivedSelectors, fmt.Sprintf("k8s:pod-label:%s:%s", key, valueText))
+	}
+
+	return selectorMap, derivedSelectors, nil
+}
+
+func namespacedKey(namespace, name string) string {
+	return types.NamespacedName{Namespace: namespace, Name: name}.String()
 }

@@ -13,6 +13,7 @@ Keep this file minimal. It exists to point agents at the right sources of truth 
 - Use `$kleym-ticket-planning` when creating, triaging, or planning GitHub issues or implementation tickets.
 - Use `$kleym-controller-change` before changing API types, generated manifests, `internal/controller/`, or reconciliation behavior.
 - Use `$kleym-cli-change` before changing CLI command behavior, output, inspection logic, or exit-code handling.
+- Use `$kleym-test-writing` before adding, moving, deleting, or reshaping tests.
 - Use `$kleym-pr-hygiene` before opening or updating a pull request, including PR titles or descriptions.
 - Use `$kleym-verification-handoff` before final handoff for any repository change.
 

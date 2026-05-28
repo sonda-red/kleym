@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	"github.com/sonda-red/kleym/internal/spirecm"
 )
 
 func TestReconcileLogsStructuredSuccessPath(t *testing.T) {
@@ -116,7 +117,6 @@ func TestReconcileClusterSPIFFEIDsLogsApplyDecisions(t *testing.T) {
 	scheme := newCollisionTestScheme(t)
 	binding := newPoolOnlyBinding("binding-log-apply", "objective-a")
 	identity := renderedIdentity{
-		Name:     "desired-clusterspiffeid",
 		Mode:     kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 		SpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a",
 		Selectors: []string{
@@ -131,12 +131,12 @@ func TestReconcileClusterSPIFFEIDsLogsApplyDecisions(t *testing.T) {
 		PoolRef:      "pool-a",
 	}
 
-	drifted := desiredClusterSPIFFEID(binding, identity)
+	drifted := spirecm.DesiredClusterSPIFFEID(binding, identity)
+	expectedName := drifted.GetName()
 	drifted.Object["spec"] = map[string]any{"spiffeIDTemplate": "spiffe://wrong"}
 
-	staleIdentity := identity
-	staleIdentity.Name = "stale-clusterspiffeid"
-	stale := desiredClusterSPIFFEID(binding, staleIdentity)
+	stale := spirecm.DesiredClusterSPIFFEID(binding, identity)
+	stale.SetName("stale-clusterspiffeid")
 
 	reconciler := &InferenceIdentityBindingReconciler{
 		Client: fake.NewClientBuilder().
@@ -151,7 +151,7 @@ func TestReconcileClusterSPIFFEIDsLogsApplyDecisions(t *testing.T) {
 	}
 
 	logs.requireEntry(t, "updating drifted managed ClusterSPIFFEID", map[string]string{
-		logKeyClusterSPIFFEID: "desired-clusterspiffeid",
+		logKeyClusterSPIFFEID: expectedName,
 		logKeySpiffeID:        identity.SpiffeID,
 	})
 	logs.requireEntry(t, "deleting stale managed ClusterSPIFFEID", map[string]string{

@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
-	identitypkg "github.com/sonda-red/kleym/internal/identity"
+	"github.com/sonda-red/kleym/internal/spirecm"
 )
 
 func TestReconcileDeleteWaitsForManagedClusterSPIFFEIDsToDisappear(t *testing.T) {
@@ -142,7 +142,7 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to render desired identity: %v", err)
 	}
-	desired := desiredClusterSPIFFEID(currentBinding, identity)
+	desired := spirecm.DesiredClusterSPIFFEID(currentBinding, identity)
 
 	current := &unstructured.Unstructured{}
 	current.SetGroupVersionKind(clusterSPIFFEIDGVK)
@@ -173,7 +173,7 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 		t.Fatalf("failed to fetch corrected ClusterSPIFFEID: %v", err)
 	}
 
-	if !clusterSPIFFEIDInSync(current, desired) {
+	if !spirecm.ClusterSPIFFEIDInSync(current, desired) {
 		currentSpec, _, _ := unstructured.NestedMap(current.Object, "spec")
 		desiredSpec, _, _ := unstructured.NestedMap(desired.Object, "spec")
 		t.Fatalf(
@@ -199,7 +199,7 @@ func newManagedClusterSPIFFEIDForBinding(
 	managed := &unstructured.Unstructured{}
 	managed.SetGroupVersionKind(clusterSPIFFEIDGVK)
 	managed.SetName(name)
-	managed.SetLabels(identitypkg.ManagedClusterSPIFFEIDLabels(binding))
+	managed.SetLabels(spirecm.ManagedClusterSPIFFEIDLabels(binding))
 	managed.Object["spec"] = map[string]any{
 		"spiffeIDTemplate": "spiffe://example.test/ns/default/obj/example",
 	}
