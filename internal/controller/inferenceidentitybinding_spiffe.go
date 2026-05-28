@@ -47,7 +47,7 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 
 	desiredNames := make(map[string]struct{}, len(identities))
 	for _, identity := range identities {
-		desired := desiredClusterSPIFFEID(binding, identity)
+		desired := spirecm.DesiredClusterSPIFFEID(binding, identity)
 		desiredName := desired.GetName()
 		desiredNames[desiredName] = struct{}{}
 
@@ -65,14 +65,14 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 			continue
 		}
 
-		if !clusterSPIFFEIDInSync(current, desired) {
+		if !spirecm.ClusterSPIFFEIDInSync(current, desired) {
 			logger.Info(
 				"updating drifted managed ClusterSPIFFEID",
 				logKeyClusterSPIFFEID, desiredName,
 				logKeyMode, identity.Mode,
 				logKeySpiffeID, identity.SpiffeID,
 			)
-			mergeDesiredClusterSPIFFEID(current, desired)
+			spirecm.MergeDesiredClusterSPIFFEID(current, desired)
 			if err := r.Update(ctx, current); err != nil {
 				return err
 			}
@@ -97,21 +97,6 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 	}
 
 	return nil
-}
-
-func desiredClusterSPIFFEID(
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-	identity renderedIdentity,
-) *unstructured.Unstructured {
-	return spirecm.DesiredClusterSPIFFEID(binding, identity)
-}
-
-func clusterSPIFFEIDInSync(current *unstructured.Unstructured, desired *unstructured.Unstructured) bool {
-	return spirecm.ClusterSPIFFEIDInSync(current, desired)
-}
-
-func mergeDesiredClusterSPIFFEID(current *unstructured.Unstructured, desired *unstructured.Unstructured) {
-	spirecm.MergeDesiredClusterSPIFFEID(current, desired)
 }
 
 func (r *InferenceIdentityBindingReconciler) listManagedClusterSPIFFEIDs(

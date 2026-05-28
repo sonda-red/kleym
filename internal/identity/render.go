@@ -82,7 +82,7 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 	}
 
 	selectors = UniqueAndSorted(selectors)
-	if err := ValidateSafetySelectors(binding.Namespace, selectors); err != nil {
+	if err := validateRenderedSafetySelectors(binding.Namespace, selectors); err != nil {
 		return Plan{}, newStateError(
 			ConditionTypeUnsafeSelector,
 			"UnsafeSelector",
@@ -149,8 +149,8 @@ func renderSPIFFEID(
 	}
 }
 
-// ValidateSafetySelectors enforces namespace and service account safety selectors.
-func ValidateSafetySelectors(namespace string, selectors []string) error {
+// validateRenderedSafetySelectors verifies that internally-rendered safety selectors are still present.
+func validateRenderedSafetySelectors(namespace string, selectors []string) error {
 	hasNamespaceSelector := false
 	hasServiceAccountSelector := false
 

@@ -142,7 +142,7 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to render desired identity: %v", err)
 	}
-	desired := desiredClusterSPIFFEID(currentBinding, identity)
+	desired := spirecm.DesiredClusterSPIFFEID(currentBinding, identity)
 
 	current := &unstructured.Unstructured{}
 	current.SetGroupVersionKind(clusterSPIFFEIDGVK)
@@ -173,7 +173,7 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 		t.Fatalf("failed to fetch corrected ClusterSPIFFEID: %v", err)
 	}
 
-	if !clusterSPIFFEIDInSync(current, desired) {
+	if !spirecm.ClusterSPIFFEIDInSync(current, desired) {
 		currentSpec, _, _ := unstructured.NestedMap(current.Object, "spec")
 		desiredSpec, _, _ := unstructured.NestedMap(desired.Object, "spec")
 		t.Fatalf(

@@ -82,7 +82,3 @@ func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
 
 	return r.renderIdentity(binding, objective, pool)
 }
-
-func deriveSelectorsFromPool(pool *unstructured.Unstructured) (map[string]any, []string, error) {
-	return gaie.DeriveSelectorsFromPool(pool)
-}

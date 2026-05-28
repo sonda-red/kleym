@@ -38,7 +38,8 @@ func InferencePoolGVKs() []schema.GroupVersionKind {
 	return append([]schema.GroupVersionKind(nil), inferencePoolGVKs...)
 }
 
-// ResolveObjectiveGVKs falls back to all supported objective GVKs when discovery has not narrowed them.
+// ResolveObjectiveGVKs falls back to all supported objective GVKs for tests and non-setup callers.
+// Controller setup should pass discovered GVKs after narrowing against served resources.
 func ResolveObjectiveGVKs(available []schema.GroupVersionKind) []schema.GroupVersionKind {
 	if len(available) > 0 {
 		return append([]schema.GroupVersionKind(nil), available...)
@@ -46,7 +47,8 @@ func ResolveObjectiveGVKs(available []schema.GroupVersionKind) []schema.GroupVer
 	return InferenceObjectiveGVKs()
 }
 
-// ResolvePoolGVKs falls back to all supported pool GVKs when discovery has not narrowed them.
+// ResolvePoolGVKs falls back to all supported pool GVKs for tests and non-setup callers.
+// Controller setup should pass discovered GVKs after narrowing against served resources.
 func ResolvePoolGVKs(available []schema.GroupVersionKind) []schema.GroupVersionKind {
 	if len(available) > 0 {
 		return append([]schema.GroupVersionKind(nil), available...)

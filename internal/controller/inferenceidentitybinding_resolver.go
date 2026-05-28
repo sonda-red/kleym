@@ -37,10 +37,6 @@ func (r *InferenceIdentityBindingReconciler) resolveInferencePool(
 	return gaie.ResolveInferencePool(ctx, r.Client, r.resolvePoolGVKs(), poolRef)
 }
 
-func extractPoolRef(objective *unstructured.Unstructured, defaultNamespace string) (gaie.PoolRef, error) {
-	return gaie.ExtractPoolRef(objective, defaultNamespace)
-}
-
 func shouldCleanupManagedClusterSPIFFEIDs(conditionType string) bool {
 	return conditionType == conditionTypeInvalidRef ||
 		conditionType == conditionTypeUnsafeSelector ||

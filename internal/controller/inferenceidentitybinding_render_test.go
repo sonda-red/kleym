@@ -8,6 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	"github.com/sonda-red/kleym/internal/gaie"
+	"github.com/sonda-red/kleym/internal/spirecm"
 )
 
 func TestRenderIdentityRejectsInvalidServiceAccountName(t *testing.T) {
@@ -251,9 +253,9 @@ func TestDeriveSelectorsFromPoolKeepsFlatStringMapCompatibility(t *testing.T) {
 		},
 	}
 
-	podSelector, derivedSelectors, err := deriveSelectorsFromPool(pool)
+	podSelector, derivedSelectors, err := gaie.DeriveSelectorsFromPool(pool)
 	if err != nil {
-		t.Fatalf("deriveSelectorsFromPool returned error: %v", err)
+		t.Fatalf("DeriveSelectorsFromPool returned error: %v", err)
 	}
 
 	if _, ok := podSelector["matchLabels"].(map[string]any); !ok {
@@ -410,7 +412,7 @@ func TestRenderIdentityIncludesHintAndFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("renderIdentity returned error: %v", err)
 	}
-	desired := desiredClusterSPIFFEID(binding, identity)
+	desired := spirecm.DesiredClusterSPIFFEID(binding, identity)
 
 	spec, found, err := unstructured.NestedMap(desired.Object, "spec")
 	if err != nil {
@@ -451,7 +453,7 @@ func TestExtractPoolRefRejectsCrossNamespace(t *testing.T) {
 		},
 	}
 
-	_, err := extractPoolRef(objective, "default")
+	_, err := gaie.ExtractPoolRef(objective, "default")
 	if err == nil {
 		t.Fatalf("expected cross-namespace error, got nil")
 	}

@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	"github.com/sonda-red/kleym/internal/spirecm"
 )
 
 func TestReconcileLogsStructuredSuccessPath(t *testing.T) {
@@ -130,11 +131,11 @@ func TestReconcileClusterSPIFFEIDsLogsApplyDecisions(t *testing.T) {
 		PoolRef:      "pool-a",
 	}
 
-	drifted := desiredClusterSPIFFEID(binding, identity)
+	drifted := spirecm.DesiredClusterSPIFFEID(binding, identity)
 	expectedName := drifted.GetName()
 	drifted.Object["spec"] = map[string]any{"spiffeIDTemplate": "spiffe://wrong"}
 
-	stale := desiredClusterSPIFFEID(binding, identity)
+	stale := spirecm.DesiredClusterSPIFFEID(binding, identity)
 	stale.SetName("stale-clusterspiffeid")
 
 	reconciler := &InferenceIdentityBindingReconciler{

@@ -286,7 +286,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 	}
 
 	primaryIdentity := desiredState.identities[0]
-	primaryClusterSPIFFEIDName := desiredClusterSPIFFEID(binding, primaryIdentity).GetName()
+	primaryClusterSPIFFEIDName := spirecm.DesiredClusterSPIFFEID(binding, primaryIdentity).GetName()
 	r.recordEventf(binding, corev1.EventTypeNormal, "Reconciled", "reconciled ClusterSPIFFEID %q", primaryClusterSPIFFEIDName)
 	logger.Info(
 		"reconciled successfully",
@@ -495,7 +495,7 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 		"rendered identity from inference intent",
 		logKeyMode, identity.Mode,
 		logKeySpiffeID, identity.SpiffeID,
-		logKeyClusterSPIFFEID, desiredClusterSPIFFEID(binding, identity).GetName(),
+		logKeyClusterSPIFFEID, spirecm.DesiredClusterSPIFFEID(binding, identity).GetName(),
 		logKeySelectors, identity.Selectors,
 		logKeyPodSelector, identity.PodSelector,
 		logKeyObjective, identity.ObjectiveRef,
