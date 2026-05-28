@@ -284,6 +284,48 @@ func TestDeriveSelectorsFromPoolKeepsFlatStringMapCompatibility(t *testing.T) {
 	}
 }
 
+func TestDeriveSelectorsFromPoolRejectsInvalidMatchLabels(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]map[string]any{
+		"array-value":               {"app": []any{"model-server"}},
+		"bool-value":                {"app": true},
+		"number-value":              {"app": float64(1)},
+		"object-value":              {"app": map[string]any{"name": "model-server"}},
+		"invalid-key-prefix":        {"Example.com/app": "model-server"},
+		"invalid-key-name":          {"app/name/extra": "model-server"},
+		"leading-whitespace-key":    {" app": "model-server"},
+		"leading-whitespace-value":  {"app": " model-server"},
+		"trailing-whitespace-value": {"app": "model-server "},
+		"whitespace-only-value":     {"app": " "},
+		"invalid-value-character":   {"app": "model/server"},
+		"invalid-value-start":       {"app": "-model"},
+		"invalid-value-end":         {"app": "model-"},
+	}
+
+	for name, labels := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			pool := testPool("pool-invalid-labels")
+			pool.Object["spec"] = map[string]any{
+				"selector": map[string]any{
+					"matchLabels": labels,
+				},
+			}
+
+			_, _, err := DeriveSelectorsFromPool(pool)
+			if err == nil {
+				t.Fatalf("expected invalid matchLabels error, got nil")
+			}
+			if !strings.Contains(err.Error(), "pool spec.selector.matchLabels") &&
+				!strings.Contains(err.Error(), "pool selector labels") {
+				t.Fatalf("error = %q, want matchLabels validation error", err.Error())
+			}
+		})
+	}
+}
+
 func TestValidateObjectiveTargetsPool(t *testing.T) {
 	t.Parallel()
 
