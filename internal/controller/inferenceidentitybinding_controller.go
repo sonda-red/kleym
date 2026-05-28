@@ -35,7 +35,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
-	identitypkg "github.com/sonda-red/kleym/internal/identity"
+	"github.com/sonda-red/kleym/internal/gaie"
+	"github.com/sonda-red/kleym/internal/spirecm"
 )
 
 const (
@@ -49,15 +50,15 @@ const (
 
 	noIdentityCollisionMessage = "No identity collision detected"
 
-	fieldIndexObjectiveRefName          = "spec.objectiveRef.name"
-	fieldIndexPoolRefName               = "spec.poolRef.name"
-	fieldIndexEffectiveMode             = "spec.effectiveMode"
-	fieldIndexContainerDiscriminatorKey = "spec.containerDiscriminatorKey"
-	infraNotReadyRequeueAfter           = 30 * time.Second
-	deleteVerificationRequeueAfter      = 2 * time.Second
-	identityCollisionMessagePrefix      = "identity collision with bindings "
-	identityCollisionMessageSuffix      = ": PerObjective bindings must not share the same pod selector and container discriminator"
-	modeValuePerObjective               = string(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
+	fieldIndexObjectiveRefName     = "spec.objectiveRef.name"
+	fieldIndexPoolRefName          = "spec.poolRef.name"
+	fieldIndexEffectiveMode        = "spec.effectiveMode"
+	fieldIndexContainerName        = "spec.containerName"
+	infraNotReadyRequeueAfter      = 30 * time.Second
+	deleteVerificationRequeueAfter = 2 * time.Second
+	identityCollisionMessagePrefix = "identity collision with bindings "
+	identityCollisionMessageSuffix = ": PerObjective bindings must not share the same pod selector and container name"
+	modeValuePerObjective          = string(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
 
 	logKeyBinding          = "binding"
 	logKeyNamespace        = "namespace"
@@ -82,9 +83,9 @@ const (
 )
 
 var (
-	inferenceObjectiveGVKs = identitypkg.InferenceObjectiveGVKs()
-	inferencePoolGVKs      = identitypkg.InferencePoolGVKs()
-	clusterSPIFFEIDGVK     = identitypkg.ClusterSPIFFEIDGVK()
+	inferenceObjectiveGVKs = gaie.InferenceObjectiveGVKs()
+	inferencePoolGVKs      = gaie.InferencePoolGVKs()
+	clusterSPIFFEIDGVK     = spirecm.ClusterSPIFFEIDGVK()
 )
 
 // InferenceIdentityBindingReconciler reconciles a InferenceIdentityBinding object
@@ -285,10 +286,11 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 	}
 
 	primaryIdentity := desiredState.identities[0]
-	r.recordEventf(binding, corev1.EventTypeNormal, "Reconciled", "reconciled ClusterSPIFFEID %q", primaryIdentity.Name)
+	primaryClusterSPIFFEIDName := spirecm.DesiredClusterSPIFFEID(binding, primaryIdentity).GetName()
+	r.recordEventf(binding, corev1.EventTypeNormal, "Reconciled", "reconciled ClusterSPIFFEID %q", primaryClusterSPIFFEIDName)
 	logger.Info(
 		"reconciled successfully",
-		logKeyClusterSPIFFEID, primaryIdentity.Name,
+		logKeyClusterSPIFFEID, primaryClusterSPIFFEIDName,
 		logKeySpiffeID, primaryIdentity.SpiffeID,
 	)
 
@@ -437,7 +439,7 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 	logger := logf.FromContext(ctx)
 
 	mode := effectiveMode(binding.Spec.Mode)
-	poolRef, err := identitypkg.BindingPoolRef(binding)
+	poolRef, err := gaie.BindingPoolRef(binding)
 	if err != nil {
 		return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidPoolRef", err.Error())
 	}
@@ -458,7 +460,7 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 	)
 
 	var objective *unstructured.Unstructured
-	objectiveRef, hasObjectiveRef, err := identitypkg.BindingObjectiveRef(binding)
+	objectiveRef, hasObjectiveRef, err := gaie.BindingObjectiveRef(binding)
 	if err != nil {
 		return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidObjectiveRef", err.Error())
 	}
@@ -480,7 +482,7 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 			logKeyObjective, namespacedBindingKey(objective.GetNamespace(), objective.GetName()),
 			logKeyObjectiveGVK, objective.GroupVersionKind().String(),
 		)
-		if err := identitypkg.ValidateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
+		if err := gaie.ValidateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
 			return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidObjectiveRef", err.Error())
 		}
 	}
@@ -493,7 +495,7 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 		"rendered identity from inference intent",
 		logKeyMode, identity.Mode,
 		logKeySpiffeID, identity.SpiffeID,
-		logKeyClusterSPIFFEID, identity.Name,
+		logKeyClusterSPIFFEID, spirecm.DesiredClusterSPIFFEID(binding, identity).GetName(),
 		logKeySelectors, identity.Selectors,
 		logKeyPodSelector, identity.PodSelector,
 		logKeyObjective, identity.ObjectiveRef,

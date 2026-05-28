@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	"github.com/sonda-red/kleym/internal/gaie"
 	"github.com/sonda-red/kleym/internal/identity"
 )
 
@@ -106,6 +107,16 @@ func errorsAsStateError(err error, target *reconcileStateError) bool {
 			conditionType: identityErr.ConditionType,
 			reason:        identityErr.Reason,
 			message:       identityErr.Message,
+		}
+		return true
+	}
+
+	var gaieErr *gaie.StateError
+	if errors.As(err, &gaieErr) {
+		*target = reconcileStateError{
+			conditionType: gaieErr.ConditionType,
+			reason:        gaieErr.Reason,
+			message:       gaieErr.Message,
 		}
 		return true
 	}

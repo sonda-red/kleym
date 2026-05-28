@@ -25,7 +25,7 @@ Supported flags:
 
 ```bash
 -n, --namespace
--o, --output text|json|yaml|markdown
+-o, --output text|json
 --strict
 --context
 --kubeconfig
@@ -36,7 +36,7 @@ Default namespace is `default`. Default output is `text`. `--timeout` must be gr
 
 ## Output Contract
 
-JSON is the stable machine contract. YAML mirrors the same normalized report data and field names as JSON. Text and Markdown are human-oriented and may change between releases.
+JSON is the stable machine contract. Text is the human-oriented report and may change between releases.
 
 Automation must consume:
 
@@ -44,7 +44,7 @@ Automation must consume:
 kleym inspect binding <name> -n <namespace> -o json
 ```
 
-Text output leads with a summary. Markdown is for documentation and PR comments. Neither format may introduce inspection semantics absent from the canonical report data.
+Text output leads with a summary and must not introduce inspection semantics absent from the canonical report data.
 
 `kleym inspect binding` emits a `BindingInspectionReport` with four core sections:
 

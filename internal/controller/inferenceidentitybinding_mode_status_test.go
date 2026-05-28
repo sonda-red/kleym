@@ -75,7 +75,7 @@ func TestModeFlipKeepsComputedSpiffeIDsInSyncWithManagedClusterSPIFFEIDs(t *test
 	originalManagedName := perObjectiveNames[0]
 
 	currentBinding.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePoolOnly
-	currentBinding.Spec.ContainerDiscriminator = nil
+	currentBinding.Spec.ContainerName = ""
 	if err := reconciler.Update(ctx, currentBinding); err != nil {
 		t.Fatalf("failed to update binding mode to PoolOnly: %v", err)
 	}

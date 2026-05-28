@@ -13,11 +13,9 @@ const (
 	defaultNamespace = "default"
 	outputText       = "text"
 	outputJSON       = "json"
-	outputYAML       = "yaml"
-	outputMarkdown   = "markdown"
 )
 
-var validOutputFormats = []string{outputText, outputJSON, outputYAML, outputMarkdown}
+var validOutputFormats = []string{outputText, outputJSON}
 
 // Options holds top-level CLI flags for the kleym command tree.
 type Options struct {

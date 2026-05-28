@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package identity
+package gaie
 
 import "k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -25,11 +25,6 @@ var (
 	inferencePoolGVKs = []schema.GroupVersionKind{
 		{Group: "inference.networking.k8s.io", Version: "v1", Kind: "InferencePool"},
 		{Group: "inference.networking.x-k8s.io", Version: "v1alpha2", Kind: "InferencePool"},
-	}
-	clusterSPIFFEIDGVK = schema.GroupVersionKind{
-		Group:   "spire.spiffe.io",
-		Version: "v1alpha1",
-		Kind:    "ClusterSPIFFEID",
 	}
 )
 
@@ -43,12 +38,8 @@ func InferencePoolGVKs() []schema.GroupVersionKind {
 	return append([]schema.GroupVersionKind(nil), inferencePoolGVKs...)
 }
 
-// ClusterSPIFFEIDGVK returns the SPIRE Controller Manager ClusterSPIFFEID GVK.
-func ClusterSPIFFEIDGVK() schema.GroupVersionKind {
-	return clusterSPIFFEIDGVK
-}
-
-// ResolveObjectiveGVKs falls back to all supported objective GVKs when discovery has not narrowed them.
+// ResolveObjectiveGVKs falls back to all supported objective GVKs for tests and non-setup callers.
+// Controller setup should pass discovered GVKs after narrowing against served resources.
 func ResolveObjectiveGVKs(available []schema.GroupVersionKind) []schema.GroupVersionKind {
 	if len(available) > 0 {
 		return append([]schema.GroupVersionKind(nil), available...)
@@ -56,7 +47,8 @@ func ResolveObjectiveGVKs(available []schema.GroupVersionKind) []schema.GroupVer
 	return InferenceObjectiveGVKs()
 }
 
-// ResolvePoolGVKs falls back to all supported pool GVKs when discovery has not narrowed them.
+// ResolvePoolGVKs falls back to all supported pool GVKs for tests and non-setup callers.
+// Controller setup should pass discovered GVKs after narrowing against served resources.
 func ResolvePoolGVKs(available []schema.GroupVersionKind) []schema.GroupVersionKind {
 	if len(available) > 0 {
 		return append([]schema.GroupVersionKind(nil), available...)

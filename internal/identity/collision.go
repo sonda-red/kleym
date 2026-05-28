@@ -18,23 +18,15 @@ package identity
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
-
-	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
 // PerObjectiveCollisionFingerprint produces the deterministic key used for collision checks.
 func PerObjectiveCollisionFingerprint(
 	identity RenderedIdentity,
-	discriminator *kleymv1alpha1.ContainerDiscriminator,
+	containerName string,
 ) (string, error) {
-	if discriminator == nil {
-		return "", fmt.Errorf("containerDiscriminator is required for per-objective collision detection")
-	}
-
-	containerValue := strings.TrimSpace(discriminator.Value)
-	if containerValue == "" {
-		return "", fmt.Errorf("containerDiscriminator.value must not be empty")
+	if _, err := SelectorForContainerName(containerName); err != nil {
+		return "", fmt.Errorf("containerName is invalid for per-objective collision detection: %w", err)
 	}
 
 	podSelectorFingerprint, err := normalizedPodSelectorFingerprint(identity.PodSelector)
@@ -47,7 +39,7 @@ func PerObjectiveCollisionFingerprint(
 		return "", err
 	}
 
-	return fmt.Sprintf("%s|%s|%s|%s", podSelectorFingerprint, selectorFingerprint, discriminator.Type, containerValue), nil
+	return fmt.Sprintf("%s|%s|%s", podSelectorFingerprint, selectorFingerprint, containerName), nil
 }
 
 func normalizedPodSelectorFingerprint(selector map[string]any) (string, error) {

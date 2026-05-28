@@ -17,7 +17,7 @@ The current implementation requires:
 - a namespace selector: `k8s:ns:<binding-namespace>`
 - a service account selector: `k8s:sa:<service-account>`
 - selectors derived from the referenced pool
-- a container discriminator selector when `mode` is `PerObjective`
+- a container-name selector when `mode` is `PerObjective`
 
 If the namespace selector does not match the binding namespace, reconciliation fails.
 
@@ -45,7 +45,8 @@ The controller renders pool labels directly into SPIRE workload selectors, so it
 rejects malformed label input instead of normalizing it into a selector the pool
 did not specify. `matchExpressions` are not rendered.
 
-## Why Templates Are Still Allowed
+## Selector Ownership
 
-`workloadSelectorTemplates` provide namespace and service account selectors.
-Pool-derived selectors provide workload provenance.
+Users provide only `serviceAccountName`. Kleym renders the namespace and
+service-account selectors internally, derives pool selectors from `poolRef`,
+and adds `k8s:container-name:<containerName>` for `PerObjective` bindings.

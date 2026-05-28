@@ -6,8 +6,5 @@ metadata:
 spec:
   poolRef:
     name: reference-pool
-  selectorSource: DerivedFromPool
-  workloadSelectorTemplates:
-    - k8s:ns:kleym-reference-inference
-    - k8s:sa:reference-inference
+  serviceAccountName: reference-inference
   mode: PoolOnly

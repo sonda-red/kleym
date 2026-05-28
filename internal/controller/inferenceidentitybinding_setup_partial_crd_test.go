@@ -152,13 +152,9 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 			Name:      bindingName,
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			PoolRef:        kleymv1alpha1.InferencePoolTargetRef{Name: poolName, Group: "inference.networking.x-k8s.io"},
-			SelectorSource: kleymv1alpha1.SelectorSourceDerivedFromPool,
-			WorkloadSelectorTemplates: []string{
-				"k8s:ns:default",
-				"k8s:sa:inference-sa",
-			},
-			Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName, Group: "inference.networking.x-k8s.io"},
+			ServiceAccountName: "inference-sa",
+			Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 		},
 	}
 	if err := mgr.GetClient().Create(ctx, binding); err != nil {

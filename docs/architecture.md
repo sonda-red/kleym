@@ -24,7 +24,7 @@ This flow uses Gateway API Inference Extension (GAIE) objects as upstream inputs
     InferenceObjective ──▶ Resolve objectiveRef when present
                          │
                   Derive selectors from pool
-                  Add container discriminator (PerObjective)
+                  Add containerName selector (PerObjective)
                   Validate safety selectors
                   Render SPIFFE ID
                          │

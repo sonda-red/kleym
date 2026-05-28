@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -24,7 +23,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	"github.com/sonda-red/kleym/internal/gaie"
 	"github.com/sonda-red/kleym/internal/identity"
+	"github.com/sonda-red/kleym/internal/spirecm"
 )
 
 const (
@@ -35,12 +36,10 @@ const (
 	findingRenderFailure        = "render-failure"
 	findingKleymCollision       = "kleym-collision"
 	findingZeroEligibleWorkload = "zero-eligible-workloads"
-	findingAmbiguousContainer   = "ambiguous-container-match"
 	findingUnsupportedSelector  = "unsupported-selector"
 	findingObservedDrift        = "observed-drift"
 	findingRBACLimited          = "rbac-limited"
 	reasonZeroEligibleWorkload  = "ZeroEligibleWorkloads"
-	reasonAmbiguousContainer    = "AmbiguousContainerMatch"
 	reasonUnsupportedSelector   = "UnsupportedSelector"
 	reasonObservedDrift         = "ObservedDrift"
 	reasonRBACLimited           = "Forbidden"
@@ -113,10 +112,10 @@ func newBindingInspectionScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	_ = corev1.AddToScheme(scheme)
 	_ = kleymv1alpha1.AddToScheme(scheme)
-	for _, gvk := range append(identity.InferenceObjectiveGVKs(), identity.InferencePoolGVKs()...) {
+	for _, gvk := range append(gaie.InferenceObjectiveGVKs(), gaie.InferencePoolGVKs()...) {
 		registerInspectionUnstructuredGVK(scheme, gvk)
 	}
-	registerInspectionUnstructuredGVK(scheme, identity.ClusterSPIFFEIDGVK())
+	registerInspectionUnstructuredGVK(scheme, spirecm.ClusterSPIFFEIDGVK())
 	return scheme
 }
 
@@ -171,11 +170,11 @@ func (i *bindingInspector) InspectBinding(ctx context.Context, namespace string,
 }
 
 func (i *bindingInspector) discoverGAIEGVKs() ([]schema.GroupVersionKind, []schema.GroupVersionKind, error) {
-	availableObjectiveGVKs, err := filterAvailableInspectionGVKs(i.mapper, identity.InferenceObjectiveGVKs())
+	availableObjectiveGVKs, err := filterAvailableInspectionGVKs(i.mapper, gaie.InferenceObjectiveGVKs())
 	if err != nil {
 		return nil, nil, err
 	}
-	availablePoolGVKs, err := filterAvailableInspectionGVKs(i.mapper, identity.InferencePoolGVKs())
+	availablePoolGVKs, err := filterAvailableInspectionGVKs(i.mapper, gaie.InferencePoolGVKs())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -207,35 +206,7 @@ func (i *bindingInspector) inspectDesiredState(
 	report *BindingInspectionReport,
 ) (identity.RenderedIdentity, bool) {
 	mode := identity.EffectiveMode(binding.Spec.Mode)
-	pool, ok := i.resolveInspectionPool(ctx, binding, availablePoolGVKs, report)
-	if !ok {
-		return identity.RenderedIdentity{}, false
-	}
-	objective, ok := i.resolveInspectionObjective(ctx, binding, pool, mode, availableObjectiveGVKs, report)
-	if !ok {
-		return identity.RenderedIdentity{}, false
-	}
-
-	rendered, err := identity.RenderIdentity(binding, objective, pool)
-	if err != nil {
-		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
-		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), "")
-		return identity.RenderedIdentity{}, false
-	}
-	if !i.recordInspectionDesiredState(binding, pool, rendered, report) {
-		return identity.RenderedIdentity{}, false
-	}
-	return rendered, true
-}
-
-// resolveInspectionPool reads the binding's target pool and records partial report context on failure.
-func (i *bindingInspector) resolveInspectionPool(
-	ctx context.Context,
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-	availablePoolGVKs []schema.GroupVersionKind,
-	report *BindingInspectionReport,
-) (*unstructured.Unstructured, bool) {
-	poolRef, err := identity.BindingPoolRef(binding)
+	poolRef, err := gaie.BindingPoolRef(binding)
 	if err != nil {
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
 		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), findingInvalidRef)
@@ -243,7 +214,7 @@ func (i *bindingInspector) resolveInspectionPool(
 	}
 	report.Resolved.PoolRef = poolRefToReportRef(poolRef, schema.GroupVersionKind{Kind: "InferencePool"})
 
-	pool, err := identity.ResolveInferencePool(ctx, i.client, availablePoolGVKs, poolRef)
+	pool, err := gaie.ResolveInferencePool(ctx, i.client, availablePoolGVKs, poolRef)
 	if err != nil {
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
 		i.addFindingForError(report, err, *report.Resolved.PoolRef, "")
@@ -253,16 +224,8 @@ func (i *bindingInspector) resolveInspectionPool(
 	return pool, true
 }
 
-// resolveInspectionObjective reads an optional or required objective and validates that it targets the pool.
-func (i *bindingInspector) resolveInspectionObjective(
-	ctx context.Context,
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-	pool *unstructured.Unstructured,
-	mode kleymv1alpha1.InferenceIdentityBindingMode,
-	availableObjectiveGVKs []schema.GroupVersionKind,
-	report *BindingInspectionReport,
-) (*unstructured.Unstructured, bool) {
-	objectiveRef, hasObjectiveRef, err := identity.BindingObjectiveRef(binding)
+	var objective *unstructured.Unstructured
+	objectiveRef, hasObjectiveRef, err := gaie.BindingObjectiveRef(binding)
 	if err != nil {
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
 		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), findingInvalidRef)
@@ -277,38 +240,27 @@ func (i *bindingInspector) resolveInspectionObjective(
 		}, bindingInspectionBindingTargetRef(binding), "")
 		return nil, false
 	}
-	if !hasObjectiveRef {
-		return nil, true
+	if hasObjectiveRef {
+		report.Resolved.ObjectiveRef = objectiveRefToReportRef(objectiveRef, schema.GroupVersionKind{Kind: "InferenceObjective"})
+		objective, err = gaie.ResolveInferenceObjective(ctx, i.client, availableObjectiveGVKs, objectiveRef)
+		if err != nil {
+			report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
+			i.addFindingForError(report, err, *report.Resolved.ObjectiveRef, "")
+			return identity.RenderedIdentity{}, false
+		}
+		report.Resolved.ObjectiveRef = objectiveRefToReportRef(objectiveRef, objective.GroupVersionKind())
+		if err := gaie.ValidateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
+			report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
+			i.addFindingForError(report, &gaie.StateError{
+				ConditionType: gaie.ConditionTypeInvalidRef,
+				Reason:        "InvalidObjectiveRef",
+				Message:       err.Error(),
+			}, *report.Resolved.ObjectiveRef, "")
+			return identity.RenderedIdentity{}, false
+		}
 	}
 
-	report.Resolved.ObjectiveRef = objectiveRefToReportRef(objectiveRef, schema.GroupVersionKind{Kind: "InferenceObjective"})
-	objective, err := identity.ResolveInferenceObjective(ctx, i.client, availableObjectiveGVKs, objectiveRef)
-	if err != nil {
-		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
-		i.addFindingForError(report, err, *report.Resolved.ObjectiveRef, "")
-		return nil, false
-	}
-	report.Resolved.ObjectiveRef = objectiveRefToReportRef(objectiveRef, objective.GroupVersionKind())
-	if err := identity.ValidateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
-		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
-		i.addFindingForError(report, &identity.StateError{
-			ConditionType: identity.ConditionTypeInvalidRef,
-			Reason:        "InvalidObjectiveRef",
-			Message:       err.Error(),
-		}, *report.Resolved.ObjectiveRef, "")
-		return nil, false
-	}
-	return objective, true
-}
-
-// recordInspectionDesiredState stores the canonical desired identity fields once rendering succeeds.
-func (i *bindingInspector) recordInspectionDesiredState(
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-	pool *unstructured.Unstructured,
-	rendered identity.RenderedIdentity,
-	report *BindingInspectionReport,
-) bool {
-	poolSelector, poolDerivedSelectors, err := identity.DeriveSelectorsFromPool(pool)
+	poolSelector, poolDerivedSelectors, err := gaie.DeriveSelectorsFromPool(pool)
 	if err != nil {
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
 		i.addFindingForError(report, &identity.StateError{
@@ -319,18 +271,35 @@ func (i *bindingInspector) recordInspectionDesiredState(
 		return false
 	}
 
+	objectiveName := ""
+	if objective != nil {
+		objectiveName = objective.GetName()
+	}
+	rendered, err := identity.PlanIdentity(identity.PlanInput{
+		Binding:              binding,
+		ObjectiveName:        objectiveName,
+		PoolName:             pool.GetName(),
+		PodSelector:          poolSelector,
+		PoolDerivedSelectors: poolDerivedSelectors,
+	})
+	if err != nil {
+		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
+		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), "")
+		return identity.RenderedIdentity{}, false
+	}
+
 	provenance := selectorProvenance(binding, rendered, poolDerivedSelectors)
 	report.Resolved.PoolSelector = poolSelector
-	report.Resolved.ContainerDiscriminator = containerDiscriminator(binding)
+	report.Resolved.ContainerName = binding.Spec.ContainerName
 	report.Resolved.SelectorProvenance = &provenance
 	report.Desired = BindingInspectionDesiredState{
-		ClusterSPIFFEIDName: rendered.Name,
+		ClusterSPIFFEIDName: spirecm.BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, rendered.Mode, rendered.SpiffeID),
 		SPIFFEID:            rendered.SpiffeID,
 		PodSelector:         rendered.PodSelector,
 		WorkloadSelectors:   append([]string(nil), rendered.Selectors...),
 		SelectorProvenance:  &provenance,
-		Hint:                rendered.Hint,
-		Fallback:            boolPtr(rendered.Fallback),
+		Hint:                spirecm.BuildClusterSPIFFEIDHint(binding),
+		Fallback:            boolPtr(spirecm.RenderFallback()),
 	}
 	report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
 	return true
@@ -345,7 +314,39 @@ func (i *bindingInspector) inspectObservedState(
 ) {
 	objects, err := i.listManagedClusterSPIFFEIDs(ctx, binding)
 	if err != nil {
-		recordClusterSPIFFEIDListFailure(err, report)
+		switch {
+		case meta.IsNoMatchError(err):
+			report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityUnknown
+			report.Findings = append(report.Findings, BindingInspectionFinding{
+				ID:       findingDependencyMissing,
+				Severity: BindingInspectionFindingSeverityError,
+				Reason:   "ClusterSPIFFEIDCRDMissing",
+				Message:  "ClusterSPIFFEID CRD is not installed",
+				AffectedRefs: []BindingInspectionTargetRef{{
+					Name:  clusterSPIFFEIDResourceName,
+					Group: spirecm.ClusterSPIFFEIDGVK().Group,
+					Kind:  spirecm.ClusterSPIFFEIDGVK().Kind,
+				}},
+			})
+		case apierrors.IsForbidden(err):
+			report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityPartial
+			report.Findings = append(report.Findings, BindingInspectionFinding{
+				ID:           findingRBACLimited,
+				Severity:     BindingInspectionFindingSeverityWarning,
+				Reason:       reasonRBACLimited,
+				Message:      "ClusterSPIFFEID resources are not readable",
+				AffectedRefs: []BindingInspectionTargetRef{{Name: clusterSPIFFEIDResourceName}},
+			})
+		default:
+			report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityUnknown
+			report.Findings = append(report.Findings, BindingInspectionFinding{
+				ID:           findingDependencyMissing,
+				Severity:     BindingInspectionFindingSeverityError,
+				Reason:       "ClusterSPIFFEIDListFailed",
+				Message:      err.Error(),
+				AffectedRefs: []BindingInspectionTargetRef{{Name: clusterSPIFFEIDResourceName}},
+			})
+		}
 		return
 	}
 
@@ -403,14 +404,7 @@ func recordClusterSPIFFEIDListFailure(err error, report *BindingInspectionReport
 	}
 }
 
-// recordObservedDrift compares rendered desired state against all visible Kleym-managed outputs.
-func recordObservedDrift(
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-	rendered identity.RenderedIdentity,
-	objects []*unstructured.Unstructured,
-	report *BindingInspectionReport,
-) {
-	desired := identity.DesiredClusterSPIFFEID(binding, rendered)
+	desired := spirecm.DesiredClusterSPIFFEID(binding, rendered)
 	if len(objects) == 0 {
 		report.Observed.Drift = append(report.Observed.Drift, BindingInspectionDriftEntry{
 			Field:    "metadata.name",
@@ -428,7 +422,17 @@ func recordObservedDrift(
 			}
 			return report.Observed.Drift[left].Field < report.Observed.Drift[right].Field
 		})
-		report.Findings = append(report.Findings, observedDriftFinding(rendered))
+		report.Findings = append(report.Findings, BindingInspectionFinding{
+			ID:       findingObservedDrift,
+			Severity: BindingInspectionFindingSeverityWarning,
+			Reason:   reasonObservedDrift,
+			Message:  "observed managed ClusterSPIFFEID state differs from desired state",
+			AffectedRefs: []BindingInspectionTargetRef{{
+				Name:  desired.GetName(),
+				Group: spirecm.ClusterSPIFFEIDGVK().Group,
+				Kind:  spirecm.ClusterSPIFFEIDGVK().Kind,
+			}},
+		})
 	}
 }
 
@@ -519,9 +523,9 @@ func (i *bindingInspector) listManagedClusterSPIFFEIDs(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 ) ([]*unstructured.Unstructured, error) {
 	list := &unstructured.UnstructuredList{}
-	gvk := identity.ClusterSPIFFEIDGVK()
+	gvk := spirecm.ClusterSPIFFEIDGVK()
 	list.SetGroupVersionKind(gvk.GroupVersion().WithKind(gvk.Kind + "List"))
-	if err := i.client.List(ctx, list, client.MatchingLabels(identity.ManagedClusterSPIFFEIDLabels(binding))); err != nil {
+	if err := i.client.List(ctx, list, client.MatchingLabels(spirecm.ManagedClusterSPIFFEIDLabels(binding))); err != nil {
 		return nil, err
 	}
 
@@ -551,9 +555,6 @@ func eligibleWorkloadsFromPods(
 				Pod:       pod.Name,
 			})
 			continue
-		}
-		if len(matchingContainers) > 1 {
-			report.Findings = append(report.Findings, ambiguousContainerFinding(pod, selection))
 		}
 		for _, container := range matchingContainers {
 			workloads = append(workloads, BindingInspectionEligibleWorkload{
@@ -604,6 +605,16 @@ func findingForError(err error, ref BindingInspectionTargetRef, fallbackID strin
 			ref,
 		)
 	}
+	var gaieErr *gaie.StateError
+	if errors.As(err, &gaieErr) {
+		return BindingInspectionFinding{
+			ID:           findingIDForGAIEStateError(gaieErr, fallbackID),
+			Severity:     BindingInspectionFindingSeverityError,
+			Reason:       gaieErr.Reason,
+			Message:      gaieErr.Message,
+			AffectedRefs: []BindingInspectionTargetRef{ref},
+		}
+	}
 	if apierrors.IsForbidden(err) {
 		return inspectionFinding(
 			findingRBACLimited,
@@ -630,12 +641,25 @@ func findingIDForStateError(err *identity.StateError, fallbackID string) string 
 		return findingDependencyMissing
 	}
 	switch err.ConditionType {
-	case identity.ConditionTypeInvalidRef:
-		return findingInvalidRef
 	case identity.ConditionTypeUnsafeSelector:
 		return findingUnsafeSelector
 	case identity.ConditionTypeRenderFailure:
 		return findingRenderFailure
+	default:
+		if fallbackID != "" {
+			return fallbackID
+		}
+		return findingDependencyMissing
+	}
+}
+
+func findingIDForGAIEStateError(err *gaie.StateError, fallbackID string) string {
+	if strings.HasSuffix(err.Reason, "CRDMissing") {
+		return findingDependencyMissing
+	}
+	switch err.ConditionType {
+	case gaie.ConditionTypeInvalidRef:
+		return findingInvalidRef
 	default:
 		if fallbackID != "" {
 			return fallbackID
@@ -665,9 +689,6 @@ func workloadSelectionFromSelectors(selectors []string) workloadSelection {
 		case strings.HasPrefix(selector, "k8s:container-name:"):
 			selection.ContainerSelectorType = "name"
 			selection.ContainerValue = strings.TrimPrefix(selector, "k8s:container-name:")
-		case strings.HasPrefix(selector, "k8s:container-image:"):
-			selection.ContainerSelectorType = "image"
-			selection.ContainerValue = strings.TrimPrefix(selector, "k8s:container-image:")
 		case strings.HasPrefix(selector, "k8s:pod-label:"):
 			key, value, ok := strings.Cut(strings.TrimPrefix(selector, "k8s:pod-label:"), ":")
 			if ok && key != "" {
@@ -698,7 +719,7 @@ func podMatchesSelection(pod corev1.Pod, selection workloadSelection) bool {
 	return true
 }
 
-// matchingPodContainers returns containers selected by the rendered container discriminator.
+// matchingPodContainers returns containers selected by the rendered container name.
 func matchingPodContainers(pod corev1.Pod, selection workloadSelection) []corev1.Container {
 	if selection.ContainerSelectorType == "" {
 		return nil
@@ -709,10 +730,6 @@ func matchingPodContainers(pod corev1.Pod, selection workloadSelection) []corev1
 		switch selection.ContainerSelectorType {
 		case "name":
 			if container.Name == selection.ContainerValue {
-				containers = append(containers, container)
-			}
-		case "image":
-			if container.Image == selection.ContainerValue {
 				containers = append(containers, container)
 			}
 		}
@@ -785,27 +802,6 @@ func zeroEligibleWorkloadsFinding(binding *kleymv1alpha1.InferenceIdentityBindin
 	)
 }
 
-// ambiguousContainerFinding records a pod where one discriminator maps to more than one container.
-func ambiguousContainerFinding(pod corev1.Pod, selection workloadSelection) BindingInspectionFinding {
-	return inspectionFinding(
-		findingAmbiguousContainer,
-		BindingInspectionFindingSeverityWarning,
-		reasonAmbiguousContainer,
-		fmt.Sprintf(
-			"pod %q has more than one container matching %s discriminator %q",
-			identity.NamespacedBindingKey(pod.Namespace, pod.Name),
-			selection.ContainerSelectorType,
-			selection.ContainerValue,
-		),
-		BindingInspectionTargetRef{
-			Namespace: pod.Namespace,
-			Name:      pod.Name,
-			Version:   "v1",
-			Kind:      "Pod",
-		},
-	)
-}
-
 // unsupportedSelectorFinding records rendered selectors that cannot be evaluated from pod data.
 func unsupportedSelectorFinding(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
@@ -871,7 +867,7 @@ func bindingInspectionTargetRef(namespace string, name string) BindingInspection
 	}
 }
 
-func poolRefToReportRef(ref identity.PoolRef, gvk schema.GroupVersionKind) *BindingInspectionTargetRef {
+func poolRefToReportRef(ref gaie.PoolRef, gvk schema.GroupVersionKind) *BindingInspectionTargetRef {
 	return &BindingInspectionTargetRef{
 		Namespace: ref.Namespace,
 		Name:      ref.Name,
@@ -881,7 +877,7 @@ func poolRefToReportRef(ref identity.PoolRef, gvk schema.GroupVersionKind) *Bind
 	}
 }
 
-func objectiveRefToReportRef(ref identity.ObjectiveRef, gvk schema.GroupVersionKind) *BindingInspectionTargetRef {
+func objectiveRefToReportRef(ref gaie.ObjectiveRef, gvk schema.GroupVersionKind) *BindingInspectionTargetRef {
 	return &BindingInspectionTargetRef{
 		Namespace: ref.Namespace,
 		Name:      ref.Name,
@@ -909,14 +905,13 @@ func selectorProvenance(
 	poolDerivedSelectors []string,
 ) BindingInspectionSelectorProvenance {
 	containerSelector := ""
-	if binding.Spec.ContainerDiscriminator != nil {
-		if selector, err := identity.SelectorForContainerDiscriminator(binding.Spec.ContainerDiscriminator); err == nil {
+	if binding.Spec.ContainerName != "" {
+		if selector, err := identity.SelectorForContainerName(binding.Spec.ContainerName); err == nil {
 			containerSelector = selector
 		}
 	}
 
 	poolDerived := setFromStrings(poolDerivedSelectors)
-	workloadSelectors := make([]string, 0, len(rendered.Selectors))
 	safetySelectors := make([]string, 0, 2)
 	for _, selector := range rendered.Selectors {
 		if selector == containerSelector {
@@ -925,31 +920,17 @@ func selectorProvenance(
 		if _, found := poolDerived[selector]; found {
 			continue
 		}
-		workloadSelectors = append(workloadSelectors, selector)
 		if strings.HasPrefix(selector, "k8s:ns:") || strings.HasPrefix(selector, "k8s:sa:") {
 			safetySelectors = append(safetySelectors, selector)
 		}
 	}
 	sort.Strings(poolDerivedSelectors)
-	sort.Strings(workloadSelectors)
 	sort.Strings(safetySelectors)
 
 	return BindingInspectionSelectorProvenance{
-		SelectorSource:       string(binding.Spec.SelectorSource),
 		PoolDerivedSelectors: append([]string(nil), poolDerivedSelectors...),
-		WorkloadSelectors:    workloadSelectors,
 		ContainerSelector:    containerSelector,
 		SafetySelectors:      safetySelectors,
-	}
-}
-
-func containerDiscriminator(binding *kleymv1alpha1.InferenceIdentityBinding) *BindingInspectionContainerDiscriminator {
-	if binding.Spec.ContainerDiscriminator == nil {
-		return nil
-	}
-	return &BindingInspectionContainerDiscriminator{
-		Type:  string(binding.Spec.ContainerDiscriminator.Type),
-		Value: binding.Spec.ContainerDiscriminator.Value,
 	}
 }
 
@@ -991,31 +972,12 @@ func clusterSPIFFEIDConditions(object *unstructured.Unstructured) []metav1.Condi
 }
 
 func driftEntries(desired *unstructured.Unstructured, observed *unstructured.Unstructured) []BindingInspectionDriftEntry {
-	entries := []BindingInspectionDriftEntry{}
-	if desired.GetName() != observed.GetName() {
+	entries := make([]BindingInspectionDriftEntry, 0)
+	for _, entry := range spirecm.DriftEntries(desired, observed) {
 		entries = append(entries, BindingInspectionDriftEntry{
-			Field:    "metadata.name",
-			Desired:  desired.GetName(),
-			Observed: observed.GetName(),
-		})
-	}
-
-	desiredSpec, _, _ := unstructured.NestedMap(desired.Object, "spec")
-	observedSpec, _, _ := unstructured.NestedMap(observed.Object, "spec")
-	for _, field := range []string{
-		"spiffeIDTemplate",
-		"podSelector",
-		"workloadSelectorTemplates",
-		"hint",
-		"fallback",
-	} {
-		if reflect.DeepEqual(desiredSpec[field], observedSpec[field]) {
-			continue
-		}
-		entries = append(entries, BindingInspectionDriftEntry{
-			Field:    "spec." + field,
-			Desired:  stableValueString(desiredSpec[field]),
-			Observed: stableValueString(observedSpec[field]),
+			Field:    entry.Field,
+			Desired:  entry.Desired,
+			Observed: entry.Observed,
 		})
 	}
 	return entries
@@ -1043,27 +1005,6 @@ func HasWarningSeverityFinding(findings []BindingInspectionFinding) bool {
 
 func eligibleWorkloadSortKey(workload BindingInspectionEligibleWorkload) string {
 	return workload.Namespace + "/" + workload.Pod + "/" + workload.Container
-}
-
-func stableValueString(value any) string {
-	if value == nil {
-		return ""
-	}
-	switch typed := value.(type) {
-	case string:
-		return typed
-	case bool:
-		if typed {
-			return "true"
-		}
-		return "false"
-	default:
-		data, err := json.Marshal(typed)
-		if err != nil {
-			return fmt.Sprint(typed)
-		}
-		return string(data)
-	}
 }
 
 func stringSliceFromAny(value any) []string {

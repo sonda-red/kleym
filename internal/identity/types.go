@@ -16,29 +16,14 @@ limitations under the License.
 package identity
 
 import (
-	"fmt"
-	"strings"
-
 	"k8s.io/apimachinery/pkg/types"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
 const (
-	defaultNameValue   = "kleym"
 	defaultTrustDomain = "kleym.sonda.red"
 
-	// ManagedByLabelKey identifies ClusterSPIFFEID resources owned by kleym.
-	ManagedByLabelKey = "kleym.sonda.red/managed-by"
-	// ManagedByLabelValue is the stable managed-by label value for kleym resources.
-	ManagedByLabelValue = defaultNameValue
-	// BindingNameLabelKey records the source InferenceIdentityBinding name.
-	BindingNameLabelKey = "kleym.sonda.red/binding-name"
-	// BindingNamespaceLabelKey records the source InferenceIdentityBinding namespace.
-	BindingNamespaceLabelKey = "kleym.sonda.red/binding-namespace"
-
-	// ConditionTypeInvalidRef matches the controller status condition for invalid input references.
-	ConditionTypeInvalidRef = "InvalidRef"
 	// ConditionTypeUnsafeSelector matches the controller status condition for unsafe selector rendering.
 	ConditionTypeUnsafeSelector = "UnsafeSelector"
 	// ConditionTypeRenderFailure matches the controller status condition for render failures.
@@ -64,41 +49,34 @@ func newStateError(conditionType, reason, message string) *StateError {
 	}
 }
 
-// PoolRef is the normalized namespaced target for a GAIE InferencePool.
-type PoolRef struct {
-	Name      string
-	Group     string
-	Namespace string
+// PlanInput carries already-resolved identity planning inputs.
+type PlanInput struct {
+	Binding              *kleymv1alpha1.InferenceIdentityBinding
+	ObjectiveName        string
+	PoolName             string
+	PodSelector          map[string]any
+	PoolDerivedSelectors []string
 }
 
-// ObjectiveRef is the normalized namespaced target for a GAIE InferenceObjective.
-type ObjectiveRef struct {
-	Name      string
-	Group     string
-	Namespace string
-}
-
-// RenderedIdentity is the pure desired identity state shared by the controller and CLI.
-type RenderedIdentity struct {
-	Name         string
+// Plan is the pure desired identity state shared by the controller and CLI.
+type Plan struct {
 	Mode         kleymv1alpha1.InferenceIdentityBindingMode
 	SpiffeID     string
 	Selectors    []string
 	PodSelector  map[string]any
 	ObjectiveRef string
 	PoolRef      string
-	Hint         string
-	Fallback     bool
 }
 
+// RenderedIdentity is kept as a compatibility alias for callers during the package split.
+type RenderedIdentity = Plan
+
 type renderTemplateData struct {
-	Namespace                   string
-	BindingName                 string
-	ObjectiveName               string
-	PoolName                    string
-	Mode                        string
-	ContainerDiscriminatorType  string
-	ContainerDiscriminatorValue string
+	Namespace     string
+	BindingName   string
+	ObjectiveName string
+	PoolName      string
+	Mode          string
 }
 
 // NamespacedBindingKey returns the canonical namespace/name key used in logs and messages.
@@ -112,48 +90,4 @@ func EffectiveMode(mode kleymv1alpha1.InferenceIdentityBindingMode) kleymv1alpha
 		return kleymv1alpha1.InferenceIdentityBindingModePerObjective
 	}
 	return mode
-}
-
-// BindingPoolRef normalizes the binding's required pool anchor.
-func BindingPoolRef(binding *kleymv1alpha1.InferenceIdentityBinding) (PoolRef, error) {
-	name := strings.TrimSpace(binding.Spec.PoolRef.Name)
-	if name == "" {
-		return PoolRef{}, fmt.Errorf("spec.poolRef.name is required")
-	}
-
-	group := strings.TrimSpace(binding.Spec.PoolRef.Group)
-	if group != "" && !IsSupportedInferencePoolGroup(group) {
-		return PoolRef{}, fmt.Errorf("spec.poolRef.group %q is not a supported GAIE InferencePool group", group)
-	}
-
-	return PoolRef{
-		Name:      name,
-		Group:     group,
-		Namespace: binding.Namespace,
-	}, nil
-}
-
-// BindingObjectiveRef normalizes the optional objective subject.
-func BindingObjectiveRef(
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-) (ObjectiveRef, bool, error) {
-	if binding.Spec.ObjectiveRef == nil {
-		return ObjectiveRef{}, false, nil
-	}
-
-	name := strings.TrimSpace(binding.Spec.ObjectiveRef.Name)
-	if name == "" {
-		return ObjectiveRef{}, true, fmt.Errorf("spec.objectiveRef.name is required")
-	}
-
-	group := strings.TrimSpace(binding.Spec.ObjectiveRef.Group)
-	if group != "" && !IsSupportedInferenceObjectiveGroup(group) {
-		return ObjectiveRef{}, true, fmt.Errorf("spec.objectiveRef.group %q is not a supported GAIE InferenceObjective group", group)
-	}
-
-	return ObjectiveRef{
-		Name:      name,
-		Group:     group,
-		Namespace: binding.Namespace,
-	}, true, nil
 }
