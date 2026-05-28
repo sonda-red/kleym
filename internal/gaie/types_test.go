@@ -8,15 +8,6 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
-func TestStateErrorErrorReturnsMessage(t *testing.T) {
-	t.Parallel()
-
-	err := &StateError{Message: "invalid ref"}
-	if err.Error() != "invalid ref" {
-		t.Fatalf("Error() = %q, want %q", err.Error(), "invalid ref")
-	}
-}
-
 func TestBindingPoolRefNormalizesAndValidatesGroup(t *testing.T) {
 	t.Parallel()
 

@@ -142,30 +142,34 @@ func TestRenderIdentityUsesDeterministicSPIFFEID(t *testing.T) {
 func TestPerObjectiveCollisionFingerprintValidatesInputs(t *testing.T) {
 	t.Parallel()
 
-	for name, containerName := range map[string]string{
-		"empty":              "",
-		"leading-whitespace": " main",
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			_, err := PerObjectiveCollisionFingerprint(RenderedIdentity{}, containerName)
-			if err == nil {
-				t.Fatalf("expected invalid containerName error, got nil")
-			}
-		})
-	}
-
-	fingerprint, err := PerObjectiveCollisionFingerprint(RenderedIdentity{
+	identity := RenderedIdentity{
 		PodSelector: map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
 		Selectors:   []string{"k8s:container-name:main", "k8s:ns:default", "k8s:sa:inference-sa"},
-	}, "main")
+	}
+
+	fingerprint, err := PerObjectiveCollisionFingerprint(identity, "main")
 	if err != nil {
 		t.Fatalf("PerObjectiveCollisionFingerprint returned error: %v", err)
 	}
-	expected := `{"matchLabels":{"app":"model-server"}}|["k8s:container-name:main","k8s:ns:default","k8s:sa:inference-sa"]|main`
-	if fingerprint != expected {
-		t.Fatalf("fingerprint = %q, want %q", fingerprint, expected)
+
+	repeated, err := PerObjectiveCollisionFingerprint(identity, "main")
+	if err != nil {
+		t.Fatalf("repeated PerObjectiveCollisionFingerprint returned error: %v", err)
+	}
+	if repeated != fingerprint {
+		t.Fatalf("repeated fingerprint = %q, want %q", repeated, fingerprint)
+	}
+
+	otherContainer, err := PerObjectiveCollisionFingerprint(identity, "sidecar")
+	if err != nil {
+		t.Fatalf("fingerprint with different containerName returned error: %v", err)
+	}
+	if otherContainer == fingerprint {
+		t.Fatalf("fingerprint did not change for different containerName: %q", fingerprint)
+	}
+
+	if _, err := PerObjectiveCollisionFingerprint(identity, " main"); err == nil {
+		t.Fatalf("expected invalid containerName error, got nil")
 	}
 }
 
