@@ -104,6 +104,8 @@ type InferenceIdentityBindingReconciler struct {
 // +kubebuilder:rbac:groups=inference.networking.k8s.io,resources=inferenceobjectives;inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups=inference.networking.x-k8s.io,resources=inferenceobjectives;inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups=spire.spiffe.io,resources=clusterspiffeids,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile drives the InferenceIdentityBinding toward its desired state.
 //
