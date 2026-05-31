@@ -30,7 +30,7 @@ func TestInspectBindingSuccessReport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
 	pod := testInspectionPod("model-server-a", "model-server")
 
 	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed, pod)
@@ -78,7 +78,7 @@ func TestInspectBindingPoolOnlyEligibleWorkload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
 	pod := testInspectionPod("model-server-a", "model-server")
 
 	inspector := newTestBindingInspector(t, nil, binding, pool, managed, pod)
@@ -157,7 +157,7 @@ func TestInspectBindingObservedDriftFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
 	if err := unstructured.SetNestedField(managed.Object, "spiffe://drifted.example.test/ns/tenant-a/objective/objective-a", "spec", "spiffeIDTemplate"); err != nil {
 		t.Fatalf("set drifted spiffeIDTemplate: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestInspectBindingZeroEligibleWorkloadsFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
 	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed)
 
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
@@ -246,7 +246,7 @@ func TestInspectBindingRBACLimitedPods(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
 	forbidden := apierrors.NewForbidden(
 		schema.GroupResource{Resource: podResourceName},
 		"",
@@ -542,6 +542,7 @@ func inspectionPlan(
 	}
 	return identity.PlanIdentity(identity.PlanInput{
 		Binding:              binding,
+		TrustDomain:          identity.DefaultTrustDomain,
 		ObjectiveName:        objectiveName,
 		PoolName:             pool.GetName(),
 		PodSelector:          poolSelector,

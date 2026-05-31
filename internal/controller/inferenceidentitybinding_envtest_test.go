@@ -37,7 +37,7 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 	}
 
 	cleanupBinding := func(key types.NamespacedName) {
-		reconciler := &InferenceIdentityBindingReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
+		reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: k8sClient, Scheme: k8sClient.Scheme()}
 
 		Eventually(func(g Gomega) {
 			binding := &kleymv1alpha1.InferenceIdentityBinding{}
@@ -116,7 +116,7 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 			cleanupBinding(types.NamespacedName{Namespace: testNamespace, Name: bindingName})
 		})
 
-		reconciler := &InferenceIdentityBindingReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
+		reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: k8sClient, Scheme: k8sClient.Scheme()}
 		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: bindingName}})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -156,7 +156,7 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 			cleanupBinding(types.NamespacedName{Namespace: testNamespace, Name: bindingName})
 		})
 
-		reconciler := &InferenceIdentityBindingReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
+		reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: k8sClient, Scheme: k8sClient.Scheme()}
 		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: bindingName}})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -197,7 +197,7 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 
-		reconciler := &InferenceIdentityBindingReconciler{
+		reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
 		}

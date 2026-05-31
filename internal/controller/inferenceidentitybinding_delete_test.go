@@ -30,7 +30,7 @@ func TestReconcileDeleteWaitsForManagedClusterSPIFFEIDsToDisappear(t *testing.T)
 	managed := newManagedClusterSPIFFEIDForBinding(binding, "binding-delete-child")
 	managed.SetFinalizers([]string{"test.finalizer/hold"})
 
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithObjects(binding, managed).
@@ -115,7 +115,7 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 
 	binding := newPerObjectiveBinding("binding-drift", "objective-a")
 
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -142,7 +142,7 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to render desired identity: %v", err)
 	}
-	desired := spirecm.DesiredClusterSPIFFEID(currentBinding, identity)
+	desired := spirecm.DesiredClusterSPIFFEID(currentBinding, identity, "")
 
 	current := &unstructured.Unstructured{}
 	current.SetGroupVersionKind(clusterSPIFFEIDGVK)

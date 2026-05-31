@@ -43,6 +43,7 @@ spec:
         args:
           - --leader-elect
           - --health-probe-bind-address=:8081
+          - --trust-domain=kleym.sonda.red
         image: controller:latest
         name: operator
         ports: []

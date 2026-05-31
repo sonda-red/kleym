@@ -26,7 +26,7 @@ func TestReconcileLogsStructuredSuccessPath(t *testing.T) {
 
 	scheme := newCollisionTestScheme(t)
 	binding := newPoolOnlyBinding("binding-log-success", "objective-a")
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -78,7 +78,7 @@ func TestReconcileLogsFailureStatus(t *testing.T) {
 
 	scheme := newCollisionTestScheme(t)
 	binding := newPerObjectiveBinding("binding-log-failure", "missing-objective")
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -131,14 +131,14 @@ func TestReconcileClusterSPIFFEIDsLogsApplyDecisions(t *testing.T) {
 		PoolRef:      "pool-a",
 	}
 
-	drifted := spirecm.DesiredClusterSPIFFEID(binding, identity)
+	drifted := spirecm.DesiredClusterSPIFFEID(binding, identity, "")
 	expectedName := drifted.GetName()
 	drifted.Object["spec"] = map[string]any{"spiffeIDTemplate": "spiffe://wrong"}
 
-	stale := spirecm.DesiredClusterSPIFFEID(binding, identity)
+	stale := spirecm.DesiredClusterSPIFFEID(binding, identity, "")
 	stale.SetName("stale-clusterspiffeid")
 
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithObjects(binding, drifted, stale).

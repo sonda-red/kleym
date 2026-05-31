@@ -57,6 +57,10 @@ func TestControllers(t *testing.T) {
 	RunSpecs(t, "Controller Suite")
 }
 
+func testOperatorConfig() OperatorConfig {
+	return OperatorConfig{TrustDomain: "kleym.sonda.red"}
+}
+
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 

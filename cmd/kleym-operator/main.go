@@ -59,6 +59,8 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var trustDomain string
+	var clusterSPIFFEIDClassName string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -74,6 +76,10 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics server")
+	flag.StringVar(&trustDomain, "trust-domain", "",
+		"The SPIRE Server trust domain used when rendering all SPIFFE IDs.")
+	flag.StringVar(&clusterSPIFFEIDClassName, "clusterspiffeid-class-name", "",
+		"The optional SPIRE Controller Manager ClusterSPIFFEID className for managed resources.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -81,6 +87,15 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	operatorConfig := controller.OperatorConfig{
+		TrustDomain:              trustDomain,
+		ClusterSPIFFEIDClassName: clusterSPIFFEIDClassName,
+	}
+	if err := operatorConfig.Validate(); err != nil {
+		setupLog.Error(err, "invalid operator configuration")
+		os.Exit(1)
+	}
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -154,6 +169,7 @@ func main() {
 	if err := (&controller.InferenceIdentityBindingReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Config: operatorConfig,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "InferenceIdentityBinding")
 		os.Exit(1)

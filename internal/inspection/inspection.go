@@ -281,6 +281,7 @@ func (i *bindingInspector) inspectDesiredState(
 	}
 	rendered, err := identity.PlanIdentity(identity.PlanInput{
 		Binding:              binding,
+		TrustDomain:          identity.DefaultTrustDomain,
 		ObjectiveName:        objectiveName,
 		PoolName:             pool.GetName(),
 		PodSelector:          poolSelector,
@@ -369,7 +370,7 @@ func (i *bindingInspector) inspectObservedState(
 		return
 	}
 
-	desired := spirecm.DesiredClusterSPIFFEID(binding, rendered)
+	desired := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
 	if len(objects) == 0 {
 		report.Observed.Drift = append(report.Observed.Drift, BindingInspectionDriftEntry{
 			Field:    "metadata.name",

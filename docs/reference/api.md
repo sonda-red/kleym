@@ -56,10 +56,10 @@ Current validation rules enforced by the CRD:
 
 ## Current Defaults
 
-The controller always renders deterministic SPIFFE IDs:
+The controller always renders deterministic SPIFFE IDs under its configured trust domain:
 
-- `PoolOnly`: `spiffe://kleym.sonda.red/ns/<namespace>/pool/<pool-name>`
-- `PerObjective`: `spiffe://kleym.sonda.red/ns/<namespace>/objective/<objective-name>`
+- `PoolOnly`: `spiffe://<trustDomain>/ns/<namespace>/pool/<pool-name>`
+- `PerObjective`: `spiffe://<trustDomain>/ns/<namespace>/objective/<objective-name>`
 
 When `mode` is omitted, the controller behaves as `PerObjective`.
 

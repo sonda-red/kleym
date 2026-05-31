@@ -133,9 +133,45 @@ func TestRenderIdentityUsesDeterministicSPIFFEID(t *testing.T) {
 		t.Fatalf("PlanIdentity returned error: %v", err)
 	}
 
-	expectedSPIFFEID := "spiffe://kleym.sonda.red/ns/default/objective/objective-a"
+	expectedSPIFFEID := "spiffe://example.org/ns/default/objective/objective-a"
 	if identity.SpiffeID != expectedSPIFFEID {
 		t.Fatalf("spiffeID = %q, want %q", identity.SpiffeID, expectedSPIFFEID)
+	}
+}
+
+func TestRenderIdentityUsesConfiguredTrustDomainForPoolOnly(t *testing.T) {
+	t.Parallel()
+
+	binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePoolOnly)
+
+	identity, err := PlanIdentity(testPlanInput(binding, "objective-a", "pool-a"))
+	if err != nil {
+		t.Fatalf("PlanIdentity returned error: %v", err)
+	}
+
+	expectedSPIFFEID := "spiffe://example.org/ns/default/pool/pool-a"
+	if identity.SpiffeID != expectedSPIFFEID {
+		t.Fatalf("spiffeID = %q, want %q", identity.SpiffeID, expectedSPIFFEID)
+	}
+}
+
+func TestRenderIdentityRejectsMissingTrustDomain(t *testing.T) {
+	t.Parallel()
+
+	binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePoolOnly)
+	input := testPlanInput(binding, "objective-a", "pool-a")
+	input.TrustDomain = ""
+
+	_, err := PlanIdentity(input)
+	if err == nil {
+		t.Fatalf("expected missing trust domain error, got nil")
+	}
+	var stateErr *StateError
+	if !errors.As(err, &stateErr) {
+		t.Fatalf("expected StateError, got %T", err)
+	}
+	if stateErr.ConditionType != ConditionTypeRenderFailure || stateErr.Reason != "MissingTrustDomain" {
+		t.Fatalf("condition/reason = %q/%q, want %q/MissingTrustDomain", stateErr.ConditionType, stateErr.Reason, ConditionTypeRenderFailure)
 	}
 }
 
@@ -199,6 +235,7 @@ func testPlanInput(
 ) PlanInput {
 	return PlanInput{
 		Binding:              binding,
+		TrustDomain:          "example.org",
 		ObjectiveName:        objectiveName,
 		PoolName:             poolName,
 		PodSelector:          map[string]any{"matchLabels": map[string]any{"app": "model-server"}},

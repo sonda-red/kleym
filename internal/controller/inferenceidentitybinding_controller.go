@@ -92,6 +92,7 @@ var (
 type InferenceIdentityBindingReconciler struct {
 	client.Client
 	Scheme                 *runtime.Scheme
+	Config                 OperatorConfig
 	Recorder               events.EventRecorder
 	MetricsRecorder        bindingOutcomeRecorder
 	availableObjectiveGVKs []schema.GroupVersionKind
@@ -288,7 +289,11 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 	}
 
 	primaryIdentity := desiredState.identities[0]
-	primaryClusterSPIFFEIDName := spirecm.DesiredClusterSPIFFEID(binding, primaryIdentity).GetName()
+	primaryClusterSPIFFEIDName := spirecm.DesiredClusterSPIFFEID(
+		binding,
+		primaryIdentity,
+		r.Config.ClusterSPIFFEIDClassName,
+	).GetName()
 	r.recordEventf(binding, corev1.EventTypeNormal, "Reconciled", "reconciled ClusterSPIFFEID %q", primaryClusterSPIFFEIDName)
 	logger.Info(
 		"reconciled successfully",
@@ -302,6 +307,10 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 // SetupWithManager sets up the controller with the Manager.
 func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	setupLogger := logf.Log.WithName("setup").WithName("inferenceidentitybinding")
+
+	if err := r.Config.Validate(); err != nil {
+		return err
+	}
 
 	r.Recorder = mgr.GetEventRecorder("inferenceidentitybinding-controller")
 	if r.MetricsRecorder == nil {
@@ -497,7 +506,11 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 		"rendered identity from inference intent",
 		logKeyMode, identity.Mode,
 		logKeySpiffeID, identity.SpiffeID,
-		logKeyClusterSPIFFEID, spirecm.DesiredClusterSPIFFEID(binding, identity).GetName(),
+		logKeyClusterSPIFFEID, spirecm.DesiredClusterSPIFFEID(
+			binding,
+			identity,
+			r.Config.ClusterSPIFFEIDClassName,
+		).GetName(),
 		logKeySelectors, identity.Selectors,
 		logKeyPodSelector, identity.PodSelector,
 		logKeyObjective, identity.ObjectiveRef,

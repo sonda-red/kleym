@@ -13,7 +13,7 @@ import (
 func TestRenderIdentityMapsInvalidPoolSelectorToUnsafeSelector(t *testing.T) {
 	t.Parallel()
 
-	reconciler := &InferenceIdentityBindingReconciler{}
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig()}
 	binding := testRenderBinding("binding-invalid-selector", "pool-invalid-selector")
 	pool := testRenderPool("pool-invalid-selector", map[string]any{
 		"app": []any{"model-server"},
@@ -39,7 +39,7 @@ func TestRenderIdentityMapsInvalidPoolSelectorToUnsafeSelector(t *testing.T) {
 func TestRenderIdentityPassesValidGAIESelectorIntoIdentityPlan(t *testing.T) {
 	t.Parallel()
 
-	reconciler := &InferenceIdentityBindingReconciler{}
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig()}
 	binding := testRenderBinding("binding-valid-selector", "pool-valid-selector")
 	pool := testRenderPool("pool-valid-selector", map[string]any{
 		"app":                                "model-server",
