@@ -30,9 +30,14 @@ Supported flags:
 --context
 --kubeconfig
 --timeout
+--trust-domain
+--clusterspiffeid-class-name
 ```
 
 Default namespace is `default`. Default output is `text`. `--timeout` must be greater than zero.
+`--trust-domain` defaults to `kleym.sonda.red` and must follow the same validation rules as
+`kleym-operator --trust-domain`. `--clusterspiffeid-class-name` defaults to empty, matching
+classless `ClusterSPIFFEID` output.
 
 ## Output Contract
 
@@ -75,9 +80,10 @@ Report fields and findings are documented in [Inspection Report][inspection-repo
 
 1. Resolve the binding, `poolRef`, and required or present `objectiveRef`; validate that an objective references the same pool.
 2. Recompute desired identity state with shared Kleym logic.
-3. Evaluate Kleym collision state from peer binding fingerprints when available; otherwise use the inspected binding's current `Conflict` condition and mark peer analysis partial or unknown.
-4. Locate Kleym-managed `ClusterSPIFFEID` resources, compare desired and observed state, and evaluate eligible workloads when pod reads are available.
-5. Emit the report and exit according to finding severity and inspection completeness.
+3. Use the inspection trust domain and optional `ClusterSPIFFEID` class setting when recomputing desired SPIFFE IDs and managed output.
+4. Evaluate Kleym collision state from peer binding fingerprints when available; otherwise use the inspected binding's current `Conflict` condition and mark peer analysis partial or unknown.
+5. Locate Kleym-managed `ClusterSPIFFEID` resources, compare desired and observed state, and evaluate eligible workloads when pod reads are available.
+6. Emit the report and exit according to finding severity and inspection completeness.
 
 `kleym` reports eligibility, not credential use. It reports deterministic Kleym collisions and visible drift; it does not fully simulate SPIRE selection behavior or analyze unrelated non-Kleym `ClusterSPIFFEID` overlap.
 

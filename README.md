@@ -70,6 +70,13 @@ Run the controller locally:
 make run
 ```
 
+`make run` defaults to `TRUST_DOMAIN=kleym.sonda.red`. Override it when
+running against a SPIRE install with a different trust domain:
+
+```sh
+make run TRUST_DOMAIN=example.org CLUSTERSPIFFEID_CLASS_NAME=kleym
+```
+
 Install CRDs and deploy the controller:
 
 ```sh

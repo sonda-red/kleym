@@ -41,6 +41,15 @@ Inspect one binding:
 bin/kleym inspect binding <name> -n <namespace>
 ```
 
+If the operator was installed with non-default identity settings, pass the same
+values to inspection:
+
+```sh
+bin/kleym inspect binding <name> -n <namespace> \
+  --trust-domain=example.org \
+  --clusterspiffeid-class-name=kleym
+```
+
 Use JSON for automation:
 
 ```sh
@@ -57,6 +66,8 @@ bin/kleym inspect binding <name> -n <namespace> -o json
 | `--context` | Kubeconfig context name. |
 | `--kubeconfig` | Kubeconfig file path. |
 | `--timeout` | Inspection timeout. Must be greater than zero. |
+| `--trust-domain` | Trust domain used to recompute desired SPIFFE IDs. Defaults to `kleym.sonda.red`. |
+| `--clusterspiffeid-class-name` | Optional expected `ClusterSPIFFEID.spec.className`. Defaults to classless output. |
 
 ## Access
 
