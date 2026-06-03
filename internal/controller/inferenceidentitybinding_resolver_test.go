@@ -21,7 +21,7 @@ func TestReconcileSetsInvalidRefWhenPoolCannotBeResolved(t *testing.T) {
 	scheme := newCollisionTestScheme(t)
 
 	binding := newPerObjectiveBinding("binding-missing-pool", "objective-missing-pool")
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -51,7 +51,7 @@ func TestReconcilePoolOnlyDoesNotRequireObjective(t *testing.T) {
 	scheme := newCollisionTestScheme(t)
 
 	binding := newPoolOnlyBinding("binding-pool-only", "")
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -71,6 +71,56 @@ func TestReconcilePoolOnlyDoesNotRequireObjective(t *testing.T) {
 	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 1)
 }
 
+func TestReconcileUsesOperatorConfigForRenderedOutput(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scheme := newCollisionTestScheme(t)
+
+	binding := newPoolOnlyBinding("binding-operator-config", "")
+	reconciler := &InferenceIdentityBindingReconciler{Config: OperatorConfig{
+		TrustDomain:              "example.org",
+		ClusterSPIFFEIDClassName: "kleym",
+	},
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+			WithObjects(newTestPool(), binding).
+			Build(),
+		Scheme: scheme,
+	}
+
+	_, err := reconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: binding.Name},
+	})
+	if err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(clusterSPIFFEIDGVK.GroupVersion().WithKind(clusterSPIFFEIDGVK.Kind + "List"))
+	if err := reconciler.List(ctx, list); err != nil {
+		t.Fatalf("failed to list ClusterSPIFFEIDs: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("ClusterSPIFFEID count = %d, want 1", len(list.Items))
+	}
+	spiffeID, _, err := unstructured.NestedString(list.Items[0].Object, "spec", "spiffeIDTemplate")
+	if err != nil {
+		t.Fatalf("failed to read spec.spiffeIDTemplate: %v", err)
+	}
+	if spiffeID != "spiffe://example.org/ns/default/pool/pool-a" {
+		t.Fatalf("spiffeIDTemplate = %q, want spiffe://example.org/ns/default/pool/pool-a", spiffeID)
+	}
+	className, _, err := unstructured.NestedString(list.Items[0].Object, "spec", "className")
+	if err != nil {
+		t.Fatalf("failed to read spec.className: %v", err)
+	}
+	if className != "kleym" {
+		t.Fatalf("className = %q, want kleym", className)
+	}
+}
+
 func TestReconcilePerObjectiveRequiresObjectiveRef(t *testing.T) {
 	t.Parallel()
 
@@ -80,7 +130,7 @@ func TestReconcilePerObjectiveRequiresObjectiveRef(t *testing.T) {
 	binding := newPoolOnlyBinding("binding-missing-objective-ref", "")
 	binding.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePerObjective
 	binding.Spec.ContainerName = "main"
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -108,7 +158,7 @@ func TestReconcilePerObjectiveFailsWhenObjectiveRefMissing(t *testing.T) {
 	scheme := newCollisionTestScheme(t)
 
 	binding := newPerObjectiveBinding("binding-missing-objective", "missing-objective")
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -143,7 +193,7 @@ func TestReconcileSetsInvalidRefWhenObjectivePointsAtDifferentPool(t *testing.T)
 	}
 
 	binding := newPerObjectiveBinding("binding-objective-pool-mismatch", objective.GetName())
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -184,7 +234,7 @@ func TestReconcileSetsInvalidRefWhenObjectivePoolRefIsInvalid(t *testing.T) {
 	objective.SetName("objective-invalid-pool-ref")
 
 	binding := newPerObjectiveBinding("binding-invalid-pool-ref", objective.GetName())
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -229,7 +279,7 @@ func TestReconcileSetsInvalidRefWhenObjectivePoolRefGroupIsUnsupported(t *testin
 	}
 
 	binding := newPerObjectiveBinding("binding-unsupported-pool-group", objective.GetName())
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -280,7 +330,7 @@ func TestReconcileUsesDiscoveredObjectiveGVKsForResolution(t *testing.T) {
 	binding := newPerObjectiveBinding("binding-filtered-objective", "objective-shared")
 	binding.Spec.PoolRef = kleymv1alpha1.InferencePoolTargetRef{Name: "pool-x"}
 
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).

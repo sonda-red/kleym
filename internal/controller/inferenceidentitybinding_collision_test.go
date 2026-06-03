@@ -36,7 +36,7 @@ func TestReconcilePerObjectiveCollisionMarksAllAndBlocksClusterSPIFFEID(t *testi
 	}
 
 	fakeRecorder := newFakeEventRecorder(32)
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -75,7 +75,7 @@ func TestReconcilePerObjectiveCollisionResolutionClearsConflictAndResumes(t *tes
 	}
 
 	fakeRecorder := newFakeEventRecorder(64)
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -135,7 +135,7 @@ func TestReconcilePerObjectiveCollisionResolutionRefreshesPeersOnSingleReconcile
 		newPerObjectiveBinding("binding-b", "objective-b"),
 	}
 
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -186,7 +186,7 @@ func TestPoolOnlyBindingsAreNotSubjectToPerObjectiveCollisionRule(t *testing.T) 
 		newPoolOnlyBinding("binding-b", "objective-b"),
 	}
 
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -220,7 +220,7 @@ func TestChangingBindingToPoolOnlyResolvesPeerCollision(t *testing.T) {
 		newPerObjectiveBinding("binding-b", "objective-b"),
 	}
 
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -272,7 +272,7 @@ func TestPerObjectiveBindingsWithDifferentEffectiveSelectorsDoNotCollide(t *test
 		newPerObjectiveBindingWithServiceAccount("binding-b", "objective-b", "inference-sa-b"),
 	}
 
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).

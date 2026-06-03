@@ -22,7 +22,9 @@ import (
 )
 
 const (
-	defaultTrustDomain = "kleym.sonda.red"
+	// DefaultTrustDomain preserves the original single-install rendering behavior for callers
+	// that do not have operator deployment configuration available.
+	DefaultTrustDomain = "kleym.sonda.red"
 
 	// ConditionTypeUnsafeSelector matches the controller status condition for unsafe selector rendering.
 	ConditionTypeUnsafeSelector = "UnsafeSelector"
@@ -52,6 +54,7 @@ func newStateError(conditionType, reason, message string) *StateError {
 // PlanInput carries already-resolved identity planning inputs.
 type PlanInput struct {
 	Binding              *kleymv1alpha1.InferenceIdentityBinding
+	TrustDomain          string
 	ObjectiveName        string
 	PoolName             string
 	PodSelector          map[string]any

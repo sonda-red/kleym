@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sonda-red/kleym/internal/identity"
+	"github.com/sonda-red/kleym/internal/inspection"
 	"github.com/sonda-red/kleym/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -19,12 +21,14 @@ var validOutputFormats = []string{outputText, outputJSON}
 
 // Options holds top-level CLI flags for the kleym command tree.
 type Options struct {
-	Namespace  string
-	Output     string
-	Strict     bool
-	Context    string
-	Kubeconfig string
-	Timeout    time.Duration
+	Namespace                string
+	Output                   string
+	Strict                   bool
+	Context                  string
+	Kubeconfig               string
+	Timeout                  time.Duration
+	TrustDomain              string
+	ClusterSPIFFEIDClassName string
 }
 
 // NewRootCommand builds the kleym root command defined by the CLI spec.
@@ -49,6 +53,8 @@ func NewRootCommand() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&opts.Context, "context", "", "Name of the kubeconfig context to use")
 	cmd.PersistentFlags().StringVar(&opts.Kubeconfig, "kubeconfig", "", "Path to the kubeconfig file")
 	cmd.PersistentFlags().DurationVar(&opts.Timeout, "timeout", 30*time.Second, "Inspection timeout")
+	cmd.PersistentFlags().StringVar(&opts.TrustDomain, "trust-domain", identity.DefaultTrustDomain, "SPIRE Server trust domain used when recomputing desired SPIFFE IDs")
+	cmd.PersistentFlags().StringVar(&opts.ClusterSPIFFEIDClassName, "clusterspiffeid-class-name", "", "Optional SPIRE Controller Manager ClusterSPIFFEID className expected on managed resources")
 
 	cmd.AddCommand(newInspectCommand(opts))
 	return cmd
@@ -60,6 +66,9 @@ func validateRunnableOptions(opts *Options) error {
 	}
 	if opts.Timeout <= 0 {
 		return withExitCode(exitUsage, fmt.Errorf("invalid --timeout %s: must be greater than 0", opts.Timeout))
+	}
+	if err := inspection.ValidateOperatorIdentityConfig(opts.TrustDomain, opts.ClusterSPIFFEIDClassName); err != nil {
+		return withExitCode(exitUsage, err)
 	}
 	return nil
 }

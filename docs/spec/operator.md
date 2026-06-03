@@ -15,6 +15,19 @@ Kleym does not own inference workloads, schedulers, routes, gateways, serving be
 
 Dependency facts live in [Dependencies][dependencies]. Supported GAIE inputs live in [GAIE Compatibility][gaie-compatibility].
 
+## Operator Configuration
+
+`kleym-operator` requires install-level identity configuration at startup:
+
+| Flag | Required | Behavior |
+| --- | --- | --- |
+| `--trust-domain=<value>` | yes | Sets the SPIRE Server trust domain used when rendering every SPIFFE ID. The value must not include `spiffe://`, must not contain `/`, and must not include leading or trailing whitespace. |
+| `--clusterspiffeid-class-name=<value>` | no | Sets `spec.className` on every managed `ClusterSPIFFEID`. When empty, Kleym omits `spec.className` and keeps classless output. |
+
+`trustDomain` and `ClusterSPIFFEID` class are deployment concerns, not per-binding inference identity intent. They are not fields on `InferenceIdentityBinding`.
+
+When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be configured to watch classless `ClusterSPIFFEID` resources, for example with its `watchClassless` behavior. When a class name is set, SPIRE Controller Manager must watch that class.
+
 ## API Contract
 
 `InferenceIdentityBinding` is namespaced. Pool and objective references stay in that namespace.
@@ -23,9 +36,9 @@ Dependency facts live in [Dependencies][dependencies]. Supported GAIE inputs liv
 2. `objectiveRef` references one [`InferenceObjective`][gaie-inferenceobjective]. It is required for `PerObjective`; the objective must reference the same pool as `poolRef`.
 3. `mode` is `PoolOnly` or `PerObjective`. These are the only identity boundaries. The default is `PerObjective`.
 4. `serviceAccountName` is required. Kleym renders safety selectors internally as `k8s:ns:<binding namespace>` and `k8s:sa:<serviceAccountName>`.
-5. SPIFFE IDs are always deterministic:
-   - `PoolOnly`: `spiffe://kleym.sonda.red/ns/<namespace>/pool/<pool-name>`
-   - `PerObjective`: `spiffe://kleym.sonda.red/ns/<namespace>/objective/<objective-name>`
+5. SPIFFE IDs are always deterministic under the configured trust domain:
+   - `PoolOnly`: `spiffe://<trustDomain>/ns/<namespace>/pool/<pool-name>`
+   - `PerObjective`: `spiffe://<trustDomain>/ns/<namespace>/objective/<objective-name>`
 6. `containerName` is required for `PerObjective` and must be empty for `PoolOnly`.
 7. Status records `computedSpiffeIDs`, `renderedSelectors`, and conditions. Conditions include `Ready`, `Conflict`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure`.
 

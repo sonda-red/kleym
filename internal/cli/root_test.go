@@ -52,7 +52,16 @@ func TestInspectBindingHelpIncludesMVPFlags(t *testing.T) {
 	}
 
 	help := stdout.String() + "\n" + stderr.String()
-	for _, want := range []string{"--namespace", "--output", "--strict", "--context", "--kubeconfig", "--timeout"} {
+	for _, want := range []string{
+		"--namespace",
+		"--output",
+		"--strict",
+		"--context",
+		"--kubeconfig",
+		"--timeout",
+		"--trust-domain",
+		"--clusterspiffeid-class-name",
+	} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("help output missing %q\n%s", want, help)
 		}
@@ -135,6 +144,24 @@ func TestInvalidTimeoutRejected(t *testing.T) {
 	}
 	if got := codeForError(err); got != exitUsage {
 		t.Fatalf("expected invalid timeout to return exit code %d, got %d", exitUsage, got)
+	}
+}
+
+func TestInvalidTrustDomainRejected(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"inspect", "binding", "my-binding", "--trust-domain", "spiffe://example.org"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected invalid trust domain to fail")
+	}
+	if !strings.Contains(err.Error(), "trustDomain must not include spiffe://") {
+		t.Fatalf("expected invalid trustDomain error, got: %v", err)
+	}
+	if got := codeForError(err); got != exitUsage {
+		t.Fatalf("expected invalid trust domain to return exit code %d, got %d", exitUsage, got)
 	}
 }
 

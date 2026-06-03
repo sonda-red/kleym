@@ -71,6 +71,7 @@ func ClusterSPIFFEIDGVK() schema.GroupVersionKind {
 func DesiredClusterSPIFFEID(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	plan identity.Plan,
+	className string,
 ) *unstructured.Unstructured {
 	object := &unstructured.Unstructured{}
 	object.SetGroupVersionKind(ClusterSPIFFEIDGVK())
@@ -82,13 +83,17 @@ func DesiredClusterSPIFFEID(
 		selectorTemplates = append(selectorTemplates, selector)
 	}
 
-	object.Object["spec"] = map[string]any{
+	spec := map[string]any{
 		"spiffeIDTemplate":          plan.SpiffeID,
 		"podSelector":               plan.PodSelector,
 		"workloadSelectorTemplates": selectorTemplates,
 		"fallback":                  RenderFallback(),
 		"hint":                      BuildClusterSPIFFEIDHint(binding),
 	}
+	if className != "" {
+		spec["className"] = className
+	}
+	object.Object["spec"] = spec
 
 	return object
 }
@@ -201,6 +206,7 @@ func DriftEntries(desired *unstructured.Unstructured, observed *unstructured.Uns
 		"workloadSelectorTemplates",
 		"hint",
 		"fallback",
+		"className",
 	} {
 		if reflect.DeepEqual(desiredSpec[field], observedSpec[field]) {
 			continue

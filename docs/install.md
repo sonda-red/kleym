@@ -32,6 +32,13 @@ Run the controller against your current kubeconfig:
 make run
 ```
 
+`make run` supplies `--trust-domain=kleym.sonda.red` by default. Override the
+operator identity settings when your local SPIRE install uses different values:
+
+```sh
+make run TRUST_DOMAIN=example.org CLUSTERSPIFFEID_CLASS_NAME=kleym
+```
+
 Build the operator binary:
 
 ```sh

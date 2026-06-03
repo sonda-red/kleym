@@ -80,7 +80,7 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 		t.Fatalf("create manager: %v", err)
 	}
 
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}
@@ -214,7 +214,7 @@ func TestSetupWithManagerFailsWithoutAnySupportedGAIEGVKs(t *testing.T) {
 		t.Fatalf("create manager: %v", err)
 	}
 
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}

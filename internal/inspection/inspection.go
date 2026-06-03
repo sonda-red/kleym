@@ -57,9 +57,11 @@ var (
 
 // Config describes Kubernetes access settings for live binding inspection.
 type Config struct {
-	Context    string
-	Kubeconfig string
-	Timeout    time.Duration
+	Context                  string
+	Kubeconfig               string
+	Timeout                  time.Duration
+	TrustDomain              string
+	ClusterSPIFFEIDClassName string
 }
 
 // BindingInspector inspects one binding and returns the stable report model.
@@ -68,13 +70,20 @@ type BindingInspector interface {
 }
 
 type bindingInspector struct {
-	client client.Client
-	mapper meta.RESTMapper
-	now    func() time.Time
+	client                   client.Client
+	mapper                   meta.RESTMapper
+	now                      func() time.Time
+	trustDomain              string
+	clusterSPIFFEIDClassName string
 }
 
 // NewKubernetesBindingInspector returns a read-only Kubernetes-backed binding inspector.
 func NewKubernetesBindingInspector(config Config) (BindingInspector, error) {
+	identityConfig, err := normalizedInspectionIdentityConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
 	configOverrides := &clientcmd.ConfigOverrides{CurrentContext: config.Context}
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	if config.Kubeconfig != "" {
@@ -102,10 +111,52 @@ func NewKubernetesBindingInspector(config Config) (BindingInspector, error) {
 	}
 
 	return &bindingInspector{
-		client: kubeClient,
-		mapper: mapper,
-		now:    time.Now,
+		client:                   kubeClient,
+		mapper:                   mapper,
+		now:                      time.Now,
+		trustDomain:              identityConfig.trustDomain,
+		clusterSPIFFEIDClassName: identityConfig.clusterSPIFFEIDClassName,
 	}, nil
+}
+
+type inspectionIdentityConfig struct {
+	trustDomain              string
+	clusterSPIFFEIDClassName string
+}
+
+func normalizedInspectionIdentityConfig(config Config) (inspectionIdentityConfig, error) {
+	trustDomain := config.TrustDomain
+	if trustDomain == "" {
+		trustDomain = identity.DefaultTrustDomain
+	}
+	identityConfig := inspectionIdentityConfig{
+		trustDomain:              trustDomain,
+		clusterSPIFFEIDClassName: config.ClusterSPIFFEIDClassName,
+	}
+	if err := ValidateOperatorIdentityConfig(identityConfig.trustDomain, identityConfig.clusterSPIFFEIDClassName); err != nil {
+		return inspectionIdentityConfig{}, err
+	}
+	return identityConfig, nil
+}
+
+// ValidateOperatorIdentityConfig rejects inspection settings that the operator would not start with.
+func ValidateOperatorIdentityConfig(trustDomain string, clusterSPIFFEIDClassName string) error {
+	if strings.TrimSpace(trustDomain) == "" {
+		return fmt.Errorf("trustDomain must be configured before Kleym can render SPIFFE IDs")
+	}
+	if trustDomain != strings.TrimSpace(trustDomain) {
+		return fmt.Errorf("trustDomain must not include leading or trailing whitespace")
+	}
+	if strings.HasPrefix(trustDomain, "spiffe://") {
+		return fmt.Errorf("trustDomain must not include spiffe://")
+	}
+	if strings.Contains(trustDomain, "/") {
+		return fmt.Errorf("trustDomain must not contain /")
+	}
+	if clusterSPIFFEIDClassName != strings.TrimSpace(clusterSPIFFEIDClassName) {
+		return fmt.Errorf("clusterspiffeidClassName must not include leading or trailing whitespace")
+	}
+	return nil
 }
 
 func newBindingInspectionScheme() *runtime.Scheme {
@@ -281,6 +332,7 @@ func (i *bindingInspector) inspectDesiredState(
 	}
 	rendered, err := identity.PlanIdentity(identity.PlanInput{
 		Binding:              binding,
+		TrustDomain:          i.trustDomain,
 		ObjectiveName:        objectiveName,
 		PoolName:             pool.GetName(),
 		PodSelector:          poolSelector,
@@ -303,6 +355,7 @@ func (i *bindingInspector) inspectDesiredState(
 		WorkloadSelectors:   append([]string(nil), rendered.Selectors...),
 		SelectorProvenance:  &provenance,
 		Hint:                spirecm.BuildClusterSPIFFEIDHint(binding),
+		ClassName:           i.clusterSPIFFEIDClassName,
 		Fallback:            boolPtr(spirecm.RenderFallback()),
 	}
 	report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
@@ -369,7 +422,7 @@ func (i *bindingInspector) inspectObservedState(
 		return
 	}
 
-	desired := spirecm.DesiredClusterSPIFFEID(binding, rendered)
+	desired := spirecm.DesiredClusterSPIFFEID(binding, rendered, i.clusterSPIFFEIDClassName)
 	if len(objects) == 0 {
 		report.Observed.Drift = append(report.Observed.Drift, BindingInspectionDriftEntry{
 			Field:    "metadata.name",
@@ -881,6 +934,7 @@ func managedClusterSPIFFEIDReport(object *unstructured.Unstructured) BindingInsp
 	spiffeID, _ := spec["spiffeIDTemplate"].(string)
 	podSelector, _ := spec["podSelector"].(map[string]any)
 	hint, _ := spec["hint"].(string)
+	className, _ := spec["className"].(string)
 	fallback, hasFallback := spec["fallback"].(bool)
 
 	report := BindingInspectionManagedClusterSPIFFEID{
@@ -889,6 +943,7 @@ func managedClusterSPIFFEIDReport(object *unstructured.Unstructured) BindingInsp
 		PodSelector:       podSelector,
 		WorkloadSelectors: stringSliceFromAny(spec["workloadSelectorTemplates"]),
 		Hint:              hint,
+		ClassName:         className,
 		Conditions:        clusterSPIFFEIDConditions(object),
 	}
 	if hasFallback {

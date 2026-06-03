@@ -15,9 +15,11 @@ var (
 
 var newBindingInspectionRunner = func(opts *Options) (inspection.BindingInspector, error) {
 	return inspection.NewKubernetesBindingInspector(inspection.Config{
-		Context:    opts.Context,
-		Kubeconfig: opts.Kubeconfig,
-		Timeout:    opts.Timeout,
+		Context:                  opts.Context,
+		Kubeconfig:               opts.Kubeconfig,
+		Timeout:                  opts.Timeout,
+		TrustDomain:              opts.TrustDomain,
+		ClusterSPIFFEIDClassName: opts.ClusterSPIFFEIDClassName,
 	})
 }
 

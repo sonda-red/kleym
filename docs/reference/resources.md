@@ -18,6 +18,7 @@ resources in `spire.spiffe.io`.
 | `spec.spiffeIDTemplate` | Fully rendered SPIFFE ID. |
 | `spec.podSelector` | Validated selector derived from the referenced pool. |
 | `spec.workloadSelectorTemplates` | Rendered namespace and service-account safety selectors, pool-derived selectors, and the optional per-objective container-name selector. |
+| `spec.className` | Rendered only when `kleym-operator` is configured with `--clusterspiffeid-class-name`. When omitted, SPIRE Controller Manager must watch classless resources. |
 | `spec.fallback` | `false` for all managed identities. |
 | `spec.hint` | Originating binding reference in the form `<namespace>/<binding-name>`. |
 | JWT-SVID-related fields | Not rendered today. Requires a user story and SPIRE Controller Manager/SPIRE version gate. |

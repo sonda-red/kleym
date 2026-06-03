@@ -44,6 +44,7 @@ func (r *InferenceIdentityBindingReconciler) renderIdentity(
 	}
 	return identity.PlanIdentity(identity.PlanInput{
 		Binding:              binding,
+		TrustDomain:          r.Config.TrustDomain,
 		ObjectiveName:        objectiveName,
 		PoolName:             pool.GetName(),
 		PodSelector:          podSelector,

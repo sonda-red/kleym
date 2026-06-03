@@ -41,7 +41,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 		}
 		Expect(err).NotTo(HaveOccurred())
 
-		controllerReconciler := &InferenceIdentityBindingReconciler{
+		controllerReconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 			Client: k8sClient,
 			Scheme: k8sClient.Scheme(),
 		}
@@ -96,7 +96,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 
 		It("should reconcile and surface unresolved references in status", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &InferenceIdentityBindingReconciler{
+			controllerReconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}
@@ -135,7 +135,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			Expect(k8sClient.Update(ctx, resource)).To(Succeed())
 
 			By("reconciling the updated resource")
-			controllerReconciler := &InferenceIdentityBindingReconciler{
+			controllerReconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}
@@ -166,7 +166,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 
 		It("should not return an error for a missing resource", func() {
 			By("Reconciling a resource that does not exist")
-			controllerReconciler := &InferenceIdentityBindingReconciler{
+			controllerReconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}
@@ -213,7 +213,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			})
 
 			By("reconciling the created resource")
-			controllerReconciler := &InferenceIdentityBindingReconciler{
+			controllerReconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}
@@ -278,7 +278,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("setting up the controller with the manager")
-			controllerReconciler := &InferenceIdentityBindingReconciler{
+			controllerReconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 				Client: mgr.GetClient(),
 				Scheme: mgr.GetScheme(),
 			}

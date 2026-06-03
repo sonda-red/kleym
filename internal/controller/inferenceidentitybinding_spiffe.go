@@ -47,7 +47,7 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 
 	desiredNames := make(map[string]struct{}, len(identities))
 	for _, identity := range identities {
-		desired := spirecm.DesiredClusterSPIFFEID(binding, identity)
+		desired := spirecm.DesiredClusterSPIFFEID(binding, identity, r.Config.ClusterSPIFFEIDClassName)
 		desiredName := desired.GetName()
 		desiredNames[desiredName] = struct{}{}
 

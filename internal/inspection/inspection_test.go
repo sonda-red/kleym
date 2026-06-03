@@ -30,7 +30,7 @@ func TestInspectBindingSuccessReport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
 	pod := testInspectionPod("model-server-a", "model-server")
 
 	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed, pod)
@@ -78,7 +78,7 @@ func TestInspectBindingPoolOnlyEligibleWorkload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
 	pod := testInspectionPod("model-server-a", "model-server")
 
 	inspector := newTestBindingInspector(t, nil, binding, pool, managed, pod)
@@ -102,6 +102,44 @@ func TestInspectBindingPoolOnlyEligibleWorkload(t *testing.T) {
 	}
 	if report.Capabilities.Pods != BindingInspectionCapabilityFull {
 		t.Fatalf("pods capability = %q, want full", report.Capabilities.Pods)
+	}
+}
+
+func TestInspectBindingUsesConfiguredOperatorOutput(t *testing.T) {
+	binding := testInspectionBinding()
+	pool := testInspectionPool("pool-a")
+	objective := testInspectionObjective("objective-a", "pool-a")
+	rendered, err := inspectionPlanWithTrustDomain(binding, objective, pool, "example.org")
+	if err != nil {
+		t.Fatalf("render test identity: %v", err)
+	}
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "kleym")
+	pod := testInspectionPod("model-server-a", "model-server")
+
+	inspector := newTestBindingInspectorWithIdentityConfig(t, inspectionIdentityConfig{
+		trustDomain:              "example.org",
+		clusterSPIFFEIDClassName: "kleym",
+	}, nil, binding, pool, objective, managed, pod)
+	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
+	if err != nil {
+		t.Fatalf("InspectBinding returned error: %v", err)
+	}
+
+	if report.Desired.SPIFFEID != "spiffe://example.org/ns/tenant-a/objective/objective-a" {
+		t.Fatalf("desired spiffeID = %q, want configured trust domain", report.Desired.SPIFFEID)
+	}
+	if report.Desired.ClassName != "kleym" {
+		t.Fatalf("desired className = %q, want kleym", report.Desired.ClassName)
+	}
+	if len(report.Observed.ManagedClusterSPIFFEIDs) != 1 ||
+		report.Observed.ManagedClusterSPIFFEIDs[0].ClassName != "kleym" {
+		t.Fatalf("managed ClusterSPIFFEIDs = %#v, want className kleym", report.Observed.ManagedClusterSPIFFEIDs)
+	}
+	if len(report.Observed.Drift) != 0 {
+		t.Fatalf("expected no drift, got %#v", report.Observed.Drift)
+	}
+	if len(report.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", report.Findings)
 	}
 }
 
@@ -157,7 +195,7 @@ func TestInspectBindingObservedDriftFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
 	if err := unstructured.SetNestedField(managed.Object, "spiffe://drifted.example.test/ns/tenant-a/objective/objective-a", "spec", "spiffeIDTemplate"); err != nil {
 		t.Fatalf("set drifted spiffeIDTemplate: %v", err)
 	}
@@ -202,7 +240,7 @@ func TestInspectBindingZeroEligibleWorkloadsFinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
 	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed)
 
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
@@ -246,7 +284,7 @@ func TestInspectBindingRBACLimitedPods(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render test identity: %v", err)
 	}
-	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered)
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
 	forbidden := apierrors.NewForbidden(
 		schema.GroupResource{Resource: podResourceName},
 		"",
@@ -310,6 +348,20 @@ func newTestBindingInspector(t *testing.T, listErr error, objects ...client.Obje
 	return newTestBindingInspectorWithListErrors(t, listErr, nil, objects...)
 }
 
+func newTestBindingInspectorWithIdentityConfig(
+	t *testing.T,
+	identityConfig inspectionIdentityConfig,
+	listErr error,
+	objects ...client.Object,
+) *bindingInspector {
+	t.Helper()
+
+	inspector := newTestBindingInspectorWithListErrors(t, listErr, nil, objects...)
+	inspector.trustDomain = identityConfig.trustDomain
+	inspector.clusterSPIFFEIDClassName = identityConfig.clusterSPIFFEIDClassName
+	return inspector
+}
+
 func newTestBindingInspectorWithPodListErr(t *testing.T, podListErr error, objects ...client.Object) *bindingInspector {
 	return newTestBindingInspectorWithListErrors(t, nil, podListErr, objects...)
 }
@@ -336,6 +388,11 @@ func newTestBindingInspectorWithListErrors(
 		}
 	}
 
+	identityConfig, err := normalizedInspectionIdentityConfig(Config{})
+	if err != nil {
+		t.Fatalf("default identity config: %v", err)
+	}
+
 	return &bindingInspector{
 		client: kubeClient,
 		mapper: newInspectionTestRESTMapper(
@@ -345,6 +402,8 @@ func newTestBindingInspectorWithListErrors(
 		now: func() time.Time {
 			return time.Date(2026, 5, 18, 10, 11, 12, 0, time.UTC)
 		},
+		trustDomain:              identityConfig.trustDomain,
+		clusterSPIFFEIDClassName: identityConfig.clusterSPIFFEIDClassName,
 	}
 }
 
@@ -532,6 +591,15 @@ func inspectionPlan(
 	objective *unstructured.Unstructured,
 	pool *unstructured.Unstructured,
 ) (identity.Plan, error) {
+	return inspectionPlanWithTrustDomain(binding, objective, pool, identity.DefaultTrustDomain)
+}
+
+func inspectionPlanWithTrustDomain(
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	objective *unstructured.Unstructured,
+	pool *unstructured.Unstructured,
+	trustDomain string,
+) (identity.Plan, error) {
 	poolSelector, poolDerivedSelectors, err := gaie.DeriveSelectorsFromPool(pool)
 	if err != nil {
 		return identity.Plan{}, err
@@ -542,6 +610,7 @@ func inspectionPlan(
 	}
 	return identity.PlanIdentity(identity.PlanInput{
 		Binding:              binding,
+		TrustDomain:          trustDomain,
 		ObjectiveName:        objectiveName,
 		PoolName:             pool.GetName(),
 		PodSelector:          poolSelector,

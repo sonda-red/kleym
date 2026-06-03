@@ -20,7 +20,7 @@ func TestMapObjectiveToBindingsTargetsOnlyMatchingBindings(t *testing.T) {
 
 	ctx := context.Background()
 	scheme := newCollisionTestScheme(t)
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexObjectiveRefName, bindingObjectiveRefNameIndexValue).
@@ -51,7 +51,7 @@ func TestMapPoolToBindingsTargetsOnlyBindingsForReferencingObjectives(t *testing
 	bindingB := newPerObjectiveBinding("binding-b", "objective-b")
 	bindingB.Spec.PoolRef.Name = "pool-b"
 
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexPoolRefName, bindingPoolRefNameIndexValue).
@@ -93,7 +93,7 @@ func TestMapPoolToBindingsRespectsPoolRefGroup(t *testing.T) {
 		Group: "inference.networking.x-k8s.io",
 	}
 
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexPoolRefName, bindingPoolRefNameIndexValue).

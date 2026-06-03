@@ -137,8 +137,9 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 				ContainerSelector:    "k8s:container-name:model-server",
 				SafetySelectors:      []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 			},
-			Hint:     "tenant-a/binding-a",
-			Fallback: &fallbackFalse,
+			Hint:      "tenant-a/binding-a",
+			ClassName: "kleym",
+			Fallback:  &fallbackFalse,
 		},
 		Observed: BindingInspectionObservedState{
 			ManagedClusterSPIFFEIDs: []BindingInspectionManagedClusterSPIFFEID{{
@@ -149,6 +150,7 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 				},
 				WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 				Hint:              "tenant-a/binding-a",
+				ClassName:         "kleym",
 				Fallback:          &fallbackFalse,
 			}},
 			Drift: []BindingInspectionDriftEntry{{
@@ -193,7 +195,7 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 
 	assertObjectKeys(t, got["bindingRef"], "conditions", "generation", "mode", "name", "namespace", "objectiveRef", "poolRef")
 	assertObjectKeys(t, got["resolvedInput"], "containerName", "objectiveRef", "poolRef", "poolSelector", "selectorProvenance", "servedGVKs")
-	assertObjectKeys(t, got["desired"], "clusterSPIFFEIDName", "fallback", "hint", "podSelector", "selectorProvenance", "spiffeID", "workloadSelectors")
+	assertObjectKeys(t, got["desired"], "className", "clusterSPIFFEIDName", "fallback", "hint", "podSelector", "selectorProvenance", "spiffeID", "workloadSelectors")
 	assertObjectKeys(t, got["observed"], "drift", "eligibleWorkloads", "managedClusterSPIFFEIDs")
 	assertObjectKeys(t, got["capabilities"], "binding", "clusterspiffeids", "gaieResources", "peerBindings", "pods")
 

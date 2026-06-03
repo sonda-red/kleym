@@ -105,6 +105,7 @@ type BindingInspectionDesiredState struct {
 	WorkloadSelectors   []string                             `json:"workloadSelectors,omitempty"`
 	SelectorProvenance  *BindingInspectionSelectorProvenance `json:"selectorProvenance,omitempty"`
 	Hint                string                               `json:"hint,omitempty"`
+	ClassName           string                               `json:"className,omitempty"`
 	Fallback            *bool                                `json:"fallback,omitempty"`
 }
 
@@ -122,6 +123,7 @@ type BindingInspectionManagedClusterSPIFFEID struct {
 	PodSelector       map[string]any     `json:"podSelector,omitempty"`
 	WorkloadSelectors []string           `json:"workloadSelectors,omitempty"`
 	Hint              string             `json:"hint,omitempty"`
+	ClassName         string             `json:"className,omitempty"`
 	Fallback          *bool              `json:"fallback,omitempty"`
 	Conditions        []metav1.Condition `json:"conditions,omitempty"`
 }
@@ -223,6 +225,7 @@ func writeBindingInspectionReportText(w io.Writer, report BindingInspectionRepor
 	appendTextLine(&builder, "Identity:")
 	appendTextLine(&builder, "  ClusterSPIFFEID: %s", textString(report.Desired.ClusterSPIFFEIDName))
 	appendTextLine(&builder, "  SPIFFE ID: %s", textString(report.Desired.SPIFFEID))
+	appendTextLine(&builder, "  ClassName: %s", textString(report.Desired.ClassName))
 	appendTextLine(&builder, "  Hint: %s", textString(report.Desired.Hint))
 	appendTextLine(&builder, "  Fallback: %s", textBool(report.Desired.Fallback))
 

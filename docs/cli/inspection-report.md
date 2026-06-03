@@ -36,7 +36,7 @@ kleym inspect binding <name> -n <namespace> -o json
 | --- | --- |
 | `bindingRef` | Binding identity, generation, mode, refs, and current conditions. |
 | `resolvedInput` | Resolved GAIE inputs, served GVKs, selector provenance, and container name. |
-| `desired` | Desired `ClusterSPIFFEID` name, SPIFFE ID, selectors, hint, and fallback value. |
+| `desired` | Desired `ClusterSPIFFEID` name, SPIFFE ID, class name, selectors, hint, and fallback value. |
 | `observed` | Managed `ClusterSPIFFEID` resources, status, drift, and eligible workloads when pod reads are available. |
 | `findings` | Typed inspection findings. |
 | `capabilities` | Completeness for each inspection area. |

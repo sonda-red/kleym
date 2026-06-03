@@ -44,6 +44,13 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 			"objectiveRef is required when mode is PerObjective",
 		)
 	}
+	if strings.TrimSpace(input.TrustDomain) == "" {
+		return Plan{}, newStateError(
+			ConditionTypeRenderFailure,
+			"MissingTrustDomain",
+			"trustDomain must be configured before Kleym can render SPIFFE IDs",
+		)
+	}
 
 	templateData := renderTemplateData{
 		Namespace:     binding.Namespace,
@@ -90,7 +97,7 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 		)
 	}
 
-	spiffeID := renderSPIFFEID(mode, templateData)
+	spiffeID := renderSPIFFEID(mode, input.TrustDomain, templateData)
 	if !strings.HasPrefix(spiffeID, "spiffe://") {
 		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
@@ -137,13 +144,14 @@ func SelectorForContainerName(containerName string) (string, error) {
 // renderSPIFFEID computes the fixed SPIFFE ID forms defined by docs/spec/operator.md.
 func renderSPIFFEID(
 	mode kleymv1alpha1.InferenceIdentityBindingMode,
+	trustDomain string,
 	data renderTemplateData,
 ) string {
 	switch mode {
 	case kleymv1alpha1.InferenceIdentityBindingModePoolOnly:
-		return fmt.Sprintf("spiffe://%s/ns/%s/pool/%s", defaultTrustDomain, data.Namespace, data.PoolName)
+		return fmt.Sprintf("spiffe://%s/ns/%s/pool/%s", trustDomain, data.Namespace, data.PoolName)
 	case kleymv1alpha1.InferenceIdentityBindingModePerObjective:
-		return fmt.Sprintf("spiffe://%s/ns/%s/objective/%s", defaultTrustDomain, data.Namespace, data.ObjectiveName)
+		return fmt.Sprintf("spiffe://%s/ns/%s/objective/%s", trustDomain, data.Namespace, data.ObjectiveName)
 	default:
 		return ""
 	}

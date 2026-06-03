@@ -21,7 +21,7 @@ func TestModeFlipKeepsComputedSpiffeIDsInSyncWithManagedClusterSPIFFEIDs(t *test
 	scheme := newCollisionTestScheme(t)
 
 	binding := newPerObjectiveBinding("binding-mode-flip", "objective-a")
-	reconciler := &InferenceIdentityBindingReconciler{
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
