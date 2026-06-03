@@ -3,6 +3,8 @@ IMG ?= ghcr.io/sonda-red/kleym-operator:latest
 VERSION ?= dev
 DOCS_PORT ?= 1313
 HUGO ?= hugo
+TRUST_DOMAIN ?= kleym.sonda.red
+CLUSTERSPIFFEID_CLASS_NAME ?=
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -167,7 +169,7 @@ build: build-operator ## Compatibility alias for build-operator.
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/kleym-operator
+	go run ./cmd/kleym-operator --trust-domain="$(TRUST_DOMAIN)" --clusterspiffeid-class-name="$(CLUSTERSPIFFEID_CLASS_NAME)"
 
 # If you wish to build the operator image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
