@@ -45,6 +45,41 @@ func TestInspectBindingJSONUsesRunner(t *testing.T) {
 	}
 }
 
+func TestInspectBindingPassesOperatorConfigFlagsToRunner(t *testing.T) {
+	originalFactory := newBindingInspectionRunner
+	t.Cleanup(func() { newBindingInspectionRunner = originalFactory })
+
+	fakeReport := inspection.NewBindingInspectionReport()
+	var captured Options
+	newBindingInspectionRunner = func(opts *Options) (inspection.BindingInspector, error) {
+		captured = *opts
+		return fixedInspectionRunner{report: fakeReport}, nil
+	}
+
+	cmd := NewRootCommand()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{
+		"inspect",
+		"binding",
+		"binding-a",
+		"--trust-domain",
+		"example.org",
+		"--clusterspiffeid-class-name",
+		"kleym",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("inspect binding returned error: %v", err)
+	}
+	if captured.TrustDomain != "example.org" {
+		t.Fatalf("trustDomain = %q, want example.org", captured.TrustDomain)
+	}
+	if captured.ClusterSPIFFEIDClassName != "kleym" {
+		t.Fatalf("ClusterSPIFFEIDClassName = %q, want kleym", captured.ClusterSPIFFEIDClassName)
+	}
+}
+
 func TestInspectBindingDefaultTextUsesRunner(t *testing.T) {
 	originalFactory := newBindingInspectionRunner
 	t.Cleanup(func() { newBindingInspectionRunner = originalFactory })
