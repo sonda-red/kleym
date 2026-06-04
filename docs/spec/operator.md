@@ -42,6 +42,7 @@ When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be c
 6. `containerName` is required for `PerObjective` and must be empty for `PoolOnly`.
 7. Status records `trustDomain`, `clusterSPIFFEIDClassName`, `computedSpiffeIDs`, `renderedSelectors`, and conditions. Conditions include `Ready`, `Conflict`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure`.
 8. `trustDomain` and `clusterSPIFFEIDClassName` record the operator config values used for the latest status update. They are observation data for read-only inspection compatibility; they do not make trust domain or class name per-binding spec intent.
+9. The CRD exposes printer columns for `MODE`, `POOL`, `OBJECTIVE`, `READY`, `REASON`, and `SPIFFE ID` so `kubectl get inferenceidentitybindings.kleym.sonda.red -A` is the primary binding list view.
 
 Field details live in [API Reference][api-reference]. Condition details live in [Conditions Reference][conditions-reference].
 

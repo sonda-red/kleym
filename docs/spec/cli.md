@@ -3,9 +3,9 @@ title: CLI Spec
 weight: 20
 ---
 
-`kleym` is a read-only CLI for inspecting `InferenceIdentityBinding` state. `kleym inspect binding` renders Kleym identity output, shows current binding conditions, reports Kubernetes-visible pod matches, and emits findings.
+`kleym` is a read-only CLI for inspecting one `InferenceIdentityBinding` at a time. `kleym inspect binding` renders Kleym identity output, shows current binding conditions, reports Kubernetes-visible pod matches, and emits findings.
 
-The CLI does not reconcile, mutate resources, compare live managed output, issue credentials, configure gateways, evaluate policy, or talk directly to SPIRE Server. Cluster overview and list behavior belong to future `kleym status` and `kleym list` commands.
+The CLI does not reconcile, mutate resources, compare live managed output, issue credentials, configure gateways, evaluate policy, or talk directly to SPIRE Server. Cluster overview and list behavior use Kubernetes-native CRD printer columns through `kubectl get inferenceidentitybindings.kleym.sonda.red`.
 
 ## Command Surface
 
