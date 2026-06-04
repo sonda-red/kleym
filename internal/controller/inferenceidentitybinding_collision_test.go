@@ -36,7 +36,10 @@ func TestReconcilePerObjectiveCollisionMarksAllAndBlocksClusterSPIFFEID(t *testi
 	}
 
 	fakeRecorder := newFakeEventRecorder(32)
-	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
+	reconciler := &InferenceIdentityBindingReconciler{Config: OperatorConfig{
+		TrustDomain:              "example.org",
+		ClusterSPIFFEIDClassName: "kleym",
+	},
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
@@ -57,6 +60,7 @@ func TestReconcilePerObjectiveCollisionMarksAllAndBlocksClusterSPIFFEID(t *testi
 	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision")
 	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeReady, metav1.ConditionFalse, "IdentityCollision")
 	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeReady, metav1.ConditionFalse, "IdentityCollision")
+	assertStatusOperatorConfig(t, ctx, reconciler.Client, "binding-b", "example.org", "kleym")
 	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 0)
 	assertEventContains(t, fakeRecorder.Events, "IdentityCollision")
 }
@@ -419,6 +423,40 @@ func assertConditionStatus(
 	}
 	if expectedReason != "" && condition.Reason != expectedReason {
 		t.Fatalf("condition %q on %s/%s reason = %q, want %q", conditionType, testNamespace, name, condition.Reason, expectedReason)
+	}
+}
+
+func assertStatusOperatorConfig(
+	t *testing.T,
+	ctx context.Context,
+	cli client.Client,
+	name string,
+	trustDomain string,
+	clusterSPIFFEIDClassName string,
+) {
+	t.Helper()
+
+	binding := &kleymv1alpha1.InferenceIdentityBinding{}
+	if err := cli.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: name}, binding); err != nil {
+		t.Fatalf("failed to fetch %s/%s: %v", testNamespace, name, err)
+	}
+	if binding.Status.TrustDomain != trustDomain {
+		t.Fatalf(
+			"status.trustDomain on %s/%s = %q, want %q",
+			testNamespace,
+			name,
+			binding.Status.TrustDomain,
+			trustDomain,
+		)
+	}
+	if binding.Status.ClusterSPIFFEIDClassName != clusterSPIFFEIDClassName {
+		t.Fatalf(
+			"status.clusterSPIFFEIDClassName on %s/%s = %q, want %q",
+			testNamespace,
+			name,
+			binding.Status.ClusterSPIFFEIDClassName,
+			clusterSPIFFEIDClassName,
+		)
 	}
 }
 
