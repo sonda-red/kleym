@@ -37,6 +37,12 @@ Prefer the lowest model tier that is safe for the work. Escalate only when corre
 5. Include a recommended model assistance tier.
 6. Apply the matching `complexity/T*` label when triaging or creating through GitHub.
 
+## Issue Body Style
+
+- Do not use unchecked Markdown task lists in GitHub issue bodies.
+- Write acceptance criteria and validation expectations as plain bullets or prose. The pull request template is the place for test checklists.
+- Preserve checkboxes only when the user explicitly requests a checklist or when editing existing issue content where the checkbox state itself is meaningful project data.
+
 ## Planning Implementation
 
 1. Read the issue complexity tier first.

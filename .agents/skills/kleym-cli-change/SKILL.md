@@ -17,6 +17,7 @@ Use this skill before modifying the `kleym` CLI. The CLI behavior is defined by 
 ## Implementation Rules
 
 - Keep Cobra command handlers thin: parse flags, call inspection logic, format output, and return exit codes.
+- Optimize CLI names and output labels for first-read human understanding. Prefer direct domain terms over internally derived terminology. JSON keys must stay stable, but new keys should be simple, explicit, and explainable without knowing reconciliation internals.
 - Do not put identity derivation, selector safety, collision detection, GVK resolution, or rendering logic inside command files.
 - Reuse the same pure render, resolve, selector, naming, and collision logic as the operator.
 - Do not import controller reconciliation, watches, finalizers, status patching, or mutation paths into CLI code.
