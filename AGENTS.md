@@ -55,6 +55,7 @@ Keep the search tight. Read the directly relevant discussion and any immediately
 ## Code Style Baseline
 
 - Prefer simple, readable Go over clever patterns. If a stdlib function exists, use it.
+- Optimize names for human understanding before agent convenience. Prefer direct, domain-obvious names for functions, status fields, condition reasons, CLI labels, JSON fields, and tests. Do not encode multi-step internal reasoning into compound names when clearer state can be represented with simple fields or explicit structure.
 - Do not introduce generics, functional patterns, custom iterator types, new abstractions, packages, helpers, frameworks, controllers, CRDs, or public API fields unless the task explicitly requires them.
 - When using controller-runtime patterns, reflection, type assertions, unstructured APIs, custom error types, or template rendering, add a short comment explaining why the pattern is needed.
 - Use named constants for magic numbers. Document the source when the value comes from an RFC, Kubernetes convention, or SPIRE behavior.

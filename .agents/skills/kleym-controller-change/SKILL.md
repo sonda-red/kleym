@@ -32,6 +32,7 @@ Do not spread status mutations across helper functions unless unavoidable.
 ## Guardrails
 
 - Preserve human ownership of CRD semantics, reconciliation behavior, identity derivation rules, and failure behavior.
+- Treat status, condition, reason, helper, and rendered-output names as human-facing API. Prefer short, direct names that describe the observable domain fact. Avoid compound internal-process names such as drift/render/observe blends when simple fields or conditions would be clearer.
 - Set or refresh all known conditions every reconcile pass. Use `observedGeneration`.
 - Prefer pure helper functions for render, validation, and collision detection.
 - Keep side effects in a narrow apply phase.
