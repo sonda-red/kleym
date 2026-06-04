@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sonda-red/kleym/internal/identity"
 	"github.com/sonda-red/kleym/internal/inspection"
 	"github.com/sonda-red/kleym/internal/version"
 	"github.com/spf13/cobra"
@@ -49,15 +48,12 @@ func NewRootCommand() *cobra.Command {
 	})
 	cmd.SetVersionTemplate("{{printf \"%s\\n\" .Version}}")
 
-	cmd.PersistentFlags().StringVarP(&opts.Namespace, "namespace", "n", defaultNamespace, "Namespace for binding lookup")
 	cmd.PersistentFlags().StringVarP(&opts.Output, "output", "o", outputText, "Output format: "+strings.Join(validOutputFormats, "|"))
-	cmd.PersistentFlags().BoolVar(&opts.Strict, "strict", false, "Treat warning findings as errors")
 	cmd.PersistentFlags().StringVar(&opts.Context, "context", "", "Name of the kubeconfig context to use")
 	cmd.PersistentFlags().StringVar(&opts.Kubeconfig, "kubeconfig", "", "Path to the kubeconfig file")
-	cmd.PersistentFlags().DurationVar(&opts.Timeout, "timeout", 30*time.Second, "Inspection timeout")
-	cmd.PersistentFlags().StringVar(&opts.TrustDomain, "trust-domain", identity.DefaultTrustDomain, "SPIRE Server trust domain used when rendering SPIFFE IDs")
-	cmd.PersistentFlags().StringVar(&opts.ClusterSPIFFEIDClassName, "clusterspiffeid-class-name", "", "Optional SPIRE Controller Manager ClusterSPIFFEID className expected on managed resources")
+	cmd.PersistentFlags().DurationVar(&opts.Timeout, "timeout", 30*time.Second, "Command timeout")
 
+	cmd.AddCommand(newStatusCommand(opts))
 	cmd.AddCommand(newInspectCommand(opts))
 	return cmd
 }
