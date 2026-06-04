@@ -24,7 +24,7 @@ Dependency facts live in [Dependencies][dependencies]. Supported GAIE inputs liv
 | `--trust-domain=<value>` | yes | Sets the SPIRE Server trust domain used when rendering every SPIFFE ID. The value must not include `spiffe://`, must not contain `/`, and must not include leading or trailing whitespace. |
 | `--clusterspiffeid-class-name=<value>` | no | Sets `spec.className` on every managed `ClusterSPIFFEID`. When empty, Kleym omits `spec.className` and keeps classless output. |
 
-`trustDomain` and `ClusterSPIFFEID` class are deployment concerns, not per-binding inference identity intent. They are not fields on `InferenceIdentityBinding`.
+`trustDomain` and `ClusterSPIFFEID` class are deployment concerns, not per-binding inference identity intent. They are not fields in `InferenceIdentityBinding.spec`.
 
 When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be configured to watch classless `ClusterSPIFFEID` resources, for example with its `watchClassless` behavior. When a class name is set, SPIRE Controller Manager must watch that class.
 
@@ -40,7 +40,8 @@ When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be c
    - `PoolOnly`: `spiffe://<trustDomain>/ns/<namespace>/pool/<pool-name>`
    - `PerObjective`: `spiffe://<trustDomain>/ns/<namespace>/objective/<objective-name>`
 6. `containerName` is required for `PerObjective` and must be empty for `PoolOnly`.
-7. Status records `computedSpiffeIDs`, `renderedSelectors`, and conditions. Conditions include `Ready`, `Conflict`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure`.
+7. Status records `trustDomain`, `clusterSPIFFEIDClassName`, `computedSpiffeIDs`, `renderedSelectors`, and conditions. Conditions include `Ready`, `Conflict`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure`.
+8. `trustDomain` and `clusterSPIFFEIDClassName` record the operator config values used for the latest status update. They are observation data for read-only inspection compatibility; they do not make trust domain or class name per-binding spec intent.
 
 Field details live in [API Reference][api-reference]. Condition details live in [Conditions Reference][conditions-reference].
 

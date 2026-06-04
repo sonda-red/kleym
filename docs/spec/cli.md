@@ -35,9 +35,9 @@ Supported flags:
 ```
 
 Default namespace is `default`. Default output is `text`. `--timeout` must be greater than zero.
-`--trust-domain` defaults to `kleym.sonda.red` and must follow the same validation rules as
-`kleym-operator --trust-domain`. `--clusterspiffeid-class-name` defaults to empty, matching
-classless `ClusterSPIFFEID` output.
+`--trust-domain` must follow the same validation rules as `kleym-operator --trust-domain`.
+`--clusterspiffeid-class-name` defaults to empty when used as a fallback or explicit override,
+matching classless `ClusterSPIFFEID` output.
 
 ## Output Contract
 
@@ -51,12 +51,13 @@ kleym inspect binding <name> -n <namespace> -o json
 
 Text output leads with a summary and must not introduce inspection semantics absent from the canonical report data.
 
-`kleym inspect binding` emits a `BindingInspectionReport` with four core sections:
+`kleym inspect binding` emits a `BindingInspectionReport` with five core sections:
 
-1. `desired`: what Kleym would render from the inspected binding and resolved inputs.
-2. `observed`: Kleym-managed `ClusterSPIFFEID` resources, drift, status, and eligible workloads when pod reads are available.
-3. `findings`: typed issues or notable states discovered during inspection.
-4. `capabilities`: whether each inspection area was complete, partial, skipped, or unknown.
+1. `identityConfig`: trust domain and class-name values used for desired rendering, plus their sources.
+2. `desired`: what Kleym would render from the inspected binding and resolved inputs.
+3. `observed`: Kleym-managed `ClusterSPIFFEID` resources, drift, status, and eligible workloads when pod reads are available.
+4. `findings`: typed issues or notable states discovered during inspection.
+5. `capabilities`: whether each inspection area was complete, partial, skipped, or unknown.
 
 Top-level JSON shape:
 
@@ -65,6 +66,7 @@ Top-level JSON shape:
   "schemaVersion": "v1alpha1",
   "kind": "BindingInspectionReport",
   "generatedAt": "",
+  "identityConfig": {},
   "bindingRef": {},
   "resolvedInput": {},
   "desired": {},
@@ -79,11 +81,15 @@ Report fields and findings are documented in [Inspection Report][inspection-repo
 ## Inspect Binding Behavior
 
 1. Resolve the binding, `poolRef`, and required or present `objectiveRef`; validate that an objective references the same pool.
-2. Recompute desired identity state with shared Kleym logic.
-3. Use the inspection trust domain and optional `ClusterSPIFFEID` class setting when recomputing desired SPIFFE IDs and managed output.
-4. Evaluate Kleym collision state from peer binding fingerprints when available; otherwise use the inspected binding's current `Conflict` condition and mark peer analysis partial or unknown.
-5. Locate Kleym-managed `ClusterSPIFFEID` resources, compare desired and observed state, and evaluate eligible workloads when pod reads are available.
-6. Emit the report and exit according to finding severity and inspection completeness.
+2. Choose identity config for recomputing desired output with this precedence for each field:
+   explicit CLI flag, `InferenceIdentityBinding.status.trustDomain` and `status.clusterSPIFFEIDClassName`, then CLI default.
+   The default trust domain fallback is `kleym.sonda.red`; the default class-name fallback is empty.
+3. Record the chosen trust domain, class name, and per-field source in `report.identityConfig`.
+   If binding status does not contain operator config, add a warning finding that inspection is using CLI defaults, flags, or a mix of both.
+4. Recompute desired identity state with shared Kleym logic.
+5. Evaluate Kleym collision state from peer binding fingerprints when available; otherwise use the inspected binding's current `Conflict` condition and mark peer analysis partial or unknown.
+6. Locate Kleym-managed `ClusterSPIFFEID` resources, compare desired and observed state, and evaluate eligible workloads when pod reads are available.
+7. Emit the report and exit according to finding severity and inspection completeness.
 
 `kleym` reports eligibility, not credential use. It reports deterministic Kleym collisions and visible drift; it does not fully simulate SPIRE selection behavior or analyze unrelated non-Kleym `ClusterSPIFFEID` overlap.
 
