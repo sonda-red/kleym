@@ -35,6 +35,12 @@ Print the linked version without contacting Kubernetes:
 bin/kleym --version
 ```
 
+Show a cluster overview:
+
+```sh
+bin/kleym status
+```
+
 Inspect one binding:
 
 ```sh
@@ -54,6 +60,7 @@ bin/kleym inspect binding <name> -n <namespace> \
 Use JSON for automation:
 
 ```sh
+bin/kleym status -o json
 bin/kleym inspect binding <name> -n <namespace> -o json
 ```
 
@@ -61,32 +68,34 @@ bin/kleym inspect binding <name> -n <namespace> -o json
 
 | Flag | Meaning |
 | --- | --- |
-| `-n`, `--namespace` | Binding namespace. Defaults to `default`. |
+| `-n`, `--namespace` | Binding namespace for `inspect binding`. Defaults to `default`. |
 | `-o`, `--output` | Output format: `text` or `json`. Defaults to `text`. |
-| `--strict` | Treat warning-severity findings as an inspection issue exit. |
+| `--strict` | Treat warning-severity findings as an inspection issue exit for `inspect binding`. |
 | `--context` | Kubeconfig context name. |
 | `--kubeconfig` | Kubeconfig file path. |
-| `--timeout` | Inspection timeout. Must be greater than zero. |
-| `--trust-domain` | Override trust domain used to render SPIFFE IDs. If operator config is unavailable and this flag is omitted, inspection falls back to `kleym.sonda.red`. |
-| `--clusterspiffeid-class-name` | Override expected `ClusterSPIFFEID.spec.className`. If operator config is unavailable and this flag is omitted, inspection falls back to classless output. |
+| `--timeout` | Command timeout. Must be greater than zero. |
+| `--trust-domain` | Override trust domain used by `inspect binding` to render SPIFFE IDs. If operator config is unavailable and this flag is omitted, inspection falls back to `kleym.sonda.red`. |
+| `--clusterspiffeid-class-name` | Override expected `ClusterSPIFFEID.spec.className` for `inspect binding`. If operator config is unavailable and this flag is omitted, inspection falls back to classless output. |
 
 ## Access
 
-The CLI needs Kubernetes API access to read the requested
-`InferenceIdentityBinding`. A permission, connection, authentication, or
-discovery failure before the binding can be read is fatal and may not emit a
-complete report.
+The CLI needs Kubernetes API access to read the requested resources. A
+permission, connection, authentication, or discovery failure that prevents
+status evaluation or binding inspection is fatal and may not emit a complete
+report.
 
 After the binding is readable, limited access to GAIE resources or pods is
 reported through findings when inspection can continue.
 
 Full inspection may need read access to:
 
+- Kleym operator Deployments for `kleym status`
+- `InferenceIdentityBinding` resources for `kleym status`
 - `InferenceIdentityBinding` in the binding namespace
 - supported GAIE `InferencePool` and `InferenceObjective` resources
 - pods in the binding namespace when matched pod reporting is enabled
 
 ## Boundary
 
-`kleym inspect binding` is read-only. It does not create, update, delete,
-reconcile, or patch Kubernetes resources.
+`kleym status` and `kleym inspect binding` are read-only. They do not create,
+update, delete, reconcile, or patch Kubernetes resources.

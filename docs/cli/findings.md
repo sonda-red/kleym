@@ -28,6 +28,9 @@ reasons where possible. See [Conditions](/reference/conditions/).
 | ID | Default severity | Notes |
 | --- | --- | --- |
 | `binding-not-found` | `error` | Requested binding is absent after a successful API lookup. |
+| `operator-unavailable` | `error` | The Kleym operator Deployment is not discoverable or has no ready replicas. |
+| `crd-missing` | `error` | A CRD required for status evaluation is not installed. |
+| `binding-unhealthy` | `error` | A visible binding reports `Ready=False`. |
 | `invalid-ref` | `error` | A referenced pool or objective is missing or invalid. |
 | `dependency-missing` | `error` when required | Required inputs or APIs are unavailable. |
 | `unsafe-selector` | `error` | Rendered selectors fail Kleym safety rules. |
