@@ -179,6 +179,12 @@ type InferenceIdentityBindingStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="MODE",type=string,JSONPath=`.spec.mode`
+// +kubebuilder:printcolumn:name="POOL",type=string,JSONPath=`.spec.poolRef.name`
+// +kubebuilder:printcolumn:name="OBJECTIVE",type=string,JSONPath=`.spec.objectiveRef.name`
+// +kubebuilder:printcolumn:name="READY",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
+// +kubebuilder:printcolumn:name="REASON",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`
+// +kubebuilder:printcolumn:name="SPIFFE ID",type=string,JSONPath=`.status.computedSpiffeIDs[0].spiffeID`
 
 // InferenceIdentityBinding is the Schema for the inferenceidentitybindings API.
 type InferenceIdentityBinding struct {

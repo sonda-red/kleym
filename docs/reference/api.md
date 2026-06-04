@@ -56,6 +56,23 @@ Current validation rules enforced by the CRD:
 | `computedSpiffeIDs` | Computed SPIFFE IDs with the mode that produced them. |
 | `renderedSelectors` | Final selector set used for each rendered identity. |
 
+## Kubectl Columns
+
+`kubectl get inferenceidentitybindings.kleym.sonda.red` shows these CRD printer
+columns for compact binding overviews:
+
+| Column | Source |
+| --- | --- |
+| `MODE` | `spec.mode` |
+| `POOL` | `spec.poolRef.name` |
+| `OBJECTIVE` | `spec.objectiveRef.name` |
+| `READY` | `status.conditions[Ready].status` |
+| `REASON` | `status.conditions[Ready].reason` |
+| `SPIFFE ID` | `status.computedSpiffeIDs[0].spiffeID` |
+
+Use `-A` to list bindings across namespaces. Status-derived columns are empty
+until the operator has reconciled the binding and written status.
+
 ## Current Defaults
 
 The controller always renders deterministic SPIFFE IDs under its configured trust domain:
