@@ -24,10 +24,10 @@ kleym inspect binding <name> -n <namespace> -o json
   "identityConfig": {},
   "bindingRef": {},
   "resolvedInput": {},
-  "desired": {},
-  "observed": {},
-  "findings": [],
-  "capabilities": {}
+  "renderedIdentity": {},
+  "renderedClusterSPIFFEID": {},
+  "matchedPods": [],
+  "findings": []
 }
 ```
 
@@ -35,20 +35,16 @@ kleym inspect binding <name> -n <namespace> -o json
 
 | Field | Meaning |
 | --- | --- |
-| `identityConfig` | Trust domain and `ClusterSPIFFEID` class name used to render desired output, plus per-field source (`flag`, `bindingStatus`, or `default`). |
+| `identityConfig` | Trust domain and `ClusterSPIFFEID` class name used to render output, plus per-field source (`flag`, `bindingStatus`, or `default`). |
 | `bindingRef` | Binding identity, generation, mode, refs, and current conditions. |
 | `resolvedInput` | Resolved GAIE inputs, served GVKs, selector provenance, and container name. |
-| `desired` | Desired `ClusterSPIFFEID` name, SPIFFE ID, class name, selectors, hint, and fallback value. |
-| `observed` | Managed `ClusterSPIFFEID` resources, status, drift, and eligible workloads when pod reads are available. |
+| `renderedIdentity` | SPIFFE ID and selectors rendered from the binding and resolved inputs. |
+| `renderedClusterSPIFFEID` | Deterministic managed `ClusterSPIFFEID` name and rendered spec fields. |
+| `matchedPods` | Readable pods or containers that match rendered Kubernetes-observable selectors. |
 | `findings` | Typed inspection findings. |
-| `capabilities` | Completeness for each inspection area. |
 
-Workload eligibility means a pod or container matches rendered selectors. It is
-not proof that an application fetched or used an SVID.
-
-Capability states are `full`, `partial`, `skipped`, or `unknown`. If RBAC or
-missing CRDs prevent a non-fatal check, report limited capability instead of
-guessing.
+Matched pods are not proof that SPIRE issued an SVID, that a workload was
+attested, or that an application consumed an identity.
 
 See [Results](/cli/results/) for output-format guidance and [Findings](/cli/findings/) for
 the current finding classes.

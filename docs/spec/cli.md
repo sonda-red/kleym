@@ -39,7 +39,7 @@ JSON is the stable machine contract. Automation must use `kleym inspect binding 
 
 Field meanings: `identityConfig` records render config and sources; `bindingRef` records binding identity, refs, generation, mode, and conditions; `resolvedInput` records resolved pool/objective inputs; `renderedIdentity` records SPIFFE ID and selectors; `renderedClusterSPIFFEID` records deterministic managed output; `matchedPods` records readable matching pods or containers; `findings` records inspection issues.
 
-Text output must use direct labels: `Rendered identity`, `Rendered ClusterSPIFFEID`, `Binding conditions`, `Matched pods`, `Findings`, and `Exit code`. It must not use `eligible`, `bound`, `issued`, or `attested` for pod or identity state.
+Text output must use direct labels: `Identity`, `ClusterSPIFFEID`, `Conditions`, `Matched pods`, `Findings`, and `Exit code`. It must not use `eligible`, `bound`, `issued`, or `attested` for pod or identity state.
 
 ## Inspect Binding Behavior
 

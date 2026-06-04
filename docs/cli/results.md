@@ -3,14 +3,15 @@ title: Results
 weight: 20
 ---
 
-Inspection results compare desired identity state with visible cluster state and
-record typed findings.
+Inspection results show the identity and `ClusterSPIFFEID` Kleym renders for
+one binding, current binding conditions, Kubernetes-visible matched pods, and
+typed findings.
 
 ## Output Formats
 
 | Format | Use it for |
 | --- | --- |
-| `text` | Default human-readable terminal output. It starts with status, finding count, drift count, eligible workload count, and inspection completeness. |
+| `text` | Default terminal output. It uses compact sections for identity, `ClusterSPIFFEID`, conditions, matched pods, findings, and exit code. |
 | `json` | Stable machine contract for automation. |
 
 Automation should use:
@@ -19,28 +20,11 @@ Automation should use:
 kleym inspect binding <name> -n <namespace> -o json
 ```
 
-## Status
-
-Human output summarizes report status from finding severities:
-
-| Status | Meaning |
-| --- | --- |
-| `OK` | No warning or error findings. |
-| `Warning` | At least one warning finding and no error findings. |
-| `Error` | At least one error finding. |
-
-The status is an inspection result, not proof that a workload fetched or used an
-SVID.
-
-## Findings And Capabilities
+## Findings
 
 Findings identify issues or notable states, such as invalid references,
-deterministic Kleym collisions, observed drift, missing dependencies, or RBAC
-limits. See [Findings](/cli/findings/) for the current finding classes.
-
-Capabilities explain how complete each inspection area was. A check can be
-`full`, `partial`, `skipped`, or `unknown`. RBAC limits and missing optional
-resources should reduce capability instead of causing the CLI to guess.
+deterministic Kleym collisions, missing dependencies, unsupported selectors, or
+RBAC limits. See [Findings](/cli/findings/) for the current finding classes.
 
 ## Exit Behavior
 

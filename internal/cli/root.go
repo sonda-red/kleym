@@ -55,7 +55,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&opts.Context, "context", "", "Name of the kubeconfig context to use")
 	cmd.PersistentFlags().StringVar(&opts.Kubeconfig, "kubeconfig", "", "Path to the kubeconfig file")
 	cmd.PersistentFlags().DurationVar(&opts.Timeout, "timeout", 30*time.Second, "Inspection timeout")
-	cmd.PersistentFlags().StringVar(&opts.TrustDomain, "trust-domain", identity.DefaultTrustDomain, "SPIRE Server trust domain used when recomputing desired SPIFFE IDs")
+	cmd.PersistentFlags().StringVar(&opts.TrustDomain, "trust-domain", identity.DefaultTrustDomain, "SPIRE Server trust domain used when rendering SPIFFE IDs")
 	cmd.PersistentFlags().StringVar(&opts.ClusterSPIFFEIDClassName, "clusterspiffeid-class-name", "", "Optional SPIRE Controller Manager ClusterSPIFFEID className expected on managed resources")
 
 	cmd.AddCommand(newInspectCommand(opts))

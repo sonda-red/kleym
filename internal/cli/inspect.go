@@ -53,6 +53,7 @@ func newInspectCommand(opts *Options) *cobra.Command {
 
 			report, inspectErr := inspector.InspectBinding(ctx, opts.Namespace, args[0])
 			code, err := inspectionExitCode(report, inspectErr, opts.Strict)
+			report.ExitCode = &code
 			if !shouldWriteBindingInspectionReport(inspectErr) {
 				if err != nil {
 					return withExitCode(code, err)
