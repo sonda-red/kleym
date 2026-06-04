@@ -119,6 +119,17 @@ func TestReconcileUsesOperatorConfigForRenderedOutput(t *testing.T) {
 	if className != "kleym" {
 		t.Fatalf("className = %q, want kleym", className)
 	}
+
+	current := &kleymv1alpha1.InferenceIdentityBinding{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: binding.Name}, current); err != nil {
+		t.Fatalf("failed to read binding status: %v", err)
+	}
+	if current.Status.TrustDomain != "example.org" {
+		t.Fatalf("status.trustDomain = %q, want example.org", current.Status.TrustDomain)
+	}
+	if current.Status.ClusterSPIFFEIDClassName != "kleym" {
+		t.Fatalf("status.clusterSPIFFEIDClassName = %q, want kleym", current.Status.ClusterSPIFFEIDClassName)
+	}
 }
 
 func TestReconcilePerObjectiveRequiresObjectiveRef(t *testing.T) {

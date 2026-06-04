@@ -4,6 +4,7 @@ metadata:
   name: pool-binding
   namespace: kleym-reference-inference
 status:
+  trustDomain: kleym.sonda.red
   computedSpiffeIDs:
     - mode: PoolOnly
       spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/pool/reference-pool

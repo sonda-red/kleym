@@ -21,14 +21,16 @@ var validOutputFormats = []string{outputText, outputJSON}
 
 // Options holds top-level CLI flags for the kleym command tree.
 type Options struct {
-	Namespace                string
-	Output                   string
-	Strict                   bool
-	Context                  string
-	Kubeconfig               string
-	Timeout                  time.Duration
-	TrustDomain              string
-	ClusterSPIFFEIDClassName string
+	Namespace                        string
+	Output                           string
+	Strict                           bool
+	Context                          string
+	Kubeconfig                       string
+	Timeout                          time.Duration
+	TrustDomain                      string
+	TrustDomainOverride              bool
+	ClusterSPIFFEIDClassName         string
+	ClusterSPIFFEIDClassNameOverride bool
 }
 
 // NewRootCommand builds the kleym root command defined by the CLI spec.
@@ -58,6 +60,17 @@ func NewRootCommand() *cobra.Command {
 
 	cmd.AddCommand(newInspectCommand(opts))
 	return cmd
+}
+
+// captureIdentityConfigFlagSources records whether identity config flags were
+// explicitly set so inspection can prefer binding status by default.
+func captureIdentityConfigFlagSources(cmd *cobra.Command, opts *Options) {
+	if flag := cmd.Flag("trust-domain"); flag != nil {
+		opts.TrustDomainOverride = flag.Changed
+	}
+	if flag := cmd.Flag("clusterspiffeid-class-name"); flag != nil {
+		opts.ClusterSPIFFEIDClassNameOverride = flag.Changed
+	}
 }
 
 func validateRunnableOptions(opts *Options) error {

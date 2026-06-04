@@ -21,6 +21,7 @@ kleym inspect binding <name> -n <namespace> -o json
   "schemaVersion": "v1alpha1",
   "kind": "BindingInspectionReport",
   "generatedAt": "",
+  "identityConfig": {},
   "bindingRef": {},
   "resolvedInput": {},
   "desired": {},
@@ -34,6 +35,7 @@ kleym inspect binding <name> -n <namespace> -o json
 
 | Field | Meaning |
 | --- | --- |
+| `identityConfig` | Trust domain and `ClusterSPIFFEID` class name used to render desired output, plus per-field source (`flag`, `bindingStatus`, or `default`). |
 | `bindingRef` | Binding identity, generation, mode, refs, and current conditions. |
 | `resolvedInput` | Resolved GAIE inputs, served GVKs, selector provenance, and container name. |
 | `desired` | Desired `ClusterSPIFFEID` name, SPIFFE ID, class name, selectors, hint, and fallback value. |

@@ -62,6 +62,15 @@ func initializeConditions(
 	}
 }
 
+// applyOperatorConfig records the operator render settings used for this status update.
+func applyOperatorConfig(
+	status *kleymv1alpha1.InferenceIdentityBindingStatus,
+	config OperatorConfig,
+) {
+	status.TrustDomain = config.TrustDomain
+	status.ClusterSPIFFEIDClassName = config.ClusterSPIFFEIDClassName
+}
+
 func applySuccessStatus(
 	status *kleymv1alpha1.InferenceIdentityBindingStatus,
 	generation int64,

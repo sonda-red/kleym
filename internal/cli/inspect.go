@@ -15,11 +15,13 @@ var (
 
 var newBindingInspectionRunner = func(opts *Options) (inspection.BindingInspector, error) {
 	return inspection.NewKubernetesBindingInspector(inspection.Config{
-		Context:                  opts.Context,
-		Kubeconfig:               opts.Kubeconfig,
-		Timeout:                  opts.Timeout,
-		TrustDomain:              opts.TrustDomain,
-		ClusterSPIFFEIDClassName: opts.ClusterSPIFFEIDClassName,
+		Context:                          opts.Context,
+		Kubeconfig:                       opts.Kubeconfig,
+		Timeout:                          opts.Timeout,
+		TrustDomain:                      opts.TrustDomain,
+		TrustDomainOverride:              opts.TrustDomainOverride,
+		ClusterSPIFFEIDClassName:         opts.ClusterSPIFFEIDClassName,
+		ClusterSPIFFEIDClassNameOverride: opts.ClusterSPIFFEIDClassNameOverride,
 	})
 }
 
@@ -36,7 +38,8 @@ func newInspectCommand(opts *Options) *cobra.Command {
 		Args: func(cmd *cobra.Command, args []string) error {
 			return withExitCode(exitUsage, cobra.ExactArgs(1)(cmd, args))
 		},
-		PreRunE: func(_ *cobra.Command, _ []string) error {
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
+			captureIdentityConfigFlagSources(cmd, opts)
 			return validateRunnableOptions(opts)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {

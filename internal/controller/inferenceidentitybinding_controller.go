@@ -181,6 +181,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 	// Phase 4: Compute desired state — resolve objective → pool → identity → collisions.
 	statusBase := binding.DeepCopy()
 	initializeConditions(&binding.Status, binding.Generation)
+	applyOperatorConfig(&binding.Status, r.Config)
 	wasColliding := conditionIsTrue(statusBase.Status.Conditions, conditionTypeConflict)
 
 	desiredState, err := r.computeDesiredState(ctx, binding, wasColliding)
@@ -590,6 +591,7 @@ func (r *InferenceIdentityBindingReconciler) applyCollisionState(
 
 		if err := r.patchStatus(ctx, state.binding, func(status *kleymv1alpha1.InferenceIdentityBindingStatus) {
 			initializeConditions(status, state.binding.Generation)
+			applyOperatorConfig(status, r.Config)
 			applyCollisionStatus(status, state.binding.Generation, state.hasCollision, state.message)
 		}); err != nil {
 			return collisionApplyResult{}, err

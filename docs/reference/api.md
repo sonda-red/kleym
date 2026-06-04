@@ -51,6 +51,8 @@ Current validation rules enforced by the CRD:
 | Field | Meaning |
 | --- | --- |
 | `conditions` | Latest controller observations. |
+| `trustDomain` | Operator trust domain used for the latest status update. |
+| `clusterSPIFFEIDClassName` | Optional operator `ClusterSPIFFEID` class name used for the latest status update. Empty means classless output. |
 | `computedSpiffeIDs` | Computed SPIFFE IDs with the mode that produced them. |
 | `renderedSelectors` | Final selector set used for each rendered identity. |
 

@@ -114,6 +114,11 @@ spec:
           status:
             description: status defines the observed state of InferenceIdentityBinding.
             properties:
+              clusterSPIFFEIDClassName:
+                description: |-
+                  clusterSPIFFEIDClassName is the operator ClusterSPIFFEID class name used
+                  when rendering the latest status. Empty means classless ClusterSPIFFEID output.
+                type: string
               computedSpiffeIDs:
                 description: computedSpiffeIDs lists the SPIFFE IDs produced from
                   the binding references.
@@ -225,6 +230,10 @@ spec:
                   - spiffeID
                   type: object
                 type: array
+              trustDomain:
+                description: trustDomain is the operator trust domain used when rendering
+                  the latest status.
+                type: string
             type: object
         required:
         - spec

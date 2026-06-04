@@ -105,8 +105,10 @@ func TestInspectBindingPoolOnlyEligibleWorkload(t *testing.T) {
 	}
 }
 
-func TestInspectBindingUsesConfiguredOperatorOutput(t *testing.T) {
+func TestInspectBindingUsesStatusOperatorConfig(t *testing.T) {
 	binding := testInspectionBinding()
+	binding.Status.TrustDomain = "example.org"
+	binding.Status.ClusterSPIFFEIDClassName = "kleym"
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
 	rendered, err := inspectionPlanWithTrustDomain(binding, objective, pool, "example.org")
@@ -131,9 +133,114 @@ func TestInspectBindingUsesConfiguredOperatorOutput(t *testing.T) {
 	if report.Desired.ClassName != "kleym" {
 		t.Fatalf("desired className = %q, want kleym", report.Desired.ClassName)
 	}
+	if report.IdentityConfig.TrustDomainSource != identityConfigSourceBindingStatus ||
+		report.IdentityConfig.ClusterSPIFFEIDClassNameSource != identityConfigSourceBindingStatus {
+		t.Fatalf("identityConfig = %#v, want bindingStatus sources", report.IdentityConfig)
+	}
 	if len(report.Observed.ManagedClusterSPIFFEIDs) != 1 ||
 		report.Observed.ManagedClusterSPIFFEIDs[0].ClassName != "kleym" {
 		t.Fatalf("managed ClusterSPIFFEIDs = %#v, want className kleym", report.Observed.ManagedClusterSPIFFEIDs)
+	}
+	if len(report.Observed.Drift) != 0 {
+		t.Fatalf("expected no drift, got %#v", report.Observed.Drift)
+	}
+	if len(report.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", report.Findings)
+	}
+}
+
+func TestInspectBindingFlagsOverrideStatusOperatorConfig(t *testing.T) {
+	binding := testInspectionBinding()
+	binding.Status.TrustDomain = identity.DefaultTrustDomain
+	binding.Status.ClusterSPIFFEIDClassName = ""
+	pool := testInspectionPool("pool-a")
+	objective := testInspectionObjective("objective-a", "pool-a")
+	rendered, err := inspectionPlanWithTrustDomain(binding, objective, pool, "example.org")
+	if err != nil {
+		t.Fatalf("render test identity: %v", err)
+	}
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "kleym")
+	pod := testInspectionPod("model-server-a", "model-server")
+
+	inspector := newTestBindingInspectorWithIdentityConfig(t, inspectionIdentityConfig{
+		trustDomain:                      "example.org",
+		trustDomainOverride:              true,
+		clusterSPIFFEIDClassName:         "kleym",
+		clusterSPIFFEIDClassNameOverride: true,
+	}, nil, binding, pool, objective, managed, pod)
+	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
+	if err != nil {
+		t.Fatalf("InspectBinding returned error: %v", err)
+	}
+
+	if report.IdentityConfig.TrustDomainSource != identityConfigSourceFlag ||
+		report.IdentityConfig.ClusterSPIFFEIDClassNameSource != identityConfigSourceFlag {
+		t.Fatalf("identityConfig = %#v, want flag sources", report.IdentityConfig)
+	}
+	if report.Desired.SPIFFEID != "spiffe://example.org/ns/tenant-a/objective/objective-a" ||
+		report.Desired.ClassName != "kleym" {
+		t.Fatalf("desired = %#v, want flag-rendered output", report.Desired)
+	}
+	if len(report.Observed.Drift) != 0 {
+		t.Fatalf("expected no drift, got %#v", report.Observed.Drift)
+	}
+	if len(report.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", report.Findings)
+	}
+}
+
+func TestInspectBindingMissingStatusOperatorConfigUsesDefaultsAndWarns(t *testing.T) {
+	binding := testInspectionBinding()
+	binding.Status.TrustDomain = ""
+	binding.Status.ClusterSPIFFEIDClassName = ""
+	pool := testInspectionPool("pool-a")
+	objective := testInspectionObjective("objective-a", "pool-a")
+	rendered, err := inspectionPlan(binding, objective, pool)
+	if err != nil {
+		t.Fatalf("render test identity: %v", err)
+	}
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
+	pod := testInspectionPod("model-server-a", "model-server")
+
+	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed, pod)
+	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
+	if err != nil {
+		t.Fatalf("InspectBinding returned error: %v", err)
+	}
+
+	if report.IdentityConfig.TrustDomainSource != identityConfigSourceDefault ||
+		report.IdentityConfig.ClusterSPIFFEIDClassNameSource != identityConfigSourceDefault {
+		t.Fatalf("identityConfig = %#v, want default sources", report.IdentityConfig)
+	}
+	assertFinding(t, report.Findings, findingIdentityConfigMissing, BindingInspectionFindingSeverityWarning, reasonIdentityConfigMissing)
+	if len(report.Observed.Drift) != 0 {
+		t.Fatalf("expected no drift, got %#v", report.Observed.Drift)
+	}
+}
+
+func TestInspectBindingStatusOperatorConfigSupportsClasslessOutput(t *testing.T) {
+	binding := testInspectionPoolOnlyBinding()
+	binding.Status.TrustDomain = identity.DefaultTrustDomain
+	binding.Status.ClusterSPIFFEIDClassName = ""
+	pool := testInspectionPool("pool-a")
+	rendered, err := inspectionPlan(binding, nil, pool)
+	if err != nil {
+		t.Fatalf("render test identity: %v", err)
+	}
+	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
+	pod := testInspectionPod("model-server-a", "model-server")
+
+	inspector := newTestBindingInspector(t, nil, binding, pool, managed, pod)
+	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
+	if err != nil {
+		t.Fatalf("InspectBinding returned error: %v", err)
+	}
+
+	if report.IdentityConfig.ClusterSPIFFEIDClassNameSource != identityConfigSourceBindingStatus {
+		t.Fatalf("identityConfig = %#v, want class source bindingStatus", report.IdentityConfig)
+	}
+	if report.Desired.ClassName != "" {
+		t.Fatalf("desired className = %q, want classless", report.Desired.ClassName)
 	}
 	if len(report.Observed.Drift) != 0 {
 		t.Fatalf("expected no drift, got %#v", report.Observed.Drift)
@@ -357,8 +464,7 @@ func newTestBindingInspectorWithIdentityConfig(
 	t.Helper()
 
 	inspector := newTestBindingInspectorWithListErrors(t, listErr, nil, objects...)
-	inspector.trustDomain = identityConfig.trustDomain
-	inspector.clusterSPIFFEIDClassName = identityConfig.clusterSPIFFEIDClassName
+	inspector.identityConfig = identityConfig
 	return inspector
 }
 
@@ -402,8 +508,7 @@ func newTestBindingInspectorWithListErrors(
 		now: func() time.Time {
 			return time.Date(2026, 5, 18, 10, 11, 12, 0, time.UTC)
 		},
-		trustDomain:              identityConfig.trustDomain,
-		clusterSPIFFEIDClassName: identityConfig.clusterSPIFFEIDClassName,
+		identityConfig: identityConfig,
 	}
 }
 
@@ -458,6 +563,10 @@ func testInspectionBinding() *kleymv1alpha1.InferenceIdentityBinding {
 			ServiceAccountName: "model-sa",
 			Mode:               kleymv1alpha1.InferenceIdentityBindingModePerObjective,
 			ContainerName:      "model-server",
+		},
+		Status: kleymv1alpha1.InferenceIdentityBindingStatus{
+			TrustDomain:              identity.DefaultTrustDomain,
+			ClusterSPIFFEIDClassName: "",
 		},
 	}
 }

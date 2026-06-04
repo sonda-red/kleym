@@ -155,6 +155,15 @@ type InferenceIdentityBindingStatus struct {
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
+	// trustDomain is the operator trust domain used when rendering the latest status.
+	// +optional
+	TrustDomain string `json:"trustDomain,omitempty"`
+
+	// clusterSPIFFEIDClassName is the operator ClusterSPIFFEID class name used
+	// when rendering the latest status. Empty means classless ClusterSPIFFEID output.
+	// +optional
+	ClusterSPIFFEIDClassName string `json:"clusterSPIFFEIDClassName,omitempty"`
+
 	// computedSpiffeIDs lists the SPIFFE IDs produced from the binding references.
 	// +optional
 	ComputedSpiffeIDs []ComputedSpiffeIDStatus `json:"computedSpiffeIDs,omitempty"`
