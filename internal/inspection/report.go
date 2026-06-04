@@ -42,15 +42,24 @@ type BindingInspectionCapability string
 
 // BindingInspectionReport captures the JSON contract for `kleym inspect binding -o json`.
 type BindingInspectionReport struct {
-	SchemaVersion string                         `json:"schemaVersion"`
-	Kind          string                         `json:"kind"`
-	GeneratedAt   string                         `json:"generatedAt"`
-	BindingRef    BindingInspectionBindingRef    `json:"bindingRef"`
-	Resolved      BindingInspectionResolvedInput `json:"resolvedInput"`
-	Desired       BindingInspectionDesiredState  `json:"desired"`
-	Observed      BindingInspectionObservedState `json:"observed"`
-	Findings      []BindingInspectionFinding     `json:"findings"`
-	Capabilities  BindingInspectionCapabilities  `json:"capabilities"`
+	SchemaVersion  string                          `json:"schemaVersion"`
+	Kind           string                          `json:"kind"`
+	GeneratedAt    string                          `json:"generatedAt"`
+	IdentityConfig BindingInspectionIdentityConfig `json:"identityConfig,omitempty"`
+	BindingRef     BindingInspectionBindingRef     `json:"bindingRef"`
+	Resolved       BindingInspectionResolvedInput  `json:"resolvedInput"`
+	Desired        BindingInspectionDesiredState   `json:"desired"`
+	Observed       BindingInspectionObservedState  `json:"observed"`
+	Findings       []BindingInspectionFinding      `json:"findings"`
+	Capabilities   BindingInspectionCapabilities   `json:"capabilities"`
+}
+
+// BindingInspectionIdentityConfig records which identity configuration inspection used.
+type BindingInspectionIdentityConfig struct {
+	TrustDomain                    string `json:"trustDomain,omitempty"`
+	TrustDomainSource              string `json:"trustDomainSource,omitempty"`
+	ClusterSPIFFEIDClassName       string `json:"clusterSPIFFEIDClassName,omitempty"`
+	ClusterSPIFFEIDClassNameSource string `json:"clusterSPIFFEIDClassNameSource,omitempty"`
 }
 
 // BindingInspectionBindingRef identifies the binding being inspected.
@@ -220,6 +229,11 @@ func writeBindingInspectionReportText(w io.Writer, report BindingInspectionRepor
 	appendTextLine(&builder, "  PoolRef: %s", textTargetRef(report.BindingRef.PoolRef))
 	appendTextLine(&builder, "  ObjectiveRef: %s", textTargetRef(report.BindingRef.ObjectiveRef))
 	appendTextConditions(&builder, "  ", report.BindingRef.Conditions)
+
+	appendTextLine(&builder, "")
+	appendTextLine(&builder, "Identity config:")
+	appendTextLine(&builder, "  TrustDomain: %s (%s)", textString(report.IdentityConfig.TrustDomain), textString(report.IdentityConfig.TrustDomainSource))
+	appendTextLine(&builder, "  ClusterSPIFFEID className: %s (%s)", textString(report.IdentityConfig.ClusterSPIFFEIDClassName), textString(report.IdentityConfig.ClusterSPIFFEIDClassNameSource))
 
 	appendTextLine(&builder, "")
 	appendTextLine(&builder, "Identity:")

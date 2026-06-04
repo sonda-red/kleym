@@ -29,23 +29,31 @@ import (
 )
 
 const (
-	findingBindingNotFound      = "binding-not-found"
-	findingInvalidRef           = "invalid-ref"
-	findingDependencyMissing    = "dependency-missing"
-	findingUnsafeSelector       = "unsafe-selector"
-	findingRenderFailure        = "render-failure"
-	findingKleymCollision       = "kleym-collision"
-	findingZeroEligibleWorkload = "zero-eligible-workloads"
-	findingUnsupportedSelector  = "unsupported-selector"
-	findingObservedDrift        = "observed-drift"
-	findingRBACLimited          = "rbac-limited"
-	reasonZeroEligibleWorkload  = "ZeroEligibleWorkloads"
-	reasonUnsupportedSelector   = "UnsupportedSelector"
-	reasonObservedDrift         = "ObservedDrift"
-	reasonRBACLimited           = "Forbidden"
-	conditionTypeConflict       = "Conflict"
-	clusterSPIFFEIDResourceName = "clusterspiffeids"
-	podResourceName             = "pods"
+	findingBindingNotFound       = "binding-not-found"
+	findingInvalidRef            = "invalid-ref"
+	findingDependencyMissing     = "dependency-missing"
+	findingUnsafeSelector        = "unsafe-selector"
+	findingRenderFailure         = "render-failure"
+	findingKleymCollision        = "kleym-collision"
+	findingZeroEligibleWorkload  = "zero-eligible-workloads"
+	findingUnsupportedSelector   = "unsupported-selector"
+	findingObservedDrift         = "observed-drift"
+	findingRBACLimited           = "rbac-limited"
+	findingIdentityConfigMissing = "identity-config-undiscovered"
+	reasonZeroEligibleWorkload   = "ZeroEligibleWorkloads"
+	reasonUnsupportedSelector    = "UnsupportedSelector"
+	reasonObservedDrift          = "ObservedDrift"
+	reasonRBACLimited            = "Forbidden"
+	reasonIdentityConfigMissing  = "IdentityConfigUndiscovered"
+	conditionTypeConflict        = "Conflict"
+	clusterSPIFFEIDResourceName  = "clusterspiffeids"
+	podResourceName              = "pods"
+)
+
+const (
+	identityConfigSourceBindingStatus = "bindingStatus"
+	identityConfigSourceDefault       = "default"
+	identityConfigSourceFlag          = "flag"
 )
 
 var (
@@ -57,11 +65,13 @@ var (
 
 // Config describes Kubernetes access settings for live binding inspection.
 type Config struct {
-	Context                  string
-	Kubeconfig               string
-	Timeout                  time.Duration
-	TrustDomain              string
-	ClusterSPIFFEIDClassName string
+	Context                          string
+	Kubeconfig                       string
+	Timeout                          time.Duration
+	TrustDomain                      string
+	TrustDomainOverride              bool
+	ClusterSPIFFEIDClassName         string
+	ClusterSPIFFEIDClassNameOverride bool
 }
 
 // BindingInspector inspects one binding and returns the stable report model.
@@ -70,11 +80,10 @@ type BindingInspector interface {
 }
 
 type bindingInspector struct {
-	client                   client.Client
-	mapper                   meta.RESTMapper
-	now                      func() time.Time
-	trustDomain              string
-	clusterSPIFFEIDClassName string
+	client         client.Client
+	mapper         meta.RESTMapper
+	now            func() time.Time
+	identityConfig inspectionIdentityConfig
 }
 
 // NewKubernetesBindingInspector returns a read-only Kubernetes-backed binding inspector.
@@ -111,17 +120,26 @@ func NewKubernetesBindingInspector(config Config) (BindingInspector, error) {
 	}
 
 	return &bindingInspector{
-		client:                   kubeClient,
-		mapper:                   mapper,
-		now:                      time.Now,
-		trustDomain:              identityConfig.trustDomain,
-		clusterSPIFFEIDClassName: identityConfig.clusterSPIFFEIDClassName,
+		client:         kubeClient,
+		mapper:         mapper,
+		now:            time.Now,
+		identityConfig: identityConfig,
 	}, nil
 }
 
 type inspectionIdentityConfig struct {
-	trustDomain              string
-	clusterSPIFFEIDClassName string
+	trustDomain                      string
+	trustDomainOverride              bool
+	clusterSPIFFEIDClassName         string
+	clusterSPIFFEIDClassNameOverride bool
+}
+
+type resolvedIdentityConfig struct {
+	trustDomain                    string
+	trustDomainSource              string
+	clusterSPIFFEIDClassName       string
+	clusterSPIFFEIDClassNameSource string
+	discovered                     bool
 }
 
 func normalizedInspectionIdentityConfig(config Config) (inspectionIdentityConfig, error) {
@@ -130,8 +148,10 @@ func normalizedInspectionIdentityConfig(config Config) (inspectionIdentityConfig
 		trustDomain = identity.DefaultTrustDomain
 	}
 	identityConfig := inspectionIdentityConfig{
-		trustDomain:              trustDomain,
-		clusterSPIFFEIDClassName: config.ClusterSPIFFEIDClassName,
+		trustDomain:                      trustDomain,
+		trustDomainOverride:              config.TrustDomainOverride,
+		clusterSPIFFEIDClassName:         config.ClusterSPIFFEIDClassName,
+		clusterSPIFFEIDClassNameOverride: config.ClusterSPIFFEIDClassNameOverride,
 	}
 	if err := ValidateOperatorIdentityConfig(identityConfig.trustDomain, identityConfig.clusterSPIFFEIDClassName); err != nil {
 		return inspectionIdentityConfig{}, err
@@ -157,6 +177,46 @@ func ValidateOperatorIdentityConfig(trustDomain string, clusterSPIFFEIDClassName
 		return fmt.Errorf("clusterspiffeidClassName must not include leading or trailing whitespace")
 	}
 	return nil
+}
+
+// resolveIdentityConfig applies the CLI precedence contract from docs/spec/cli.md.
+func (i *bindingInspector) resolveIdentityConfig(
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	report *BindingInspectionReport,
+) resolvedIdentityConfig {
+	config := resolvedIdentityConfig{
+		trustDomain:                    i.identityConfig.trustDomain,
+		trustDomainSource:              identityConfigSourceDefault,
+		clusterSPIFFEIDClassName:       i.identityConfig.clusterSPIFFEIDClassName,
+		clusterSPIFFEIDClassNameSource: identityConfigSourceDefault,
+	}
+
+	if binding.Status.TrustDomain != "" {
+		config.discovered = true
+		config.trustDomain = binding.Status.TrustDomain
+		config.trustDomainSource = identityConfigSourceBindingStatus
+		config.clusterSPIFFEIDClassName = binding.Status.ClusterSPIFFEIDClassName
+		config.clusterSPIFFEIDClassNameSource = identityConfigSourceBindingStatus
+	}
+	if i.identityConfig.trustDomainOverride {
+		config.trustDomain = i.identityConfig.trustDomain
+		config.trustDomainSource = identityConfigSourceFlag
+	}
+	if i.identityConfig.clusterSPIFFEIDClassNameOverride {
+		config.clusterSPIFFEIDClassName = i.identityConfig.clusterSPIFFEIDClassName
+		config.clusterSPIFFEIDClassNameSource = identityConfigSourceFlag
+	}
+
+	report.IdentityConfig = BindingInspectionIdentityConfig{
+		TrustDomain:                    config.trustDomain,
+		TrustDomainSource:              config.trustDomainSource,
+		ClusterSPIFFEIDClassName:       config.clusterSPIFFEIDClassName,
+		ClusterSPIFFEIDClassNameSource: config.clusterSPIFFEIDClassNameSource,
+	}
+	if !config.discovered {
+		report.Findings = append(report.Findings, identityConfigUndiscoveredFinding(binding, config))
+	}
+	return config
 }
 
 func newBindingInspectionScheme() *runtime.Scheme {
@@ -214,9 +274,10 @@ func (i *bindingInspector) InspectBinding(ctx context.Context, namespace string,
 	report.Capabilities.PeerBindings = BindingInspectionCapabilityPartial
 	report.BindingRef = bindingInspectionBindingRef(binding)
 	i.addCollisionFinding(binding, &report)
+	identityConfig := i.resolveIdentityConfig(binding, &report)
 
-	rendered, desiredReady := i.inspectDesiredState(ctx, binding, availableObjectiveGVKs, availablePoolGVKs, &report)
-	i.inspectObservedState(ctx, binding, rendered, desiredReady, &report)
+	rendered, desiredReady := i.inspectDesiredState(ctx, binding, availableObjectiveGVKs, availablePoolGVKs, identityConfig, &report)
+	i.inspectObservedState(ctx, binding, rendered, desiredReady, identityConfig, &report)
 	i.inspectEligibleWorkloads(ctx, binding, rendered, desiredReady, &report)
 
 	report = normalizeBindingInspectionReport(report)
@@ -260,6 +321,7 @@ func (i *bindingInspector) inspectDesiredState(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	availableObjectiveGVKs []schema.GroupVersionKind,
 	availablePoolGVKs []schema.GroupVersionKind,
+	identityConfig resolvedIdentityConfig,
 	report *BindingInspectionReport,
 ) (identity.RenderedIdentity, bool) {
 	mode := identity.EffectiveMode(binding.Spec.Mode)
@@ -332,7 +394,7 @@ func (i *bindingInspector) inspectDesiredState(
 	}
 	rendered, err := identity.PlanIdentity(identity.PlanInput{
 		Binding:              binding,
-		TrustDomain:          i.trustDomain,
+		TrustDomain:          identityConfig.trustDomain,
 		ObjectiveName:        objectiveName,
 		PoolName:             pool.GetName(),
 		PodSelector:          poolSelector,
@@ -355,7 +417,7 @@ func (i *bindingInspector) inspectDesiredState(
 		WorkloadSelectors:   append([]string(nil), rendered.Selectors...),
 		SelectorProvenance:  &provenance,
 		Hint:                spirecm.BuildClusterSPIFFEIDHint(binding),
-		ClassName:           i.clusterSPIFFEIDClassName,
+		ClassName:           identityConfig.clusterSPIFFEIDClassName,
 		Fallback:            boolPtr(spirecm.RenderFallback()),
 	}
 	report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
@@ -367,6 +429,7 @@ func (i *bindingInspector) inspectObservedState(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	rendered identity.RenderedIdentity,
 	desiredReady bool,
+	identityConfig resolvedIdentityConfig,
 	report *BindingInspectionReport,
 ) {
 	objects, err := i.listManagedClusterSPIFFEIDs(ctx, binding)
@@ -422,7 +485,7 @@ func (i *bindingInspector) inspectObservedState(
 		return
 	}
 
-	desired := spirecm.DesiredClusterSPIFFEID(binding, rendered, i.clusterSPIFFEIDClassName)
+	desired := spirecm.DesiredClusterSPIFFEID(binding, rendered, identityConfig.clusterSPIFFEIDClassName)
 	if len(objects) == 0 {
 		report.Observed.Drift = append(report.Observed.Drift, BindingInspectionDriftEntry{
 			Field:    "metadata.name",
@@ -815,6 +878,33 @@ func unsupportedSelectorFinding(
 			Version:   kleymv1alpha1.GroupVersion.Version,
 			Kind:      "InferenceIdentityBinding",
 		}},
+	}
+}
+
+// identityConfigUndiscoveredFinding records compatibility fallback for bindings
+// reconciled before operator render settings were published in status.
+func identityConfigUndiscoveredFinding(
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	config resolvedIdentityConfig,
+) BindingInspectionFinding {
+	sourceSummary := "CLI defaults"
+	if config.trustDomainSource == identityConfigSourceFlag ||
+		config.clusterSPIFFEIDClassNameSource == identityConfigSourceFlag {
+		sourceSummary = "CLI flags and defaults"
+	}
+	if config.trustDomainSource == identityConfigSourceFlag &&
+		config.clusterSPIFFEIDClassNameSource == identityConfigSourceFlag {
+		sourceSummary = "CLI flags"
+	}
+	return BindingInspectionFinding{
+		ID:       findingIdentityConfigMissing,
+		Severity: BindingInspectionFindingSeverityWarning,
+		Reason:   reasonIdentityConfigMissing,
+		Message: fmt.Sprintf(
+			"operator config was not discovered from InferenceIdentityBinding status; using %s",
+			sourceSummary,
+		),
+		AffectedRefs: []BindingInspectionTargetRef{bindingInspectionBindingTargetRef(binding)},
 	}
 }
 

@@ -31,6 +31,7 @@ func TestBindingInspectionReportJSONMinimalShape(t *testing.T) {
 		"desired",
 		"findings",
 		"generatedAt",
+		"identityConfig",
 		"kind",
 		"observed",
 		"resolvedInput",
@@ -49,7 +50,7 @@ func TestBindingInspectionReportJSONMinimalShape(t *testing.T) {
 	if got["generatedAt"] != "" {
 		t.Fatalf("expected empty generatedAt, got %#v", got["generatedAt"])
 	}
-	for _, key := range []string{"bindingRef", "resolvedInput", "desired", "observed", "capabilities"} {
+	for _, key := range []string{"bindingRef", "identityConfig", "resolvedInput", "desired", "observed", "capabilities"} {
 		section, ok := got[key].(map[string]any)
 		if !ok {
 			t.Fatalf("expected %s to encode as object, got %#v", key, got[key])
@@ -71,6 +72,12 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 	fallbackFalse := false
 	report := BindingInspectionReport{
 		GeneratedAt: "2026-05-18T09:10:11Z",
+		IdentityConfig: BindingInspectionIdentityConfig{
+			TrustDomain:                    "kleym.sonda.red",
+			TrustDomainSource:              identityConfigSourceBindingStatus,
+			ClusterSPIFFEIDClassName:       "kleym",
+			ClusterSPIFFEIDClassNameSource: identityConfigSourceBindingStatus,
+		},
 		BindingRef: BindingInspectionBindingRef{
 			Namespace:  "tenant-a",
 			Name:       "binding-a",
@@ -194,6 +201,7 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 	}
 
 	assertObjectKeys(t, got["bindingRef"], "conditions", "generation", "mode", "name", "namespace", "objectiveRef", "poolRef")
+	assertObjectKeys(t, got["identityConfig"], "clusterSPIFFEIDClassName", "clusterSPIFFEIDClassNameSource", "trustDomain", "trustDomainSource")
 	assertObjectKeys(t, got["resolvedInput"], "containerName", "objectiveRef", "poolRef", "poolSelector", "selectorProvenance", "servedGVKs")
 	assertObjectKeys(t, got["desired"], "className", "clusterSPIFFEIDName", "fallback", "hint", "podSelector", "selectorProvenance", "spiffeID", "workloadSelectors")
 	assertObjectKeys(t, got["observed"], "drift", "eligibleWorkloads", "managedClusterSPIFFEIDs")

@@ -4,6 +4,7 @@ metadata:
   name: binding
   namespace: kleym-reference-inference
 status:
+  trustDomain: kleym.sonda.red
   computedSpiffeIDs:
     - mode: PerObjective
       spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/objective/reference-objective
