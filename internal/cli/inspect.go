@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/sonda-red/kleym/internal/identity"
 	"github.com/sonda-red/kleym/internal/inspection"
 	"github.com/spf13/cobra"
 )
@@ -31,6 +32,10 @@ func newInspectCommand(opts *Options) *cobra.Command {
 		Use:   "inspect",
 		Short: "Inspect Kleym resources",
 	}
+	inspectCmd.PersistentFlags().StringVarP(&opts.Namespace, "namespace", "n", defaultNamespace, "Namespace for binding lookup")
+	inspectCmd.PersistentFlags().BoolVar(&opts.Strict, "strict", false, "Treat warning findings as errors")
+	inspectCmd.PersistentFlags().StringVar(&opts.TrustDomain, "trust-domain", identity.DefaultTrustDomain, "SPIRE Server trust domain used when rendering SPIFFE IDs")
+	inspectCmd.PersistentFlags().StringVar(&opts.ClusterSPIFFEIDClassName, "clusterspiffeid-class-name", "", "Optional SPIRE Controller Manager ClusterSPIFFEID className expected on managed resources")
 
 	bindingCmd := &cobra.Command{
 		Use:   "binding <name>",
