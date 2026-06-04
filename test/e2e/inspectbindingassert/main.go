@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	referenceNamespace             = "kleym-reference-inference"
-	referenceBinding               = "binding"
-	referenceSPIFFEID              = "spiffe://kleym.sonda.red/ns/kleym-reference-inference/objective/reference-objective"
-	referenceClusterSPIFFEID       = "kleym-kleym-reference-inference-binding-objective-3b2d9110"
-	referenceEligibleContainerName = "model-server"
+	referenceNamespace            = "kleym-reference-inference"
+	referenceBinding              = "binding"
+	referenceSPIFFEID             = "spiffe://kleym.sonda.red/ns/kleym-reference-inference/objective/reference-objective"
+	referenceClusterSPIFFEID      = "kleym-kleym-reference-inference-binding-objective-3b2d9110"
+	referenceMatchedContainerName = "model-server"
 )
 
 func main() {
@@ -56,30 +56,19 @@ func assertSuccess(report inspection.BindingInspectionReport) {
 	assertEqual("bindingRef.namespace", report.BindingRef.Namespace, referenceNamespace)
 	assertEqual("bindingRef.name", report.BindingRef.Name, referenceBinding)
 	assertEqual("bindingRef.mode", report.BindingRef.Mode, "PerObjective")
-	assertEqual("desired.clusterSPIFFEIDName", report.Desired.ClusterSPIFFEIDName, referenceClusterSPIFFEID)
-	assertEqual("desired.spiffeID", report.Desired.SPIFFEID, referenceSPIFFEID)
-	assertEqual("capabilities.clusterspiffeids", string(report.Capabilities.ClusterSPIFFEIDs), "full")
-	assertEqual("capabilities.pods", string(report.Capabilities.Pods), "full")
+	assertEqual("renderedClusterSPIFFEID.name", report.RenderedClusterSPIFFEID.Name, referenceClusterSPIFFEID)
+	assertEqual("renderedIdentity.spiffeID", report.RenderedIdentity.SPIFFEID, referenceSPIFFEID)
 
 	if len(report.Findings) != 0 {
 		failf("findings = %d, want 0: %#v", len(report.Findings), report.Findings)
 	}
-	if len(report.Observed.Drift) != 0 {
-		failf("observed.drift = %d, want 0: %#v", len(report.Observed.Drift), report.Observed.Drift)
-	}
-	if len(report.Observed.ManagedClusterSPIFFEIDs) != 1 {
-		failf("managed ClusterSPIFFEIDs = %d, want 1", len(report.Observed.ManagedClusterSPIFFEIDs))
-	}
-	assertEqual("observed.managedClusterSPIFFEIDs[0].name", report.Observed.ManagedClusterSPIFFEIDs[0].Name, referenceClusterSPIFFEID)
-	assertEqual("observed.managedClusterSPIFFEIDs[0].spiffeID", report.Observed.ManagedClusterSPIFFEIDs[0].SPIFFEID, referenceSPIFFEID)
-	assertEligibleContainer(report)
+	assertMatchedContainer(report)
 }
 
 // assertNotFound verifies the CLI still emits machine-readable JSON for a missing binding.
 func assertNotFound(report inspection.BindingInspectionReport) {
 	assertCommonShape(report)
 	assertEqual("bindingRef.namespace", report.BindingRef.Namespace, referenceNamespace)
-	assertEqual("capabilities.binding", string(report.Capabilities.Binding), "full")
 
 	for _, finding := range report.Findings {
 		if finding.ID == "binding-not-found" && finding.Severity == inspection.BindingInspectionFindingSeverityError {
@@ -98,14 +87,14 @@ func assertCommonShape(report inspection.BindingInspectionReport) {
 	}
 }
 
-// assertEligibleContainer proves live pod visibility contributed to the inspection result.
-func assertEligibleContainer(report inspection.BindingInspectionReport) {
-	for _, workload := range report.Observed.EligibleWorkloads {
-		if workload.Namespace == referenceNamespace && workload.Container == referenceEligibleContainerName {
+// assertMatchedContainer proves live pod visibility contributed to the inspection result.
+func assertMatchedContainer(report inspection.BindingInspectionReport) {
+	for _, workload := range report.MatchedPods {
+		if workload.Namespace == referenceNamespace && workload.Container == referenceMatchedContainerName {
 			return
 		}
 	}
-	failf("missing eligible %q container workload: %#v", referenceEligibleContainerName, report.Observed.EligibleWorkloads)
+	failf("missing matched %q container workload: %#v", referenceMatchedContainerName, report.MatchedPods)
 }
 
 func assertEqual(field string, got string, want string) {

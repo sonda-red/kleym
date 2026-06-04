@@ -120,9 +120,12 @@ func TestInspectBindingDefaultTextUsesRunner(t *testing.T) {
 	fakeReport := inspection.NewBindingInspectionReport()
 	fakeReport.GeneratedAt = "2026-05-18T10:11:12Z"
 	fakeReport.BindingRef = inspection.BindingInspectionBindingRef{Namespace: "tenant-a", Name: "binding-a", Mode: "PerObjective"}
-	fakeReport.Desired = inspection.BindingInspectionDesiredState{
-		ClusterSPIFFEIDName: "tenant-a-binding-a-1234abcd",
-		SPIFFEID:            "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+	fakeReport.RenderedIdentity = inspection.BindingInspectionRenderedIdentity{
+		SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+	}
+	fakeReport.RenderedClusterSPIFFEID = inspection.BindingInspectionRenderedClusterSPIFFEID{
+		Name:     "tenant-a-binding-a-1234abcd",
+		SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
 	}
 	newBindingInspectionRunner = func(_ *Options) (inspection.BindingInspector, error) {
 		return fixedInspectionRunner{report: fakeReport}, nil
@@ -144,12 +147,14 @@ func TestInspectBindingDefaultTextUsesRunner(t *testing.T) {
 
 	out := stdout.String()
 	for _, want := range []string{
-		"BindingInspectionReport",
-		"Name: tenant-a/binding-a",
+		"Binding: tenant-a/binding-a",
 		"Mode: PerObjective",
-		"ClusterSPIFFEID: tenant-a-binding-a-1234abcd",
+		"Identity:",
 		"SPIFFE ID: spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
-		"Findings:\n  none",
+		"ClusterSPIFFEID:",
+		"Name: tenant-a-binding-a-1234abcd",
+		"Findings: none",
+		"Exit code: 0",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("text output missing %q\n%s", want, out)
@@ -303,20 +308,20 @@ func TestInspectionExitCodeMapping(t *testing.T) {
 		{
 			name: "warning is non-fatal without strict",
 			report: inspection.BindingInspectionReport{Findings: []inspection.BindingInspectionFinding{{
-				ID:       "observed-drift",
+				ID:       "rbac-limited",
 				Severity: inspection.BindingInspectionFindingSeverityWarning,
-				Reason:   "ObservedDrift",
-				Message:  "drift",
+				Reason:   "Forbidden",
+				Message:  "pods are not readable",
 			}}},
 			wantCode: exitOK,
 		},
 		{
 			name: "warning is inspection issue with strict",
 			report: inspection.BindingInspectionReport{Findings: []inspection.BindingInspectionFinding{{
-				ID:       "observed-drift",
+				ID:       "rbac-limited",
 				Severity: inspection.BindingInspectionFindingSeverityWarning,
-				Reason:   "ObservedDrift",
-				Message:  "drift",
+				Reason:   "Forbidden",
+				Message:  "pods are not readable",
 			}}},
 			strict:   true,
 			wantCode: exitInspectionIssue,

@@ -27,13 +27,13 @@ func TestBindingInspectionReportJSONMinimalShape(t *testing.T) {
 
 	wantTopLevelKeys := []string{
 		"bindingRef",
-		"capabilities",
-		"desired",
 		"findings",
 		"generatedAt",
 		"identityConfig",
 		"kind",
-		"observed",
+		"matchedPods",
+		"renderedClusterSPIFFEID",
+		"renderedIdentity",
 		"resolvedInput",
 		"schemaVersion",
 	}
@@ -50,7 +50,7 @@ func TestBindingInspectionReportJSONMinimalShape(t *testing.T) {
 	if got["generatedAt"] != "" {
 		t.Fatalf("expected empty generatedAt, got %#v", got["generatedAt"])
 	}
-	for _, key := range []string{"bindingRef", "identityConfig", "resolvedInput", "desired", "observed", "capabilities"} {
+	for _, key := range []string{"bindingRef", "identityConfig", "resolvedInput", "renderedIdentity", "renderedClusterSPIFFEID"} {
 		section, ok := got[key].(map[string]any)
 		if !ok {
 			t.Fatalf("expected %s to encode as object, got %#v", key, got[key])
@@ -65,6 +65,13 @@ func TestBindingInspectionReportJSONMinimalShape(t *testing.T) {
 	}
 	if len(findings) != 0 {
 		t.Fatalf("expected empty findings array, got %#v", findings)
+	}
+	matchedPods, ok := got["matchedPods"].([]any)
+	if !ok {
+		t.Fatalf("expected matchedPods array, got %#v", got["matchedPods"])
+	}
+	if len(matchedPods) != 0 {
+		t.Fatalf("expected empty matchedPods array, got %#v", matchedPods)
 	}
 }
 
@@ -127,9 +134,8 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 				SafetySelectors:      []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 			},
 		},
-		Desired: BindingInspectionDesiredState{
-			ClusterSPIFFEIDName: "tenant-a-binding-a-1234abcd",
-			SPIFFEID:            "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+		RenderedIdentity: BindingInspectionRenderedIdentity{
+			SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
 			PodSelector: map[string]any{
 				"matchLabels": map[string]any{"app": "pool-a"},
 			},
@@ -144,50 +150,37 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 				ContainerSelector:    "k8s:container-name:model-server",
 				SafetySelectors:      []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 			},
+		},
+		RenderedClusterSPIFFEID: BindingInspectionRenderedClusterSPIFFEID{
+			Name:     "tenant-a-binding-a-1234abcd",
+			SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+			PodSelector: map[string]any{
+				"matchLabels": map[string]any{"app": "pool-a"},
+			},
+			WorkloadSelectors: []string{
+				"k8s:ns:tenant-a",
+				"k8s:sa:model-sa",
+				"k8s:pod-label:app:pool-a",
+				"k8s:container-name:model-server",
+			},
 			Hint:      "tenant-a/binding-a",
 			ClassName: "kleym",
 			Fallback:  &fallbackFalse,
 		},
-		Observed: BindingInspectionObservedState{
-			ManagedClusterSPIFFEIDs: []BindingInspectionManagedClusterSPIFFEID{{
-				Name:     "tenant-a-binding-a-1234abcd",
-				SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
-				PodSelector: map[string]any{
-					"matchLabels": map[string]any{"app": "pool-a"},
-				},
-				WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
-				Hint:              "tenant-a/binding-a",
-				ClassName:         "kleym",
-				Fallback:          &fallbackFalse,
-			}},
-			Drift: []BindingInspectionDriftEntry{{
-				Field:    "spec.workloadSelectorTemplates",
-				Desired:  "k8s:container-name:model-server",
-				Observed: "k8s:container-name:old-server",
-			}},
-			EligibleWorkloads: []BindingInspectionEligibleWorkload{{
-				Namespace: "tenant-a",
-				Pod:       "pool-a-5f9488d7fb-q1w2e",
-				Container: "model-server",
-			}},
-		},
+		MatchedPods: []BindingInspectionMatchedPod{{
+			Namespace: "tenant-a",
+			Pod:       "pool-a-5f9488d7fb-q1w2e",
+			Container: "model-server",
+		}},
 		Findings: []BindingInspectionFinding{{
-			ID:       "observed-drift",
+			ID:       "rbac-limited",
 			Severity: BindingInspectionFindingSeverityWarning,
-			Reason:   "SelectorDrift",
-			Message:  "observed workload selectors differ from desired state",
+			Reason:   "Forbidden",
+			Message:  "pods are not readable",
 			AffectedRefs: []BindingInspectionTargetRef{{
-				Name: "tenant-a-binding-a-1234abcd",
-				Kind: "ClusterSPIFFEID",
+				Name: "pods",
 			}},
 		}},
-		Capabilities: BindingInspectionCapabilities{
-			Binding:          BindingInspectionCapabilityFull,
-			GAIEResources:    BindingInspectionCapabilityFull,
-			ClusterSPIFFEIDs: BindingInspectionCapabilityFull,
-			PeerBindings:     BindingInspectionCapabilityPartial,
-			Pods:             BindingInspectionCapabilitySkipped,
-		},
 	}
 
 	data, err := json.Marshal(normalizeBindingInspectionReport(report))
@@ -203,9 +196,12 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 	assertObjectKeys(t, got["bindingRef"], "conditions", "generation", "mode", "name", "namespace", "objectiveRef", "poolRef")
 	assertObjectKeys(t, got["identityConfig"], "clusterSPIFFEIDClassName", "clusterSPIFFEIDClassNameSource", "trustDomain", "trustDomainSource")
 	assertObjectKeys(t, got["resolvedInput"], "containerName", "objectiveRef", "poolRef", "poolSelector", "selectorProvenance", "servedGVKs")
-	assertObjectKeys(t, got["desired"], "className", "clusterSPIFFEIDName", "fallback", "hint", "podSelector", "selectorProvenance", "spiffeID", "workloadSelectors")
-	assertObjectKeys(t, got["observed"], "drift", "eligibleWorkloads", "managedClusterSPIFFEIDs")
-	assertObjectKeys(t, got["capabilities"], "binding", "clusterspiffeids", "gaieResources", "peerBindings", "pods")
+	assertObjectKeys(t, got["renderedIdentity"], "podSelector", "selectorProvenance", "spiffeID", "workloadSelectors")
+	assertObjectKeys(t, got["renderedClusterSPIFFEID"], "className", "fallback", "hint", "name", "podSelector", "spiffeID", "workloadSelectors")
+	matchedPods := got["matchedPods"].([]any)
+	if len(matchedPods) != 1 {
+		t.Fatalf("matchedPods = %#v, want one pod", matchedPods)
+	}
 
 	resolved := got["resolvedInput"].(map[string]any)
 	assertObjectKeys(t, resolved["selectorProvenance"], "containerSelector", "poolDerivedSelectors", "safetySelectors")
@@ -318,47 +314,30 @@ func TestWriteBindingInspectionReportTextRepresentativeReport(t *testing.T) {
 				Kind:      "InferenceObjective",
 			},
 		},
-		Desired: BindingInspectionDesiredState{
-			ClusterSPIFFEIDName: "tenant-a-binding-a-1234abcd",
-			SPIFFEID:            "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
-			PodSelector:         map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
-			WorkloadSelectors:   []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
-			Hint:                "tenant-a/binding-a",
-			Fallback:            &fallbackFalse,
+		RenderedIdentity: BindingInspectionRenderedIdentity{
+			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+			PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
+			WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 		},
-		Observed: BindingInspectionObservedState{
-			ManagedClusterSPIFFEIDs: []BindingInspectionManagedClusterSPIFFEID{{
-				Name:              "tenant-a-binding-a-1234abcd",
-				SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
-				PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
-				WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
-				Hint:              "tenant-a/binding-a",
-				Fallback:          &fallbackFalse,
-			}},
-			Drift: []BindingInspectionDriftEntry{{
-				Field:    "spec.workloadSelectorTemplates",
-				Desired:  "k8s:container-name:model-server",
-				Observed: "k8s:container-name:old-server",
-			}},
-			EligibleWorkloads: []BindingInspectionEligibleWorkload{{
-				Namespace: "tenant-a",
-				Pod:       "pool-a-12345",
-				Container: "model-server",
-			}},
+		RenderedClusterSPIFFEID: BindingInspectionRenderedClusterSPIFFEID{
+			Name:              "tenant-a-binding-a-1234abcd",
+			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+			PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
+			WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
+			Hint:              "tenant-a/binding-a",
+			Fallback:          &fallbackFalse,
 		},
-		Findings: []BindingInspectionFinding{{
-			ID:       findingObservedDrift,
-			Severity: BindingInspectionFindingSeverityWarning,
-			Reason:   reasonObservedDrift,
-			Message:  "observed managed ClusterSPIFFEID state differs from desired state",
+		MatchedPods: []BindingInspectionMatchedPod{{
+			Namespace: "tenant-a",
+			Pod:       "pool-a-12345",
+			Container: "model-server",
 		}},
-		Capabilities: BindingInspectionCapabilities{
-			Binding:          BindingInspectionCapabilityFull,
-			GAIEResources:    BindingInspectionCapabilityFull,
-			ClusterSPIFFEIDs: BindingInspectionCapabilityFull,
-			PeerBindings:     BindingInspectionCapabilityPartial,
-			Pods:             BindingInspectionCapabilitySkipped,
-		},
+		Findings: []BindingInspectionFinding{{
+			ID:       findingRBACLimited,
+			Severity: BindingInspectionFindingSeverityWarning,
+			Reason:   reasonRBACLimited,
+			Message:  "pods are not readable",
+		}},
 	}
 
 	var out bytes.Buffer
@@ -367,35 +346,22 @@ func TestWriteBindingInspectionReportTextRepresentativeReport(t *testing.T) {
 	}
 	text := out.String()
 	for _, want := range []string{
-		"BindingInspectionReport",
-		"GeneratedAt: 2026-05-18T09:10:11Z",
-		"Summary:",
-		"Status: Warning",
-		"Findings: 1",
-		"Drift: 1",
-		"Eligible workloads: 1",
-		"Inspection completeness: partial",
-		"Partial checks:\n    - Peer bindings",
-		"Name: tenant-a/binding-a",
-		"PoolRef: inference.networking.k8s.io/v1/InferencePool tenant-a/pool-a",
+		"Binding: tenant-a/binding-a",
+		"Mode: PerObjective",
+		"Source: InferencePool tenant-a/pool-a",
+		"Objective: InferenceObjective tenant-a/objective-a",
 		"Identity:",
-		"ClusterSPIFFEID: tenant-a-binding-a-1234abcd",
-		"Selectors:",
-		"Pod selector: {\"matchLabels\":{\"app\":\"pool-a\"}}",
-		"Observed:",
-		"Managed ClusterSPIFFEIDs: 1",
-		"Status: drift detected",
-		"Field: workloadSelectorTemplates",
-		"Desired: k8s:container-name:model-server",
-		"Observed: k8s:container-name:old-server",
-		"Eligible workloads:",
-		"- tenant-a/pool-a-12345 container=model-server",
+		"SPIFFE ID: spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+		"namespace: tenant-a",
+		"serviceAccount: model-sa",
+		"ClusterSPIFFEID:",
+		"Name: tenant-a-binding-a-1234abcd",
+		"Matched pods:",
+		"tenant-a/pool-a-12345 container=model-server",
 		"Findings:",
-		"Severity: warning",
-		"Reason: ObservedDrift",
-		"Message: observed managed ClusterSPIFFEID state differs from desired state",
-		"Capabilities:",
-		"Peer bindings: partial",
+		"Warning Forbidden",
+		"pods are not readable",
+		"Exit code: 0",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("text output missing %q\n%s", want, text)
@@ -403,7 +369,7 @@ func TestWriteBindingInspectionReportTextRepresentativeReport(t *testing.T) {
 	}
 }
 
-func TestWriteBindingInspectionReportTextHealthyPartialSummary(t *testing.T) {
+func TestWriteBindingInspectionReportTextHealthy(t *testing.T) {
 	fallbackFalse := false
 	report := BindingInspectionReport{
 		GeneratedAt: "2026-05-18T09:10:11Z",
@@ -412,30 +378,26 @@ func TestWriteBindingInspectionReportTextHealthyPartialSummary(t *testing.T) {
 			Name:      "binding-a",
 			Mode:      "PerObjective",
 		},
-		Desired: BindingInspectionDesiredState{
-			ClusterSPIFFEIDName: "tenant-a-binding-a-1234abcd",
-			SPIFFEID:            "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
-			PodSelector:         map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
-			WorkloadSelectors:   []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
-			Hint:                "tenant-a/binding-a",
-			Fallback:            &fallbackFalse,
+		RenderedIdentity: BindingInspectionRenderedIdentity{
+			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+			PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
+			WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 		},
-		Observed: BindingInspectionObservedState{
-			ManagedClusterSPIFFEIDs: []BindingInspectionManagedClusterSPIFFEID{{
-				Name: "tenant-a-binding-a-1234abcd",
-			}},
-			EligibleWorkloads: []BindingInspectionEligibleWorkload{{
-				Namespace: "tenant-a",
-				Pod:       "pool-a-12345",
-				Container: "model-server",
-			}},
+		RenderedClusterSPIFFEID: BindingInspectionRenderedClusterSPIFFEID{
+			Name:              "tenant-a-binding-a-1234abcd",
+			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+			PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
+			WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
+			Hint:              "tenant-a/binding-a",
+			Fallback:          &fallbackFalse,
 		},
+		MatchedPods: []BindingInspectionMatchedPod{{
+			Namespace: "tenant-a",
+			Pod:       "pool-a-12345",
+			Container: "model-server",
+		}},
 		Capabilities: BindingInspectionCapabilities{
-			Binding:          BindingInspectionCapabilityFull,
-			GAIEResources:    BindingInspectionCapabilityFull,
-			ClusterSPIFFEIDs: BindingInspectionCapabilityFull,
-			PeerBindings:     BindingInspectionCapabilityPartial,
-			Pods:             BindingInspectionCapabilityFull,
+			Pods: BindingInspectionCapabilityFull,
 		},
 	}
 
@@ -445,23 +407,20 @@ func TestWriteBindingInspectionReportTextHealthyPartialSummary(t *testing.T) {
 	}
 	text := out.String()
 	for _, want := range []string{
-		"Summary:\n  Status: OK",
+		"Binding: tenant-a/binding-a",
+		"Identity:",
+		"ClusterSPIFFEID:",
+		"Matched pods:",
+		"tenant-a/pool-a-12345 container=model-server",
 		"Findings: none",
-		"Drift: none",
-		"Eligible workloads: 1",
-		"Inspection completeness: partial",
-		"Partial checks:\n    - Peer bindings",
-		"Status: matches desired",
-		"Findings:\n  none",
+		"Exit code: 0",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("text output missing %q\n%s", want, text)
 		}
 	}
 	for _, unwanted := range []string{
-		"SPIFFE ID: (none)",
-		"Pod selector: (none)",
-		"Workload selectors:\n              none",
+		"Capabilities:",
 	} {
 		if strings.Contains(text, unwanted) {
 			t.Fatalf("text output unexpectedly contains %q\n%s", unwanted, text)
@@ -512,7 +471,7 @@ func TestWriteBindingInspectionReportTextEmptyFindings(t *testing.T) {
 	if err := WriteBindingInspectionReport(&out, outputText, NewBindingInspectionReport()); err != nil {
 		t.Fatalf("write text report: %v", err)
 	}
-	if got := out.String(); !strings.Contains(got, "Findings:\n  none\n") {
+	if got := out.String(); !strings.Contains(got, "Findings: none\n") {
 		t.Fatalf("expected empty findings text, got:\n%s", got)
 	}
 }

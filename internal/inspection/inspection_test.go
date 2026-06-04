@@ -46,32 +46,25 @@ func TestInspectBindingSuccessReport(t *testing.T) {
 		t.Fatalf("bindingRef = %#v", report.BindingRef)
 	}
 	expectedName := spirecm.BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, rendered.Mode, rendered.SpiffeID)
-	if report.Desired.ClusterSPIFFEIDName != expectedName {
-		t.Fatalf("desired name = %q, want %q", report.Desired.ClusterSPIFFEIDName, expectedName)
+	if report.RenderedClusterSPIFFEID.Name != expectedName {
+		t.Fatalf("rendered ClusterSPIFFEID name = %q, want %q", report.RenderedClusterSPIFFEID.Name, expectedName)
 	}
-	if len(report.Observed.ManagedClusterSPIFFEIDs) != 1 {
-		t.Fatalf("managed ClusterSPIFFEIDs = %d, want 1", len(report.Observed.ManagedClusterSPIFFEIDs))
-	}
-	if len(report.Observed.EligibleWorkloads) != 1 ||
-		report.Observed.EligibleWorkloads[0].Container != "model-server" {
-		t.Fatalf("eligible workloads = %#v, want model-server container", report.Observed.EligibleWorkloads)
-	}
-	if len(report.Observed.Drift) != 0 {
-		t.Fatalf("expected no drift, got %#v", report.Observed.Drift)
+	if len(report.MatchedPods) != 1 ||
+		report.MatchedPods[0].Container != "model-server" {
+		t.Fatalf("matched pods = %#v, want model-server container", report.MatchedPods)
 	}
 	if len(report.Findings) != 0 {
 		t.Fatalf("expected no findings, got %#v", report.Findings)
 	}
 	if report.Capabilities.Binding != BindingInspectionCapabilityFull ||
 		report.Capabilities.GAIEResources != BindingInspectionCapabilityFull ||
-		report.Capabilities.ClusterSPIFFEIDs != BindingInspectionCapabilityFull ||
 		report.Capabilities.PeerBindings != BindingInspectionCapabilityPartial ||
 		report.Capabilities.Pods != BindingInspectionCapabilityFull {
 		t.Fatalf("unexpected capabilities: %#v", report.Capabilities)
 	}
 }
 
-func TestInspectBindingPoolOnlyEligibleWorkload(t *testing.T) {
+func TestInspectBindingPoolOnlyMatchedPod(t *testing.T) {
 	binding := testInspectionPoolOnlyBinding()
 	pool := testInspectionPool("pool-a")
 	rendered, err := inspectionPlan(binding, nil, pool)
@@ -90,12 +83,12 @@ func TestInspectBindingPoolOnlyEligibleWorkload(t *testing.T) {
 	if report.BindingRef.Mode != string(kleymv1alpha1.InferenceIdentityBindingModePoolOnly) {
 		t.Fatalf("bindingRef mode = %q, want PoolOnly", report.BindingRef.Mode)
 	}
-	if len(report.Observed.EligibleWorkloads) != 1 {
-		t.Fatalf("eligible workloads = %#v, want one pod", report.Observed.EligibleWorkloads)
+	if len(report.MatchedPods) != 1 {
+		t.Fatalf("matched pods = %#v, want one pod", report.MatchedPods)
 	}
-	workload := report.Observed.EligibleWorkloads[0]
+	workload := report.MatchedPods[0]
 	if workload.Namespace != "tenant-a" || workload.Pod != "model-server-a" || workload.Container != "" {
-		t.Fatalf("eligible workload = %#v, want pod-level workload without container", workload)
+		t.Fatalf("matched pod = %#v, want pod-level match without container", workload)
 	}
 	if len(report.Findings) != 0 {
 		t.Fatalf("expected no findings, got %#v", report.Findings)
@@ -127,22 +120,15 @@ func TestInspectBindingUsesStatusOperatorConfig(t *testing.T) {
 		t.Fatalf("InspectBinding returned error: %v", err)
 	}
 
-	if report.Desired.SPIFFEID != "spiffe://example.org/ns/tenant-a/objective/objective-a" {
-		t.Fatalf("desired spiffeID = %q, want configured trust domain", report.Desired.SPIFFEID)
+	if report.RenderedIdentity.SPIFFEID != "spiffe://example.org/ns/tenant-a/objective/objective-a" {
+		t.Fatalf("rendered spiffeID = %q, want configured trust domain", report.RenderedIdentity.SPIFFEID)
 	}
-	if report.Desired.ClassName != "kleym" {
-		t.Fatalf("desired className = %q, want kleym", report.Desired.ClassName)
+	if report.RenderedClusterSPIFFEID.ClassName != "kleym" {
+		t.Fatalf("rendered className = %q, want kleym", report.RenderedClusterSPIFFEID.ClassName)
 	}
 	if report.IdentityConfig.TrustDomainSource != identityConfigSourceBindingStatus ||
 		report.IdentityConfig.ClusterSPIFFEIDClassNameSource != identityConfigSourceBindingStatus {
 		t.Fatalf("identityConfig = %#v, want bindingStatus sources", report.IdentityConfig)
-	}
-	if len(report.Observed.ManagedClusterSPIFFEIDs) != 1 ||
-		report.Observed.ManagedClusterSPIFFEIDs[0].ClassName != "kleym" {
-		t.Fatalf("managed ClusterSPIFFEIDs = %#v, want className kleym", report.Observed.ManagedClusterSPIFFEIDs)
-	}
-	if len(report.Observed.Drift) != 0 {
-		t.Fatalf("expected no drift, got %#v", report.Observed.Drift)
 	}
 	if len(report.Findings) != 0 {
 		t.Fatalf("expected no findings, got %#v", report.Findings)
@@ -177,12 +163,9 @@ func TestInspectBindingFlagsOverrideStatusOperatorConfig(t *testing.T) {
 		report.IdentityConfig.ClusterSPIFFEIDClassNameSource != identityConfigSourceFlag {
 		t.Fatalf("identityConfig = %#v, want flag sources", report.IdentityConfig)
 	}
-	if report.Desired.SPIFFEID != "spiffe://example.org/ns/tenant-a/objective/objective-a" ||
-		report.Desired.ClassName != "kleym" {
-		t.Fatalf("desired = %#v, want flag-rendered output", report.Desired)
-	}
-	if len(report.Observed.Drift) != 0 {
-		t.Fatalf("expected no drift, got %#v", report.Observed.Drift)
+	if report.RenderedIdentity.SPIFFEID != "spiffe://example.org/ns/tenant-a/objective/objective-a" ||
+		report.RenderedClusterSPIFFEID.ClassName != "kleym" {
+		t.Fatalf("rendered output = %#v / %#v, want flag-rendered output", report.RenderedIdentity, report.RenderedClusterSPIFFEID)
 	}
 	if len(report.Findings) != 0 {
 		t.Fatalf("expected no findings, got %#v", report.Findings)
@@ -213,9 +196,6 @@ func TestInspectBindingMissingStatusOperatorConfigUsesDefaultsAndWarns(t *testin
 		t.Fatalf("identityConfig = %#v, want default sources", report.IdentityConfig)
 	}
 	assertFinding(t, report.Findings, findingIdentityConfigMissing, BindingInspectionFindingSeverityWarning, reasonIdentityConfigMissing)
-	if len(report.Observed.Drift) != 0 {
-		t.Fatalf("expected no drift, got %#v", report.Observed.Drift)
-	}
 }
 
 func TestInspectBindingStatusOperatorConfigSupportsClasslessOutput(t *testing.T) {
@@ -239,11 +219,8 @@ func TestInspectBindingStatusOperatorConfigSupportsClasslessOutput(t *testing.T)
 	if report.IdentityConfig.ClusterSPIFFEIDClassNameSource != identityConfigSourceBindingStatus {
 		t.Fatalf("identityConfig = %#v, want class source bindingStatus", report.IdentityConfig)
 	}
-	if report.Desired.ClassName != "" {
-		t.Fatalf("desired className = %q, want classless", report.Desired.ClassName)
-	}
-	if len(report.Observed.Drift) != 0 {
-		t.Fatalf("expected no drift, got %#v", report.Observed.Drift)
+	if report.RenderedClusterSPIFFEID.ClassName != "" {
+		t.Fatalf("rendered className = %q, want classless", report.RenderedClusterSPIFFEID.ClassName)
 	}
 	if len(report.Findings) != 0 {
 		t.Fatalf("expected no findings, got %#v", report.Findings)
@@ -294,7 +271,7 @@ func TestInspectBindingInvalidServiceAccountNameFinding(t *testing.T) {
 	assertFinding(t, report.Findings, findingRenderFailure, BindingInspectionFindingSeverityError, "InvalidServiceAccountName")
 }
 
-func TestInspectBindingObservedDriftFinding(t *testing.T) {
+func TestInspectBindingIgnoresManagedClusterSPIFFEIDState(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
@@ -303,43 +280,43 @@ func TestInspectBindingObservedDriftFinding(t *testing.T) {
 		t.Fatalf("render test identity: %v", err)
 	}
 	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
-	if err := unstructured.SetNestedField(managed.Object, "spiffe://drifted.example.test/ns/tenant-a/objective/objective-a", "spec", "spiffeIDTemplate"); err != nil {
-		t.Fatalf("set drifted spiffeIDTemplate: %v", err)
+	if err := unstructured.SetNestedField(managed.Object, "spiffe://wrong.example.test/ns/tenant-a/objective/objective-a", "spec", "spiffeIDTemplate"); err != nil {
+		t.Fatalf("set mismatched spiffeIDTemplate: %v", err)
 	}
+	pod := testInspectionPod("model-server-a", "model-server")
 
-	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed)
+	inspector := newTestBindingInspector(t, nil, binding, pool, objective, managed, pod)
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
 	if err != nil {
 		t.Fatalf("InspectBinding returned error: %v", err)
 	}
 
-	assertFinding(t, report.Findings, findingObservedDrift, BindingInspectionFindingSeverityWarning, reasonObservedDrift)
-	if len(report.Observed.Drift) == 0 {
-		t.Fatalf("expected drift entries")
-	}
-	if !driftContainsField(report.Observed.Drift, "spec.spiffeIDTemplate") {
-		t.Fatalf("expected spiffeIDTemplate drift, got %#v", report.Observed.Drift)
+	if len(report.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", report.Findings)
 	}
 }
 
-func TestInspectBindingMissingManagedOutputDrift(t *testing.T) {
+func TestInspectBindingDoesNotRequireManagedClusterSPIFFEID(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
-	inspector := newTestBindingInspector(t, nil, binding, pool, objective)
+	pod := testInspectionPod("model-server-a", "model-server")
+	inspector := newTestBindingInspector(t, nil, binding, pool, objective, pod)
 
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
 	if err != nil {
 		t.Fatalf("InspectBinding returned error: %v", err)
 	}
 
-	assertFinding(t, report.Findings, findingObservedDrift, BindingInspectionFindingSeverityWarning, reasonObservedDrift)
-	if !driftContainsField(report.Observed.Drift, "metadata.name") {
-		t.Fatalf("expected missing managed object drift, got %#v", report.Observed.Drift)
+	if len(report.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", report.Findings)
+	}
+	if report.RenderedClusterSPIFFEID.Name == "" {
+		t.Fatalf("expected rendered ClusterSPIFFEID output")
 	}
 }
 
-func TestInspectBindingZeroEligibleWorkloadsFinding(t *testing.T) {
+func TestInspectBindingZeroMatchedPodsFinding(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
@@ -355,32 +332,30 @@ func TestInspectBindingZeroEligibleWorkloadsFinding(t *testing.T) {
 		t.Fatalf("InspectBinding returned error: %v", err)
 	}
 
-	assertFinding(t, report.Findings, findingZeroEligibleWorkload, BindingInspectionFindingSeverityInfo, reasonZeroEligibleWorkload)
+	assertFinding(t, report.Findings, findingZeroMatchedPods, BindingInspectionFindingSeverityInfo, reasonZeroMatchedPods)
 	if report.Capabilities.Pods != BindingInspectionCapabilityFull {
 		t.Fatalf("pods capability = %q, want full", report.Capabilities.Pods)
 	}
 }
 
-func TestInspectBindingRBACLimitedClusterSPIFFEIDs(t *testing.T) {
+func TestInspectBindingIgnoresClusterSPIFFEIDListRBAC(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
+	pod := testInspectionPod("model-server-a", "model-server")
 	forbidden := apierrors.NewForbidden(
-		schema.GroupResource{Group: spirecm.ClusterSPIFFEIDGVK().Group, Resource: clusterSPIFFEIDResourceName},
+		schema.GroupResource{Group: spirecm.ClusterSPIFFEIDGVK().Group, Resource: "clusterspiffeids"},
 		"",
 		errors.New("denied"),
 	)
-	inspector := newTestBindingInspector(t, forbidden, binding, pool, objective)
+	inspector := newTestBindingInspector(t, forbidden, binding, pool, objective, pod)
 
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
 	if err != nil {
 		t.Fatalf("InspectBinding returned error: %v", err)
 	}
 
-	assertFinding(t, report.Findings, findingRBACLimited, BindingInspectionFindingSeverityWarning, reasonRBACLimited)
-	if report.Capabilities.ClusterSPIFFEIDs != BindingInspectionCapabilityPartial {
-		t.Fatalf("clusterspiffeids capability = %q, want partial", report.Capabilities.ClusterSPIFFEIDs)
-	}
+	assertNoFinding(t, report.Findings, findingRBACLimited)
 }
 
 func TestInspectBindingRBACLimitedPods(t *testing.T) {
@@ -410,25 +385,23 @@ func TestInspectBindingRBACLimitedPods(t *testing.T) {
 	}
 }
 
-func TestInspectBindingNoMatchClusterSPIFFEIDCapability(t *testing.T) {
+func TestInspectBindingDoesNotRequireClusterSPIFFEIDCRD(t *testing.T) {
 	binding := testInspectionBinding()
 	pool := testInspectionPool("pool-a")
 	objective := testInspectionObjective("objective-a", "pool-a")
+	pod := testInspectionPod("model-server-a", "model-server")
 	noMatch := &meta.NoKindMatchError{
 		GroupKind:        spirecm.ClusterSPIFFEIDGVK().GroupKind(),
 		SearchedVersions: []string{spirecm.ClusterSPIFFEIDGVK().Version},
 	}
-	inspector := newTestBindingInspector(t, noMatch, binding, pool, objective)
+	inspector := newTestBindingInspector(t, noMatch, binding, pool, objective, pod)
 
 	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
-	if !errors.Is(err, ErrBindingInspectionErrorFindings) {
-		t.Fatalf("InspectBinding error = %v, want error findings", err)
+	if err != nil {
+		t.Fatalf("InspectBinding returned error: %v", err)
 	}
 
-	assertFinding(t, report.Findings, findingDependencyMissing, BindingInspectionFindingSeverityError, "ClusterSPIFFEIDCRDMissing")
-	if report.Capabilities.ClusterSPIFFEIDs != BindingInspectionCapabilityUnknown {
-		t.Fatalf("clusterspiffeids capability = %q, want unknown", report.Capabilities.ClusterSPIFFEIDs)
-	}
+	assertNoFinding(t, report.Findings, findingDependencyMissing)
 }
 
 func TestInspectBindingCollisionConditionFinding(t *testing.T) {
@@ -631,13 +604,14 @@ func assertFinding(
 	t.Fatalf("finding %s/%s/%s not found in %#v", id, severity, reason, findings)
 }
 
-func driftContainsField(entries []BindingInspectionDriftEntry, field string) bool {
-	for _, entry := range entries {
-		if entry.Field == field {
-			return true
+func assertNoFinding(t *testing.T, findings []BindingInspectionFinding, id string) {
+	t.Helper()
+
+	for _, finding := range findings {
+		if finding.ID == id {
+			t.Fatalf("unexpected finding %s in %#v", id, findings)
 		}
 	}
-	return false
 }
 
 type fixedInspectionRunner struct {
@@ -725,13 +699,6 @@ func inspectionPlanWithTrustDomain(
 		PodSelector:          poolSelector,
 		PoolDerivedSelectors: poolDerivedSelectors,
 	})
-}
-
-func TestStringSliceFromAnySkipsNonStrings(t *testing.T) {
-	got := stringSliceFromAny([]any{"a", 1, "b"})
-	if strings.Join(got, ",") != "a,b" {
-		t.Fatalf("stringSliceFromAny = %#v", got)
-	}
 }
 
 var _ client.Client = listErrorClient{}

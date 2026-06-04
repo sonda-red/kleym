@@ -2,7 +2,6 @@ package inspection
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -35,18 +34,15 @@ const (
 	findingUnsafeSelector        = "unsafe-selector"
 	findingRenderFailure         = "render-failure"
 	findingKleymCollision        = "kleym-collision"
-	findingZeroEligibleWorkload  = "zero-eligible-workloads"
+	findingZeroMatchedPods       = "zero-matched-pods"
 	findingUnsupportedSelector   = "unsupported-selector"
-	findingObservedDrift         = "observed-drift"
 	findingRBACLimited           = "rbac-limited"
 	findingIdentityConfigMissing = "identity-config-undiscovered"
-	reasonZeroEligibleWorkload   = "ZeroEligibleWorkloads"
+	reasonZeroMatchedPods        = "ZeroMatchedPods"
 	reasonUnsupportedSelector    = "UnsupportedSelector"
-	reasonObservedDrift          = "ObservedDrift"
 	reasonRBACLimited            = "Forbidden"
 	reasonIdentityConfigMissing  = "IdentityConfigUndiscovered"
 	conditionTypeConflict        = "Conflict"
-	clusterSPIFFEIDResourceName  = "clusterspiffeids"
 	podResourceName              = "pods"
 )
 
@@ -276,9 +272,8 @@ func (i *bindingInspector) InspectBinding(ctx context.Context, namespace string,
 	i.addCollisionFinding(binding, &report)
 	identityConfig := i.resolveIdentityConfig(binding, &report)
 
-	rendered, desiredReady := i.inspectDesiredState(ctx, binding, availableObjectiveGVKs, availablePoolGVKs, identityConfig, &report)
-	i.inspectObservedState(ctx, binding, rendered, desiredReady, identityConfig, &report)
-	i.inspectEligibleWorkloads(ctx, binding, rendered, desiredReady, &report)
+	rendered, renderedReady := i.inspectRenderedIdentity(ctx, binding, availableObjectiveGVKs, availablePoolGVKs, identityConfig, &report)
+	i.inspectMatchedPods(ctx, binding, rendered, renderedReady, &report)
 
 	report = normalizeBindingInspectionReport(report)
 	if HasErrorSeverityFinding(report.Findings) {
@@ -316,7 +311,7 @@ func filterAvailableInspectionGVKs(
 	return available, nil
 }
 
-func (i *bindingInspector) inspectDesiredState(
+func (i *bindingInspector) inspectRenderedIdentity(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	availableObjectiveGVKs []schema.GroupVersionKind,
@@ -410,122 +405,37 @@ func (i *bindingInspector) inspectDesiredState(
 	report.Resolved.PoolSelector = poolSelector
 	report.Resolved.ContainerName = binding.Spec.ContainerName
 	report.Resolved.SelectorProvenance = &provenance
-	report.Desired = BindingInspectionDesiredState{
-		ClusterSPIFFEIDName: spirecm.BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, rendered.Mode, rendered.SpiffeID),
-		SPIFFEID:            rendered.SpiffeID,
-		PodSelector:         rendered.PodSelector,
-		WorkloadSelectors:   append([]string(nil), rendered.Selectors...),
-		SelectorProvenance:  &provenance,
-		Hint:                spirecm.BuildClusterSPIFFEIDHint(binding),
-		ClassName:           identityConfig.clusterSPIFFEIDClassName,
-		Fallback:            boolPtr(spirecm.RenderFallback()),
+	clusterSPIFFEIDName := spirecm.BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, rendered.Mode, rendered.SpiffeID)
+	clusterSPIFFEIDHint := spirecm.BuildClusterSPIFFEIDHint(binding)
+	clusterSPIFFEIDFallback := boolPtr(spirecm.RenderFallback())
+	report.RenderedIdentity = BindingInspectionRenderedIdentity{
+		SPIFFEID:           rendered.SpiffeID,
+		PodSelector:        rendered.PodSelector,
+		WorkloadSelectors:  append([]string(nil), rendered.Selectors...),
+		SelectorProvenance: &provenance,
+	}
+	report.RenderedClusterSPIFFEID = BindingInspectionRenderedClusterSPIFFEID{
+		Name:              clusterSPIFFEIDName,
+		SPIFFEID:          rendered.SpiffeID,
+		PodSelector:       rendered.PodSelector,
+		WorkloadSelectors: append([]string(nil), rendered.Selectors...),
+		Hint:              clusterSPIFFEIDHint,
+		ClassName:         identityConfig.clusterSPIFFEIDClassName,
+		Fallback:          clusterSPIFFEIDFallback,
 	}
 	report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
 	return rendered, true
 }
 
-func (i *bindingInspector) inspectObservedState(
+// inspectMatchedPods reports live pod/container selector matches when identity output can be rendered.
+func (i *bindingInspector) inspectMatchedPods(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	rendered identity.RenderedIdentity,
-	desiredReady bool,
-	identityConfig resolvedIdentityConfig,
+	renderedReady bool,
 	report *BindingInspectionReport,
 ) {
-	objects, err := i.listManagedClusterSPIFFEIDs(ctx, binding)
-	if err != nil {
-		switch {
-		case meta.IsNoMatchError(err):
-			report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityUnknown
-			report.Findings = append(report.Findings, BindingInspectionFinding{
-				ID:       findingDependencyMissing,
-				Severity: BindingInspectionFindingSeverityError,
-				Reason:   "ClusterSPIFFEIDCRDMissing",
-				Message:  "ClusterSPIFFEID CRD is not installed",
-				AffectedRefs: []BindingInspectionTargetRef{{
-					Name:  clusterSPIFFEIDResourceName,
-					Group: spirecm.ClusterSPIFFEIDGVK().Group,
-					Kind:  spirecm.ClusterSPIFFEIDGVK().Kind,
-				}},
-			})
-		case apierrors.IsForbidden(err):
-			report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityPartial
-			report.Findings = append(report.Findings, BindingInspectionFinding{
-				ID:           findingRBACLimited,
-				Severity:     BindingInspectionFindingSeverityWarning,
-				Reason:       reasonRBACLimited,
-				Message:      "ClusterSPIFFEID resources are not readable",
-				AffectedRefs: []BindingInspectionTargetRef{{Name: clusterSPIFFEIDResourceName}},
-			})
-		default:
-			report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityUnknown
-			report.Findings = append(report.Findings, BindingInspectionFinding{
-				ID:           findingDependencyMissing,
-				Severity:     BindingInspectionFindingSeverityError,
-				Reason:       "ClusterSPIFFEIDListFailed",
-				Message:      err.Error(),
-				AffectedRefs: []BindingInspectionTargetRef{{Name: clusterSPIFFEIDResourceName}},
-			})
-		}
-		return
-	}
-
-	report.Capabilities.ClusterSPIFFEIDs = BindingInspectionCapabilityFull
-	for _, object := range objects {
-		report.Observed.ManagedClusterSPIFFEIDs = append(
-			report.Observed.ManagedClusterSPIFFEIDs,
-			managedClusterSPIFFEIDReport(object),
-		)
-	}
-	sort.Slice(report.Observed.ManagedClusterSPIFFEIDs, func(left, right int) bool {
-		return report.Observed.ManagedClusterSPIFFEIDs[left].Name < report.Observed.ManagedClusterSPIFFEIDs[right].Name
-	})
-
-	if !desiredReady {
-		return
-	}
-
-	desired := spirecm.DesiredClusterSPIFFEID(binding, rendered, identityConfig.clusterSPIFFEIDClassName)
-	if len(objects) == 0 {
-		report.Observed.Drift = append(report.Observed.Drift, BindingInspectionDriftEntry{
-			Field:    "metadata.name",
-			Desired:  desired.GetName(),
-			Observed: "",
-		})
-	}
-	for _, object := range objects {
-		report.Observed.Drift = append(report.Observed.Drift, driftEntries(desired, object)...)
-	}
-	if len(report.Observed.Drift) > 0 {
-		sort.Slice(report.Observed.Drift, func(left, right int) bool {
-			if report.Observed.Drift[left].Field == report.Observed.Drift[right].Field {
-				return report.Observed.Drift[left].Observed < report.Observed.Drift[right].Observed
-			}
-			return report.Observed.Drift[left].Field < report.Observed.Drift[right].Field
-		})
-		report.Findings = append(report.Findings, BindingInspectionFinding{
-			ID:       findingObservedDrift,
-			Severity: BindingInspectionFindingSeverityWarning,
-			Reason:   reasonObservedDrift,
-			Message:  "observed managed ClusterSPIFFEID state differs from desired state",
-			AffectedRefs: []BindingInspectionTargetRef{{
-				Name:  desired.GetName(),
-				Group: spirecm.ClusterSPIFFEIDGVK().Group,
-				Kind:  spirecm.ClusterSPIFFEIDGVK().Kind,
-			}},
-		})
-	}
-}
-
-// inspectEligibleWorkloads reports live pod/container selector matches when desired state can be rendered.
-func (i *bindingInspector) inspectEligibleWorkloads(
-	ctx context.Context,
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-	rendered identity.RenderedIdentity,
-	desiredReady bool,
-	report *BindingInspectionReport,
-) {
-	if !desiredReady {
+	if !renderedReady {
 		return
 	}
 
@@ -536,7 +446,7 @@ func (i *bindingInspector) inspectEligibleWorkloads(
 		return
 	}
 
-	pods, err := i.listEligiblePods(ctx, binding, rendered)
+	pods, err := i.listMatchingPods(ctx, binding, rendered)
 	if err != nil {
 		if apierrors.IsForbidden(err) {
 			report.Capabilities.Pods = BindingInspectionCapabilityPartial
@@ -561,18 +471,18 @@ func (i *bindingInspector) inspectEligibleWorkloads(
 	}
 
 	report.Capabilities.Pods = BindingInspectionCapabilityFull
-	report.Observed.EligibleWorkloads = eligibleWorkloadsFromPods(pods, selection, report)
-	sort.Slice(report.Observed.EligibleWorkloads, func(left, right int) bool {
-		return eligibleWorkloadSortKey(report.Observed.EligibleWorkloads[left]) <
-			eligibleWorkloadSortKey(report.Observed.EligibleWorkloads[right])
+	report.MatchedPods = matchedPodsFromPods(pods, selection, report)
+	sort.Slice(report.MatchedPods, func(left, right int) bool {
+		return matchedPodSortKey(report.MatchedPods[left]) <
+			matchedPodSortKey(report.MatchedPods[right])
 	})
-	if len(report.Observed.EligibleWorkloads) == 0 {
-		report.Findings = append(report.Findings, zeroEligibleWorkloadsFinding(binding))
+	if len(report.MatchedPods) == 0 {
+		report.Findings = append(report.Findings, zeroMatchedPodsFinding(binding))
 	}
 }
 
-// listEligiblePods narrows pod reads to the rendered pod selector and binding namespace.
-func (i *bindingInspector) listEligiblePods(
+// listMatchingPods narrows pod reads to the rendered pod selector and binding namespace.
+func (i *bindingInspector) listMatchingPods(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	rendered identity.RenderedIdentity,
@@ -594,31 +504,13 @@ func (i *bindingInspector) listEligiblePods(
 	return podList.Items, nil
 }
 
-func (i *bindingInspector) listManagedClusterSPIFFEIDs(
-	ctx context.Context,
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-) ([]*unstructured.Unstructured, error) {
-	list := &unstructured.UnstructuredList{}
-	gvk := spirecm.ClusterSPIFFEIDGVK()
-	list.SetGroupVersionKind(gvk.GroupVersion().WithKind(gvk.Kind + "List"))
-	if err := i.client.List(ctx, list, client.MatchingLabels(spirecm.ManagedClusterSPIFFEIDLabels(binding))); err != nil {
-		return nil, err
-	}
-
-	items := make([]*unstructured.Unstructured, 0, len(list.Items))
-	for item := range list.Items {
-		items = append(items, list.Items[item].DeepCopy())
-	}
-	return items, nil
-}
-
-// eligibleWorkloadsFromPods evaluates live pod/container matches for the already-rendered identity selectors.
-func eligibleWorkloadsFromPods(
+// matchedPodsFromPods evaluates live pod/container matches for the already-rendered identity selectors.
+func matchedPodsFromPods(
 	pods []corev1.Pod,
 	selection workloadSelection,
 	report *BindingInspectionReport,
-) []BindingInspectionEligibleWorkload {
-	workloads := []BindingInspectionEligibleWorkload{}
+) []BindingInspectionMatchedPod {
+	workloads := []BindingInspectionMatchedPod{}
 	for _, pod := range pods {
 		if !podMatchesSelection(pod, selection) {
 			continue
@@ -626,14 +518,14 @@ func eligibleWorkloadsFromPods(
 
 		matchingContainers := matchingPodContainers(pod, selection)
 		if selection.ContainerSelectorType == "" {
-			workloads = append(workloads, BindingInspectionEligibleWorkload{
+			workloads = append(workloads, BindingInspectionMatchedPod{
 				Namespace: pod.Namespace,
 				Pod:       pod.Name,
 			})
 			continue
 		}
 		for _, container := range matchingContainers {
-			workloads = append(workloads, BindingInspectionEligibleWorkload{
+			workloads = append(workloads, BindingInspectionMatchedPod{
 				Namespace: pod.Namespace,
 				Pod:       pod.Name,
 				Container: container.Name,
@@ -804,14 +696,14 @@ func podSelectorMatchLabels(selector map[string]any) (map[string]string, error) 
 	}
 	matchLabels, ok := rawMatchLabels.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("desired pod selector matchLabels must be an object")
+		return nil, fmt.Errorf("rendered pod selector matchLabels must be an object")
 	}
 
 	labels := make(map[string]string, len(matchLabels))
 	for key, value := range matchLabels {
 		text, ok := value.(string)
 		if !ok {
-			return nil, fmt.Errorf("desired pod selector matchLabels[%q] must be a string", key)
+			return nil, fmt.Errorf("rendered pod selector matchLabels[%q] must be a string", key)
 		}
 		labels[key] = text
 	}
@@ -841,12 +733,12 @@ func (i *bindingInspector) addCollisionFinding(
 	})
 }
 
-// zeroEligibleWorkloadsFinding records that readable pods did not match the rendered identity selectors.
-func zeroEligibleWorkloadsFinding(binding *kleymv1alpha1.InferenceIdentityBinding) BindingInspectionFinding {
+// zeroMatchedPodsFinding records that readable pods did not match the rendered identity selectors.
+func zeroMatchedPodsFinding(binding *kleymv1alpha1.InferenceIdentityBinding) BindingInspectionFinding {
 	return BindingInspectionFinding{
-		ID:       findingZeroEligibleWorkload,
+		ID:       findingZeroMatchedPods,
 		Severity: BindingInspectionFindingSeverityInfo,
-		Reason:   reasonZeroEligibleWorkload,
+		Reason:   reasonZeroMatchedPods,
 		Message:  "no currently readable pods match the rendered identity selectors",
 		AffectedRefs: []BindingInspectionTargetRef{{
 			Namespace: binding.Namespace,
@@ -868,7 +760,7 @@ func unsupportedSelectorFinding(
 		Severity: BindingInspectionFindingSeverityWarning,
 		Reason:   reasonUnsupportedSelector,
 		Message: fmt.Sprintf(
-			"pod eligibility cannot be fully evaluated because rendered selectors are unsupported by CLI pod inspection: %s",
+			"matched pods cannot be fully evaluated because rendered selectors are unsupported by CLI pod inspection: %s",
 			strings.Join(selectors, ", "),
 		),
 		AffectedRefs: []BindingInspectionTargetRef{{
@@ -1019,57 +911,6 @@ func selectorProvenance(
 	}
 }
 
-func managedClusterSPIFFEIDReport(object *unstructured.Unstructured) BindingInspectionManagedClusterSPIFFEID {
-	spec, _, _ := unstructured.NestedMap(object.Object, "spec")
-	spiffeID, _ := spec["spiffeIDTemplate"].(string)
-	podSelector, _ := spec["podSelector"].(map[string]any)
-	hint, _ := spec["hint"].(string)
-	className, _ := spec["className"].(string)
-	fallback, hasFallback := spec["fallback"].(bool)
-
-	report := BindingInspectionManagedClusterSPIFFEID{
-		Name:              object.GetName(),
-		SPIFFEID:          spiffeID,
-		PodSelector:       podSelector,
-		WorkloadSelectors: stringSliceFromAny(spec["workloadSelectorTemplates"]),
-		Hint:              hint,
-		ClassName:         className,
-		Conditions:        clusterSPIFFEIDConditions(object),
-	}
-	if hasFallback {
-		report.Fallback = boolPtr(fallback)
-	}
-	return report
-}
-
-func clusterSPIFFEIDConditions(object *unstructured.Unstructured) []metav1.Condition {
-	rawConditions, found, err := unstructured.NestedSlice(object.Object, "status", "conditions")
-	if err != nil || !found {
-		return nil
-	}
-	data, err := json.Marshal(rawConditions)
-	if err != nil {
-		return nil
-	}
-	var conditions []metav1.Condition
-	if err := json.Unmarshal(data, &conditions); err != nil {
-		return nil
-	}
-	return conditions
-}
-
-func driftEntries(desired *unstructured.Unstructured, observed *unstructured.Unstructured) []BindingInspectionDriftEntry {
-	entries := make([]BindingInspectionDriftEntry, 0)
-	for _, entry := range spirecm.DriftEntries(desired, observed) {
-		entries = append(entries, BindingInspectionDriftEntry{
-			Field:    entry.Field,
-			Desired:  entry.Desired,
-			Observed: entry.Observed,
-		})
-	}
-	return entries
-}
-
 // HasErrorSeverityFinding reports whether findings contain any error-severity item.
 func HasErrorSeverityFinding(findings []BindingInspectionFinding) bool {
 	for _, finding := range findings {
@@ -1090,27 +931,8 @@ func HasWarningSeverityFinding(findings []BindingInspectionFinding) bool {
 	return false
 }
 
-func eligibleWorkloadSortKey(workload BindingInspectionEligibleWorkload) string {
+func matchedPodSortKey(workload BindingInspectionMatchedPod) string {
 	return workload.Namespace + "/" + workload.Pod + "/" + workload.Container
-}
-
-func stringSliceFromAny(value any) []string {
-	switch typed := value.(type) {
-	case []string:
-		return append([]string(nil), typed...)
-	case []any:
-		result := make([]string, 0, len(typed))
-		for _, item := range typed {
-			text, ok := item.(string)
-			if !ok {
-				continue
-			}
-			result = append(result, text)
-		}
-		return result
-	default:
-		return nil
-	}
 }
 
 func setFromStrings(values []string) map[string]struct{} {

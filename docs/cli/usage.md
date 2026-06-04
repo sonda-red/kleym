@@ -67,7 +67,7 @@ bin/kleym inspect binding <name> -n <namespace> -o json
 | `--context` | Kubeconfig context name. |
 | `--kubeconfig` | Kubeconfig file path. |
 | `--timeout` | Inspection timeout. Must be greater than zero. |
-| `--trust-domain` | Override trust domain used to recompute desired SPIFFE IDs. If operator config is unavailable and this flag is omitted, inspection falls back to `kleym.sonda.red`. |
+| `--trust-domain` | Override trust domain used to render SPIFFE IDs. If operator config is unavailable and this flag is omitted, inspection falls back to `kleym.sonda.red`. |
 | `--clusterspiffeid-class-name` | Override expected `ClusterSPIFFEID.spec.className`. If operator config is unavailable and this flag is omitted, inspection falls back to classless output. |
 
 ## Access
@@ -77,16 +77,14 @@ The CLI needs Kubernetes API access to read the requested
 discovery failure before the binding can be read is fatal and may not emit a
 complete report.
 
-After the binding is readable, limited access to peer bindings, GAIE resources,
-managed `ClusterSPIFFEID` resources, or pods is reported through findings and
-capability states when inspection can continue.
+After the binding is readable, limited access to GAIE resources or pods is
+reported through findings when inspection can continue.
 
 Full inspection may need read access to:
 
 - `InferenceIdentityBinding` in the binding namespace
 - supported GAIE `InferencePool` and `InferenceObjective` resources
-- Kleym-managed `ClusterSPIFFEID` resources
-- pods in the binding namespace when eligible workload reporting is desired
+- pods in the binding namespace when matched pod reporting is enabled
 
 ## Boundary
 

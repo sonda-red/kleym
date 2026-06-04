@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,21 +38,24 @@ const (
 // BindingInspectionFindingSeverity is the stable severity enum for machine-readable findings.
 type BindingInspectionFindingSeverity string
 
-// BindingInspectionCapability is the stable completeness enum for machine-readable capabilities.
+// BindingInspectionCapability is the internal completeness enum used while building findings and text output.
 type BindingInspectionCapability string
 
 // BindingInspectionReport captures the JSON contract for `kleym inspect binding -o json`.
 type BindingInspectionReport struct {
-	SchemaVersion  string                          `json:"schemaVersion"`
-	Kind           string                          `json:"kind"`
-	GeneratedAt    string                          `json:"generatedAt"`
-	IdentityConfig BindingInspectionIdentityConfig `json:"identityConfig,omitempty"`
-	BindingRef     BindingInspectionBindingRef     `json:"bindingRef"`
-	Resolved       BindingInspectionResolvedInput  `json:"resolvedInput"`
-	Desired        BindingInspectionDesiredState   `json:"desired"`
-	Observed       BindingInspectionObservedState  `json:"observed"`
-	Findings       []BindingInspectionFinding      `json:"findings"`
-	Capabilities   BindingInspectionCapabilities   `json:"capabilities"`
+	SchemaVersion           string                                   `json:"schemaVersion"`
+	Kind                    string                                   `json:"kind"`
+	GeneratedAt             string                                   `json:"generatedAt"`
+	IdentityConfig          BindingInspectionIdentityConfig          `json:"identityConfig,omitempty"`
+	BindingRef              BindingInspectionBindingRef              `json:"bindingRef"`
+	Resolved                BindingInspectionResolvedInput           `json:"resolvedInput"`
+	RenderedIdentity        BindingInspectionRenderedIdentity        `json:"renderedIdentity"`
+	RenderedClusterSPIFFEID BindingInspectionRenderedClusterSPIFFEID `json:"renderedClusterSPIFFEID"`
+	MatchedPods             []BindingInspectionMatchedPod            `json:"matchedPods"`
+	Findings                []BindingInspectionFinding               `json:"findings"`
+
+	Capabilities BindingInspectionCapabilities `json:"-"`
+	ExitCode     *int                          `json:"-"`
 }
 
 // BindingInspectionIdentityConfig records which identity configuration inspection used.
@@ -106,46 +110,27 @@ type BindingInspectionSelectorProvenance struct {
 	SafetySelectors      []string `json:"safetySelectors,omitempty"`
 }
 
-// BindingInspectionDesiredState captures the deterministic output kleym would render.
-type BindingInspectionDesiredState struct {
-	ClusterSPIFFEIDName string                               `json:"clusterSPIFFEIDName,omitempty"`
-	SPIFFEID            string                               `json:"spiffeID,omitempty"`
-	PodSelector         map[string]any                       `json:"podSelector,omitempty"`
-	WorkloadSelectors   []string                             `json:"workloadSelectors,omitempty"`
-	SelectorProvenance  *BindingInspectionSelectorProvenance `json:"selectorProvenance,omitempty"`
-	Hint                string                               `json:"hint,omitempty"`
-	ClassName           string                               `json:"className,omitempty"`
-	Fallback            *bool                                `json:"fallback,omitempty"`
+// BindingInspectionRenderedIdentity captures the identity fields rendered from the binding.
+type BindingInspectionRenderedIdentity struct {
+	SPIFFEID           string                               `json:"spiffeID,omitempty"`
+	PodSelector        map[string]any                       `json:"podSelector,omitempty"`
+	WorkloadSelectors  []string                             `json:"workloadSelectors,omitempty"`
+	SelectorProvenance *BindingInspectionSelectorProvenance `json:"selectorProvenance,omitempty"`
 }
 
-// BindingInspectionObservedState captures current cluster state relevant to the binding.
-type BindingInspectionObservedState struct {
-	ManagedClusterSPIFFEIDs []BindingInspectionManagedClusterSPIFFEID `json:"managedClusterSPIFFEIDs,omitempty"`
-	Drift                   []BindingInspectionDriftEntry             `json:"drift,omitempty"`
-	EligibleWorkloads       []BindingInspectionEligibleWorkload       `json:"eligibleWorkloads,omitempty"`
+// BindingInspectionRenderedClusterSPIFFEID captures the managed object fields Kleym renders.
+type BindingInspectionRenderedClusterSPIFFEID struct {
+	Name              string         `json:"name,omitempty"`
+	SPIFFEID          string         `json:"spiffeID,omitempty"`
+	PodSelector       map[string]any `json:"podSelector,omitempty"`
+	WorkloadSelectors []string       `json:"workloadSelectors,omitempty"`
+	Hint              string         `json:"hint,omitempty"`
+	ClassName         string         `json:"className,omitempty"`
+	Fallback          *bool          `json:"fallback,omitempty"`
 }
 
-// BindingInspectionManagedClusterSPIFFEID summarizes one managed rendered object.
-type BindingInspectionManagedClusterSPIFFEID struct {
-	Name              string             `json:"name,omitempty"`
-	SPIFFEID          string             `json:"spiffeID,omitempty"`
-	PodSelector       map[string]any     `json:"podSelector,omitempty"`
-	WorkloadSelectors []string           `json:"workloadSelectors,omitempty"`
-	Hint              string             `json:"hint,omitempty"`
-	ClassName         string             `json:"className,omitempty"`
-	Fallback          *bool              `json:"fallback,omitempty"`
-	Conditions        []metav1.Condition `json:"conditions,omitempty"`
-}
-
-// BindingInspectionDriftEntry summarizes one desired-versus-observed mismatch.
-type BindingInspectionDriftEntry struct {
-	Field    string `json:"field,omitempty"`
-	Desired  string `json:"desired,omitempty"`
-	Observed string `json:"observed,omitempty"`
-}
-
-// BindingInspectionEligibleWorkload records one currently matching pod or container.
-type BindingInspectionEligibleWorkload struct {
+// BindingInspectionMatchedPod records one currently matching pod or container.
+type BindingInspectionMatchedPod struct {
 	Namespace string `json:"namespace,omitempty"`
 	Pod       string `json:"pod,omitempty"`
 	Container string `json:"container,omitempty"`
@@ -160,7 +145,7 @@ type BindingInspectionFinding struct {
 	AffectedRefs []BindingInspectionTargetRef     `json:"affectedRefs"`
 }
 
-// BindingInspectionCapabilities records which inspection areas were complete.
+// BindingInspectionCapabilities records internal inspection completeness.
 type BindingInspectionCapabilities struct {
 	Binding          BindingInspectionCapability `json:"binding,omitempty"`
 	GAIEResources    BindingInspectionCapability `json:"gaieResources,omitempty"`
@@ -184,6 +169,9 @@ func normalizeBindingInspectionReport(report BindingInspectionReport) BindingIns
 	if report.Findings == nil {
 		report.Findings = []BindingInspectionFinding{}
 	}
+	if report.MatchedPods == nil {
+		report.MatchedPods = []BindingInspectionMatchedPod{}
+	}
 	for i := range report.Findings {
 		if report.Findings[i].AffectedRefs == nil {
 			report.Findings[i].AffectedRefs = []BindingInspectionTargetRef{}
@@ -204,94 +192,33 @@ func writeBindingInspectionReportText(w io.Writer, report BindingInspectionRepor
 	report = normalizeBindingInspectionReport(report)
 
 	var builder strings.Builder
-	appendTextLine(&builder, "BindingInspectionReport")
-	appendTextLine(&builder, "GeneratedAt: %s", textString(report.GeneratedAt))
-	appendTextLine(&builder, "")
-	appendTextLine(&builder, "Summary:")
-	appendTextLine(&builder, "  Status: %s", inspectionTextStatus(report.Findings))
-	appendTextLine(&builder, "  Findings: %s", textCountOrNone(len(report.Findings)))
-	appendTextLine(&builder, "  Drift: %s", textCountOrNone(len(report.Observed.Drift)))
-	appendTextLine(&builder, "  Eligible workloads: %d", len(report.Observed.EligibleWorkloads))
-	appendTextLine(&builder, "  Inspection completeness: %s", inspectionTextCompleteness(report.Capabilities))
-	partialChecks := inspectionTextCapabilityNames(report.Capabilities, BindingInspectionCapabilityPartial)
-	if len(partialChecks) > 0 {
-		appendTextLine(&builder, "  Partial checks:")
-		for _, check := range partialChecks {
-			appendTextLine(&builder, "    - %s", check)
-		}
+	appendTextLine(&builder, "Binding: %s", textNamespacedName(report.BindingRef.Namespace, report.BindingRef.Name))
+	appendTextLine(&builder, "Mode: %s", textString(report.BindingRef.Mode))
+	appendTextLine(&builder, "Source: %s", textShortTargetRef(firstTargetRef(report.Resolved.PoolRef, report.BindingRef.PoolRef), "InferencePool"))
+	if report.BindingRef.Mode == "PerObjective" || report.BindingRef.ObjectiveRef != nil || report.Resolved.ObjectiveRef != nil {
+		appendTextLine(&builder, "Objective: %s", textShortTargetRef(firstTargetRef(report.Resolved.ObjectiveRef, report.BindingRef.ObjectiveRef), "InferenceObjective"))
 	}
-
-	appendTextLine(&builder, "")
-	appendTextLine(&builder, "Binding:")
-	appendTextLine(&builder, "  Name: %s", textNamespacedName(report.BindingRef.Namespace, report.BindingRef.Name))
-	appendTextLine(&builder, "  Generation: %d", report.BindingRef.Generation)
-	appendTextLine(&builder, "  Mode: %s", textString(report.BindingRef.Mode))
-	appendTextLine(&builder, "  PoolRef: %s", textTargetRef(report.BindingRef.PoolRef))
-	appendTextLine(&builder, "  ObjectiveRef: %s", textTargetRef(report.BindingRef.ObjectiveRef))
-	appendTextConditions(&builder, "  ", report.BindingRef.Conditions)
-
-	appendTextLine(&builder, "")
-	appendTextLine(&builder, "Identity config:")
-	appendTextLine(&builder, "  TrustDomain: %s (%s)", textString(report.IdentityConfig.TrustDomain), textString(report.IdentityConfig.TrustDomainSource))
-	appendTextLine(&builder, "  ClusterSPIFFEID className: %s (%s)", textString(report.IdentityConfig.ClusterSPIFFEIDClassName), textString(report.IdentityConfig.ClusterSPIFFEIDClassNameSource))
 
 	appendTextLine(&builder, "")
 	appendTextLine(&builder, "Identity:")
-	appendTextLine(&builder, "  ClusterSPIFFEID: %s", textString(report.Desired.ClusterSPIFFEIDName))
-	appendTextLine(&builder, "  SPIFFE ID: %s", textString(report.Desired.SPIFFEID))
-	appendTextLine(&builder, "  ClassName: %s", textString(report.Desired.ClassName))
-	appendTextLine(&builder, "  Hint: %s", textString(report.Desired.Hint))
-	appendTextLine(&builder, "  Fallback: %s", textBool(report.Desired.Fallback))
+	appendTextIdentity(&builder, report.RenderedIdentity)
 
 	appendTextLine(&builder, "")
-	appendTextLine(&builder, "Selectors:")
-	appendTextLine(&builder, "  Pod selector: %s", textStableValue(report.Desired.PodSelector))
-	appendTextStringList(&builder, "  Workload selectors", report.Desired.WorkloadSelectors)
+	appendTextLine(&builder, "ClusterSPIFFEID:")
+	appendTextClusterSPIFFEID(&builder, report.RenderedClusterSPIFFEID)
 
 	appendTextLine(&builder, "")
-	appendTextLine(&builder, "Observed:")
-	appendTextLine(&builder, "  Managed ClusterSPIFFEIDs: %d", len(report.Observed.ManagedClusterSPIFFEIDs))
-	for _, managed := range report.Observed.ManagedClusterSPIFFEIDs {
-		appendTextLine(&builder, "    - %s", textString(managed.Name))
-		if len(report.Observed.Drift) == 0 {
-			appendTextLine(&builder, "      Status: matches desired")
-		} else {
-			appendTextLine(&builder, "      Status: drift detected")
-			appendTextDriftEntries(&builder, "      ", report.Observed.Drift)
-		}
-		appendTextConditions(&builder, "      ", managed.Conditions)
-	}
-	if len(report.Observed.ManagedClusterSPIFFEIDs) == 0 && len(report.Observed.Drift) > 0 {
-		appendTextDriftEntries(&builder, "  ", report.Observed.Drift)
-	}
-	appendTextEligibleWorkloads(&builder, report.Observed.EligibleWorkloads)
+	appendTextLine(&builder, "Conditions:")
+	appendTextConditionList(&builder, "  ", report.BindingRef.Conditions)
 
 	appendTextLine(&builder, "")
-	appendTextLine(&builder, "Findings:")
-	if len(report.Findings) == 0 {
-		appendTextLine(&builder, "  none")
-	} else {
-		for _, finding := range report.Findings {
-			appendTextLine(&builder, "  - Severity: %s", textString(string(finding.Severity)))
-			appendTextLine(&builder, "    Reason: %s", textString(finding.Reason))
-			appendTextLine(&builder, "    Message: %s", textString(finding.Message))
-			appendTextLine(&builder, "    AffectedRefs:")
-			if len(finding.AffectedRefs) == 0 {
-				appendTextLine(&builder, "      none")
-			}
-			for i := range finding.AffectedRefs {
-				appendTextLine(&builder, "      - %s", textTargetRef(&finding.AffectedRefs[i]))
-			}
-		}
-	}
+	appendTextLine(&builder, "Matched pods:")
+	appendTextMatchedPods(&builder, report)
 
 	appendTextLine(&builder, "")
-	appendTextLine(&builder, "Capabilities:")
-	appendTextLine(&builder, "  Binding: %s", textString(string(report.Capabilities.Binding)))
-	appendTextLine(&builder, "  GAIE resources: %s", textString(string(report.Capabilities.GAIEResources)))
-	appendTextLine(&builder, "  ClusterSPIFFEIDs: %s", textString(string(report.Capabilities.ClusterSPIFFEIDs)))
-	appendTextLine(&builder, "  Peer bindings: %s", textString(string(report.Capabilities.PeerBindings)))
-	appendTextLine(&builder, "  Pods: %s", textString(string(report.Capabilities.Pods)))
+	appendTextFindings(&builder, report.Findings)
+
+	appendTextLine(&builder, "Exit code: %d", textExitCode(report))
 
 	_, err := io.WriteString(w, builder.String())
 	return err
@@ -326,14 +253,69 @@ func appendTextStringList(builder *strings.Builder, label string, values []strin
 	}
 }
 
-func appendTextConditions(builder *strings.Builder, indent string, conditions []metav1.Condition) {
-	appendTextLine(builder, "%sConditions:", indent)
+func appendTextIdentity(builder *strings.Builder, identity BindingInspectionRenderedIdentity) {
+	if identity.SPIFFEID == "" {
+		appendTextLine(builder, "  not rendered")
+		return
+	}
+	appendTextLine(builder, "  SPIFFE ID: %s", identity.SPIFFEID)
+	appendTextSelectorSummary(builder, identity.WorkloadSelectors)
+}
+
+func appendTextClusterSPIFFEID(builder *strings.Builder, clusterspiffeid BindingInspectionRenderedClusterSPIFFEID) {
+	if clusterspiffeid.Name == "" {
+		appendTextLine(builder, "  not rendered")
+		return
+	}
+	appendTextLine(builder, "  Name: %s", clusterspiffeid.Name)
+	appendTextLine(builder, "  ClassName: %s", textString(clusterspiffeid.ClassName))
+	appendTextLine(builder, "  Hint: %s", textString(clusterspiffeid.Hint))
+	if clusterspiffeid.Fallback != nil && *clusterspiffeid.Fallback {
+		appendTextLine(builder, "  Fallback: true")
+	}
+}
+
+func appendTextSelectorSummary(builder *strings.Builder, selectors []string) {
+	selection := workloadSelectionFromSelectors(selectors)
+	appendTextLine(builder, "  Selectors:")
+	if selection.Namespace != "" {
+		appendTextLine(builder, "    namespace: %s", selection.Namespace)
+	}
+	if selection.ServiceAccount != "" {
+		appendTextLine(builder, "    serviceAccount: %s", selection.ServiceAccount)
+	}
+	appendTextPodLabels(builder, selection.PodLabels)
+	if selection.ContainerSelectorType == "name" {
+		appendTextLine(builder, "    container: %s", selection.ContainerValue)
+	}
+	if len(selection.UnsupportedSelectors) > 0 {
+		appendTextStringList(builder, "    unsupported", selection.UnsupportedSelectors)
+	}
+}
+
+func appendTextPodLabels(builder *strings.Builder, labels map[string]string) {
+	if len(labels) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(labels))
+	for key := range labels {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	values := make([]string, 0, len(keys))
+	for _, key := range keys {
+		values = append(values, key+"="+labels[key])
+	}
+	appendTextLine(builder, "    podLabels: %s", strings.Join(values, ", "))
+}
+
+func appendTextConditionList(builder *strings.Builder, indent string, conditions []metav1.Condition) {
 	if len(conditions) == 0 {
-		appendTextLine(builder, "%s  none", indent)
+		appendTextLine(builder, "%snone", indent)
 		return
 	}
 	for _, condition := range conditions {
-		appendTextLine(builder, "%s  %s=%s", indent, condition.Type, condition.Status)
+		appendTextLine(builder, "%s%s=%s", indent, condition.Type, condition.Status)
 		if !textConditionNeedsDetail(condition) {
 			continue
 		}
@@ -342,31 +324,44 @@ func appendTextConditions(builder *strings.Builder, indent string, conditions []
 	}
 }
 
-func appendTextDriftEntries(builder *strings.Builder, indent string, entries []BindingInspectionDriftEntry) {
-	appendTextLine(builder, "%sDrift:", indent)
-	if len(entries) == 0 {
-		appendTextLine(builder, "%s  none", indent)
+func appendTextMatchedPods(builder *strings.Builder, report BindingInspectionReport) {
+	if report.RenderedIdentity.SPIFFEID == "" {
+		appendTextLine(builder, "  skipped")
 		return
 	}
-	for _, drift := range entries {
-		appendTextLine(builder, "%s  - Field: %s", indent, textDriftField(drift.Field))
-		appendTextLine(builder, "%s    Desired: %s", indent, textString(drift.Desired))
-		appendTextLine(builder, "%s    Observed: %s", indent, textString(drift.Observed))
-	}
-}
-
-func appendTextEligibleWorkloads(builder *strings.Builder, workloads []BindingInspectionEligibleWorkload) {
-	appendTextLine(builder, "  Eligible workloads:")
-	if len(workloads) == 0 {
-		appendTextLine(builder, "    none")
+	if report.Capabilities.Pods == BindingInspectionCapabilityPartial ||
+		report.Capabilities.Pods == BindingInspectionCapabilityUnknown {
+		appendTextLine(builder, "  unknown")
 		return
 	}
-	for _, workload := range workloads {
+	if report.Capabilities.Pods == BindingInspectionCapabilitySkipped {
+		appendTextLine(builder, "  skipped")
+		return
+	}
+	if len(report.MatchedPods) == 0 {
+		appendTextLine(builder, "  none")
+		return
+	}
+	for _, workload := range report.MatchedPods {
 		line := textNamespacedName(workload.Namespace, workload.Pod)
 		if workload.Container != "" {
 			line += " container=" + workload.Container
 		}
-		appendTextLine(builder, "    - %s", line)
+		appendTextLine(builder, "  %s", line)
+	}
+}
+
+func appendTextFindings(builder *strings.Builder, findings []BindingInspectionFinding) {
+	if len(findings) == 0 {
+		appendTextLine(builder, "Findings: none")
+		return
+	}
+	appendTextLine(builder, "Findings:")
+	for _, finding := range findings {
+		appendTextLine(builder, "  %s %s", textFindingSeverity(finding.Severity), textString(finding.Reason))
+		if finding.Message != "" {
+			appendTextLine(builder, "    %s", finding.Message)
+		}
 	}
 }
 
@@ -379,74 +374,26 @@ func leadingSpaces(value string) int {
 	return len(value)
 }
 
-func inspectionTextStatus(findings []BindingInspectionFinding) string {
-	if HasErrorSeverityFinding(findings) {
+func textExitCode(report BindingInspectionReport) int {
+	if report.ExitCode != nil {
+		return *report.ExitCode
+	}
+	if HasErrorSeverityFinding(report.Findings) {
+		return 2
+	}
+	return 0
+}
+
+func textFindingSeverity(severity BindingInspectionFindingSeverity) string {
+	switch severity {
+	case BindingInspectionFindingSeverityError:
 		return "Error"
-	}
-	if HasWarningSeverityFinding(findings) {
+	case BindingInspectionFindingSeverityWarning:
 		return "Warning"
-	}
-	return "OK"
-}
-
-func inspectionTextCompleteness(capabilities BindingInspectionCapabilities) string {
-	checks := inspectionTextCapabilityChecks(capabilities)
-	hasCapability := false
-	hasSkipped := false
-	hasUnknown := false
-	for _, check := range checks {
-		if check.value == "" {
-			hasUnknown = true
-			continue
-		}
-		hasCapability = true
-		switch check.value {
-		case BindingInspectionCapabilityPartial:
-			return string(BindingInspectionCapabilityPartial)
-		case BindingInspectionCapabilitySkipped:
-			hasSkipped = true
-		case BindingInspectionCapabilityUnknown:
-			hasUnknown = true
-		case BindingInspectionCapabilityFull:
-		default:
-			hasUnknown = true
-		}
-	}
-	if hasSkipped {
-		return string(BindingInspectionCapabilitySkipped)
-	}
-	if hasUnknown || !hasCapability {
-		return string(BindingInspectionCapabilityUnknown)
-	}
-	return string(BindingInspectionCapabilityFull)
-}
-
-func inspectionTextCapabilityNames(
-	capabilities BindingInspectionCapabilities,
-	want BindingInspectionCapability,
-) []string {
-	checks := inspectionTextCapabilityChecks(capabilities)
-	names := make([]string, 0, len(checks))
-	for _, check := range checks {
-		if check.value == want {
-			names = append(names, check.name)
-		}
-	}
-	return names
-}
-
-type inspectionTextCapabilityCheck struct {
-	name  string
-	value BindingInspectionCapability
-}
-
-func inspectionTextCapabilityChecks(capabilities BindingInspectionCapabilities) []inspectionTextCapabilityCheck {
-	return []inspectionTextCapabilityCheck{
-		{name: "Binding", value: capabilities.Binding},
-		{name: "GAIE resources", value: capabilities.GAIEResources},
-		{name: "ClusterSPIFFEIDs", value: capabilities.ClusterSPIFFEIDs},
-		{name: "Peer bindings", value: capabilities.PeerBindings},
-		{name: "Pods", value: capabilities.Pods},
+	case BindingInspectionFindingSeverityInfo:
+		return "Info"
+	default:
+		return textString(string(severity))
 	}
 }
 
@@ -464,45 +411,11 @@ func textConditionNeedsDetail(condition metav1.Condition) bool {
 	}
 }
 
-func textCountOrNone(count int) string {
-	if count == 0 {
-		return "none"
-	}
-	return fmt.Sprintf("%d", count)
-}
-
-func textDriftField(field string) string {
-	switch field {
-	case "spec.spiffeIDTemplate":
-		return "spiffeID"
-	case "spec.podSelector":
-		return "podSelector"
-	case "spec.workloadSelectorTemplates":
-		return "workloadSelectorTemplates"
-	case "spec.hint":
-		return "hint"
-	case "spec.fallback":
-		return "fallback"
-	default:
-		return field
-	}
-}
-
 func textString(value string) string {
 	if value == "" {
 		return "(none)"
 	}
 	return value
-}
-
-func textBool(value *bool) string {
-	if value == nil {
-		return "(none)"
-	}
-	if *value {
-		return "true"
-	}
-	return "false"
 }
 
 func textNamespacedName(namespace string, name string) string {
@@ -515,53 +428,22 @@ func textNamespacedName(namespace string, name string) string {
 	return namespace + "/" + name
 }
 
-func textTargetRef(ref *BindingInspectionTargetRef) string {
+func textShortTargetRef(ref *BindingInspectionTargetRef, fallbackKind string) string {
 	if ref == nil {
-		return "(none)"
+		return "(missing)"
 	}
-	parts := make([]string, 0, 2)
-	if ref.Kind != "" {
-		kind := ref.Kind
-		if ref.Version != "" {
-			kind = ref.Version + "/" + kind
-		}
-		if ref.Group != "" {
-			kind = ref.Group + "/" + kind
-		}
-		parts = append(parts, kind)
+	kind := ref.Kind
+	if kind == "" {
+		kind = fallbackKind
 	}
-	parts = append(parts, textNamespacedName(ref.Namespace, ref.Name))
-	return strings.Join(parts, " ")
+	return strings.TrimSpace(kind + " " + textNamespacedName(ref.Namespace, ref.Name))
 }
 
-func textStableValue(value any) string {
-	if value == nil {
-		return "(none)"
-	}
-	text := stableValueString(value)
-	if text == "" {
-		return "(none)"
-	}
-	return text
-}
-
-func stableValueString(value any) string {
-	if value == nil {
-		return ""
-	}
-	switch typed := value.(type) {
-	case string:
-		return typed
-	case bool:
-		if typed {
-			return "true"
+func firstTargetRef(refs ...*BindingInspectionTargetRef) *BindingInspectionTargetRef {
+	for _, ref := range refs {
+		if ref != nil {
+			return ref
 		}
-		return "false"
-	default:
-		data, err := json.Marshal(typed)
-		if err != nil {
-			return fmt.Sprint(typed)
-		}
-		return string(data)
 	}
+	return nil
 }

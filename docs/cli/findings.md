@@ -29,12 +29,11 @@ reasons where possible. See [Conditions](/reference/conditions/).
 | --- | --- | --- |
 | `binding-not-found` | `error` | Requested binding is absent after a successful API lookup. |
 | `invalid-ref` | `error` | A referenced pool or objective is missing or invalid. |
-| `dependency-missing` | `error` when required | Optional missing checks belong in `capabilities`. |
+| `dependency-missing` | `error` when required | Required inputs or APIs are unavailable. |
 | `unsafe-selector` | `error` | Rendered selectors fail Kleym safety rules. |
-| `render-failure` | `error` | Desired state could not be rendered. |
+| `render-failure` | `error` | Identity output could not be rendered. |
 | `kleym-collision` | `error` | Kleym detected a deterministic identity collision. |
-| `zero-eligible-workloads` | `info` | Scale-to-zero can be valid. |
-| `observed-drift` | `warning` or `error` | Managed output differs from desired output. |
+| `zero-matched-pods` | `info` | Scale-to-zero can be valid. |
 | `identity-config-undiscovered` | `warning` | Binding status does not include operator config, so inspection used CLI flags, defaults, or both. |
 | `rbac-limited` | `warning` | Inspection continued with reduced visibility. |
 | `unsupported-selector` | `warning` | Pod inspection cannot fully evaluate a rendered selector type. |
