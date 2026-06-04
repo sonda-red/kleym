@@ -35,5 +35,6 @@ reasons where possible. See [Conditions](/reference/conditions/).
 | `kleym-collision` | `error` | Kleym detected a deterministic identity collision. |
 | `zero-eligible-workloads` | `info` | Scale-to-zero can be valid. |
 | `observed-drift` | `warning` or `error` | Managed output differs from desired output. |
+| `identity-config-undiscovered` | `warning` | Binding status does not include operator config, so inspection used CLI flags, defaults, or both. |
 | `rbac-limited` | `warning` | Inspection continued with reduced visibility. |
 | `unsupported-selector` | `warning` | Pod inspection cannot fully evaluate a rendered selector type. |

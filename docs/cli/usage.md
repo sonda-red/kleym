@@ -41,8 +41,9 @@ Inspect one binding:
 bin/kleym inspect binding <name> -n <namespace>
 ```
 
-If the operator was installed with non-default identity settings, pass the same
-values to inspection:
+Inspection normally reads operator config from `InferenceIdentityBinding.status.trustDomain`
+and `status.clusterSPIFFEIDClassName`. Pass flags only when you need to override
+that discovered config or inspect an older binding whose status does not record it:
 
 ```sh
 bin/kleym inspect binding <name> -n <namespace> \
@@ -66,8 +67,8 @@ bin/kleym inspect binding <name> -n <namespace> -o json
 | `--context` | Kubeconfig context name. |
 | `--kubeconfig` | Kubeconfig file path. |
 | `--timeout` | Inspection timeout. Must be greater than zero. |
-| `--trust-domain` | Trust domain used to recompute desired SPIFFE IDs. Defaults to `kleym.sonda.red`. |
-| `--clusterspiffeid-class-name` | Optional expected `ClusterSPIFFEID.spec.className`. Defaults to classless output. |
+| `--trust-domain` | Override trust domain used to recompute desired SPIFFE IDs. If operator config is unavailable and this flag is omitted, inspection falls back to `kleym.sonda.red`. |
+| `--clusterspiffeid-class-name` | Override expected `ClusterSPIFFEID.spec.className`. If operator config is unavailable and this flag is omitted, inspection falls back to classless output. |
 
 ## Access
 
