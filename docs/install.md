@@ -39,6 +39,12 @@ operator identity settings when your local SPIRE install uses different values:
 make run TRUST_DOMAIN=example.org CLUSTERSPIFFEID_CLASS_NAME=kleym
 ```
 
+For direct binary or Deployment usage, `--trust-domain` can fall back to
+`KLEYM_TRUST_DOMAIN` and `--clusterspiffeid-class-name` can fall back to
+`KLEYM_CLUSTERSPIFFEID_CLASS_NAME`. Explicit flags take precedence over
+environment variables. Environment values are read once at startup and are not
+reloaded.
+
 Build the operator binary:
 
 ```sh

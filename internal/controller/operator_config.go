@@ -22,10 +22,41 @@ import (
 
 const trustDomainRequiredMessage = "trustDomain must be configured before Kleym can render SPIFFE IDs"
 
+const (
+	// EnvTrustDomain is the startup-only fallback for --trust-domain.
+	EnvTrustDomain = "KLEYM_TRUST_DOMAIN"
+	// EnvClusterSPIFFEIDClassName is the startup-only fallback for --clusterspiffeid-class-name.
+	EnvClusterSPIFFEIDClassName = "KLEYM_CLUSTERSPIFFEID_CLASS_NAME"
+)
+
 // OperatorConfig carries install-level settings that affect all reconciled identities.
 type OperatorConfig struct {
 	TrustDomain              string
 	ClusterSPIFFEIDClassName string
+}
+
+// OperatorConfigExplicitFields records startup flags that must override env fallbacks.
+type OperatorConfigExplicitFields struct {
+	TrustDomain              bool
+	ClusterSPIFFEIDClassName bool
+}
+
+// WithEnvFallback returns config with env values filled only for omitted startup flags.
+func (c OperatorConfig) WithEnvFallback(
+	lookupEnv func(string) (string, bool),
+	explicit OperatorConfigExplicitFields,
+) OperatorConfig {
+	if !explicit.TrustDomain {
+		if value, ok := lookupEnv(EnvTrustDomain); ok {
+			c.TrustDomain = value
+		}
+	}
+	if !explicit.ClusterSPIFFEIDClassName {
+		if value, ok := lookupEnv(EnvClusterSPIFFEIDClassName); ok {
+			c.ClusterSPIFFEIDClassName = value
+		}
+	}
+	return c
 }
 
 // Validate rejects ambiguous install-level identity configuration before reconciliation starts.
