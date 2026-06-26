@@ -38,6 +38,18 @@ On a detected per-objective collision:
 - `Ready=False`
 - Managed `ClusterSPIFFEID` resources for the colliding bindings are deleted until the collision is resolved
 
+For `Conflict=True` with reason `IdentityCollision`, the controller writes peer
+binding names in the condition message so later reconciliations can refresh
+previously colliding peers without scanning the whole namespace. The parseable
+message format is compatibility-sensitive:
+
+```text
+identity collision with bindings <peer-name>[, <peer-name>...]: PerObjective bindings must not share the same pod selector and container name
+```
+
+If the message cannot be parsed, the controller falls back to scanning all
+`PerObjective` bindings in the namespace and continues reconciliation.
+
 ## Collision Scope
 
 `Conflict` is only used for `PerObjective` bindings. `PoolOnly` bindings do not participate in the current collision-detection path.

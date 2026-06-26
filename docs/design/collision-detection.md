@@ -29,6 +29,14 @@ Bindings with the same fingerprint are treated as colliding.
 
 To recover peer bindings across reconciliations, the controller stores peer names in the `Conflict` condition message. This avoids introducing an API status field dedicated to a rare collision path while still allowing deterministic peer recovery. If the message cannot be parsed, the controller falls back to scanning all `PerObjective` bindings in the namespace.
 
+The parseable `Conflict=True` message format is compatibility-sensitive:
+
+```text
+identity collision with bindings <peer-name>[, <peer-name>...]: PerObjective bindings must not share the same pod selector and container name
+```
+
+The peer list excludes the current binding and is rendered in sorted order. Future wording changes must either preserve this parseable structure or intentionally update the parser, tests, and condition reference together. This is status recovery data, not a new user-authored API field.
+
 ## Current Outcome
 
 When a collision is detected:
