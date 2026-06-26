@@ -85,13 +85,22 @@ func main() {
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
+	explicitConfigFields := controller.OperatorConfigExplicitFields{}
+	flag.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "trust-domain":
+			explicitConfigFields.TrustDomain = true
+		case "clusterspiffeid-class-name":
+			explicitConfigFields.ClusterSPIFFEIDClassName = true
+		}
+	})
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	operatorConfig := controller.OperatorConfig{
 		TrustDomain:              trustDomain,
 		ClusterSPIFFEIDClassName: clusterSPIFFEIDClassName,
-	}
+	}.WithEnvFallback(os.LookupEnv, explicitConfigFields)
 	if err := operatorConfig.Validate(); err != nil {
 		setupLog.Error(err, "invalid operator configuration")
 		os.Exit(1)

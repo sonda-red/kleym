@@ -17,12 +17,21 @@ Dependency facts live in [Dependencies][dependencies]. Supported GAIE inputs liv
 
 ## Operator Configuration
 
-`kleym-operator` requires install-level identity configuration at startup:
+`kleym-operator` requires install-level identity configuration at startup.
+Command-line flags are the canonical configuration surface. Environment
+variables are startup-only fallbacks when the matching flag is omitted; they are
+not watched or reloaded after process start.
 
-| Flag | Required | Behavior |
-| --- | --- | --- |
-| `--trust-domain=<value>` | yes | Sets the SPIRE Server trust domain used when rendering every SPIFFE ID. The value must not include `spiffe://`, must not contain `/`, and must not include leading or trailing whitespace. |
-| `--clusterspiffeid-class-name=<value>` | no | Sets `spec.className` on every managed `ClusterSPIFFEID`. When empty, Kleym omits `spec.className` and keeps classless output. |
+| Flag | Environment fallback | Required | Behavior |
+| --- | --- | --- | --- |
+| `--trust-domain=<value>` | `KLEYM_TRUST_DOMAIN` | yes | Sets the SPIRE Server trust domain used when rendering every SPIFFE ID. The value must not include `spiffe://`, must not contain `/`, and must not include leading or trailing whitespace. |
+| `--clusterspiffeid-class-name=<value>` | `KLEYM_CLUSTERSPIFFEID_CLASS_NAME` | no | Sets `spec.className` on every managed `ClusterSPIFFEID`. When empty, Kleym omits `spec.className` and keeps classless output. |
+
+Explicit flags take precedence over environment variables, including explicit
+empty values. Missing trust domain from both `--trust-domain` and
+`KLEYM_TRUST_DOMAIN` fails startup with
+`trustDomain must be configured before Kleym can render SPIFFE IDs`. Values
+loaded from environment variables use the same validation rules as flag values.
 
 `trustDomain` and `ClusterSPIFFEID` class are deployment concerns, not per-binding inference identity intent. They are not fields in `InferenceIdentityBinding.spec`.
 
