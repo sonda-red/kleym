@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -177,6 +178,72 @@ func TestReconcilePerObjectiveCollisionResolutionRefreshesPeersOnSingleReconcile
 	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
 }
 
+func TestReconcilePerObjectiveCollisionResolutionFallsBackForUnparseablePeerMessage(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scheme := newCollisionTestScheme(t)
+	objects := []client.Object{
+		newTestPool(),
+		newTestObjective("objective-a"),
+		newTestObjective("objective-b"),
+		newPerObjectiveBinding("binding-a", "objective-a"),
+		newPerObjectiveBinding("binding-b", "objective-b"),
+	}
+
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+			WithObjects(objects...).
+			Build(),
+		Scheme: scheme,
+	}
+
+	_, err := reconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: "binding-a"},
+	})
+	if err != nil {
+		t.Fatalf("initial Reconcile returned error: %v", err)
+	}
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision")
+
+	bindingB := &kleymv1alpha1.InferenceIdentityBinding{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: "binding-b"}, bindingB); err != nil {
+		t.Fatalf("failed to get binding-b: %v", err)
+	}
+	setCondition(
+		&bindingB.Status,
+		bindingB.Generation,
+		conditionTypeConflict,
+		metav1.ConditionTrue,
+		"IdentityCollision",
+		"collision details written by an older or edited controller",
+	)
+	if err := reconciler.Status().Update(ctx, bindingB); err != nil {
+		t.Fatalf("failed to update binding-b status: %v", err)
+	}
+
+	if err := reconciler.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: "binding-b"}, bindingB); err != nil {
+		t.Fatalf("failed to refetch binding-b: %v", err)
+	}
+	bindingB.Spec.ContainerName = "sidecar"
+	if err := reconciler.Update(ctx, bindingB); err != nil {
+		t.Fatalf("failed to update binding-b: %v", err)
+	}
+
+	_, err = reconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: "binding-b"},
+	})
+	if err != nil {
+		t.Fatalf("reconcile binding-b returned error: %v", err)
+	}
+
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
+	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
+}
+
 func TestPoolOnlyBindingsAreNotSubjectToPerObjectiveCollisionRule(t *testing.T) {
 	t.Parallel()
 
@@ -296,6 +363,108 @@ func TestPerObjectiveBindingsWithDifferentEffectiveSelectorsDoNotCollide(t *test
 	assertConditionStatus(t, ctx, reconciler.Client, "binding-b", conditionTypeConflict, metav1.ConditionFalse, "Resolved")
 	assertConditionStatus(t, ctx, reconciler.Client, "binding-a", conditionTypeReady, metav1.ConditionTrue, "Reconciled")
 	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 1)
+}
+
+func TestIdentityCollisionMessageCompatibilityFormat(t *testing.T) {
+	t.Parallel()
+
+	got := identityCollisionMessage("binding-a", []string{"binding-c", "binding-a", "binding-b"})
+	want := "identity collision with bindings binding-b, binding-c: PerObjective bindings must not share the same pod selector and container name"
+	if got != want {
+		t.Fatalf("identityCollisionMessage() = %q, want %q", got, want)
+	}
+}
+
+func TestCollisionPeerBindingNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		condition *metav1.Condition
+		want      []string
+	}{
+		{
+			name: "parseable conflict message",
+			condition: &metav1.Condition{
+				Type:    conditionTypeConflict,
+				Status:  metav1.ConditionTrue,
+				Reason:  "IdentityCollision",
+				Message: identityCollisionMessage("binding-a", []string{"binding-c", "binding-a", "binding-b"}),
+			},
+			want: []string{"binding-b", "binding-c"},
+		},
+		{
+			name: "deduplicates and sorts parseable peer names",
+			condition: &metav1.Condition{
+				Type:    conditionTypeConflict,
+				Status:  metav1.ConditionTrue,
+				Reason:  "IdentityCollision",
+				Message: identityCollisionMessagePrefix + "binding-c, binding-b, binding-c" + identityCollisionMessageSuffix,
+			},
+			want: []string{"binding-b", "binding-c"},
+		},
+		{
+			name: "ignores resolved conflict",
+			condition: &metav1.Condition{
+				Type:    conditionTypeConflict,
+				Status:  metav1.ConditionFalse,
+				Reason:  "Resolved",
+				Message: identityCollisionMessage("binding-a", []string{"binding-b"}),
+			},
+		},
+		{
+			name: "ignores unparseable prefix",
+			condition: &metav1.Condition{
+				Type:    conditionTypeConflict,
+				Status:  metav1.ConditionTrue,
+				Reason:  "IdentityCollision",
+				Message: "collision with binding binding-b" + identityCollisionMessageSuffix,
+			},
+		},
+		{
+			name: "ignores unparseable suffix",
+			condition: &metav1.Condition{
+				Type:    conditionTypeConflict,
+				Status:  metav1.ConditionTrue,
+				Reason:  "IdentityCollision",
+				Message: identityCollisionMessagePrefix + "binding-b; update containerName",
+			},
+		},
+		{
+			name: "ignores empty peer list",
+			condition: &metav1.Condition{
+				Type:    conditionTypeConflict,
+				Status:  metav1.ConditionTrue,
+				Reason:  "IdentityCollision",
+				Message: identityCollisionMessagePrefix + identityCollisionMessageSuffix,
+			},
+		},
+		{
+			name: "ignores other condition type",
+			condition: &metav1.Condition{
+				Type:    conditionTypeReady,
+				Status:  metav1.ConditionTrue,
+				Reason:  "Reconciled",
+				Message: identityCollisionMessage("binding-a", []string{"binding-b"}),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var conditions []metav1.Condition
+			if tt.condition != nil {
+				conditions = append(conditions, *tt.condition)
+			}
+
+			got := collisionPeerBindingNames(conditions)
+			if !slices.Equal(got, tt.want) {
+				t.Fatalf("collisionPeerBindingNames() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
 
 func newCollisionTestScheme(t *testing.T) *runtime.Scheme {
