@@ -339,7 +339,9 @@ func isFieldLookupUnsupported(err error) bool {
 // regeneration, and migration logic for a condition that is rare in practice.
 // The message-based approach is self-healing — if the message format is
 // unrecognizable, the caller falls back to scanning all PerObjective bindings
-// in the namespace on the next reconcile.
+// in the namespace on the next reconcile. The generated message format is
+// compatibility-sensitive; update the parser tests and condition reference
+// before changing identityCollisionMessagePrefix or identityCollisionMessageSuffix.
 func collisionPeerBindingNames(conditions []metav1.Condition) []string {
 	conflictCondition := meta.FindStatusCondition(conditions, conditionTypeConflict)
 	if conflictCondition == nil || conflictCondition.Status != metav1.ConditionTrue {
