@@ -1,5 +1,5 @@
 {{- $description := partial "utils/page-description.html" . | plainify | htmlUnescape -}}
-{{- $language := site.Language.Locale | default site.Language.Lang | default "en" -}}
+{{- $language := site.Params.locale | default site.Language.Lang | default "en" -}}
 {{- $personID := "https://sonda.red/#person-kalin-daskalov" -}}
 {{- $websiteID := printf "%s#website" site.BaseURL -}}
 {{- $softwareID := printf "%s#software-source-code" site.BaseURL -}}

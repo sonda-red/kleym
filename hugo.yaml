@@ -80,6 +80,7 @@ menu:
 
 params:
   title: "kleym"
+  locale: "en-US"
   description: "Kubernetes operator that compiles inference identity intent into deterministic SPIFFE identities."
   keywords: "kubernetes,platform engineering,workload identity,spiffe,spire,mlops,inference,operators,gateway api inference extension"
   images:
