@@ -1,6 +1,7 @@
 ---
 title: Findings
 weight: 40
+description: "Reference for kleym CLI finding severities, warning and error cases, and how findings map to inspection behavior."
 aliases:
   - /reference/findings/
 ---

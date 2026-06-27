@@ -1,6 +1,7 @@
 ---
 title: Operator Spec
 weight: 10
+description: "Authoritative operator contract for InferenceIdentityBinding, GAIE resolution, SPIFFE ID rendering, selector safety, collisions, and status."
 ---
 
 `kleym-operator` is an identity registration compiler. It translates inference intent into deterministic Secure Production Identity Framework for Everyone (SPIFFE) identities and writes SPIFFE Runtime Environment (SPIRE) Controller Manager [`ClusterSPIFFEID`][clusterspiffeid] resources.

@@ -1,6 +1,7 @@
 ---
 title: Managed Resources
 weight: 30
+description: "Managed ClusterSPIFFEID output reference for labels, owner references, SPIFFE IDs, selectors, class names, and reconciliation ownership."
 aliases:
   - /operator/reference/resources/
 ---

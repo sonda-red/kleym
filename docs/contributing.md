@@ -1,6 +1,7 @@
 ---
 title: Contributing
 weight: 110
+description: "Contributor workflow, repository layout, validation commands, documentation rules, and security expectations for Kleym changes."
 ---
 
 ## Sources Of Truth

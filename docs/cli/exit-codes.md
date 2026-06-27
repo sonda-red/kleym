@@ -1,6 +1,7 @@
 ---
 title: Exit Codes
 weight: 50
+description: "Exit code contract for kleym status and inspect commands, including strict mode and automation-oriented failure handling."
 aliases:
   - /reference/exit-codes/
 ---

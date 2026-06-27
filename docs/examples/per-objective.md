@@ -1,6 +1,7 @@
 ---
 title: PerObjective
 weight: 20
+description: "PerObjective InferenceIdentityBinding example that separates model objective identity with a container-name selector boundary."
 aliases:
   - /operator/examples/per-objective/
 ---

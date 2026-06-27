@@ -1,6 +1,7 @@
 ---
 title: Usage
 weight: 10
+description: "Usage reference for kleym status and kleym inspect binding, including flags, output modes, kubeconfig handling, and strict inspection."
 ---
 
 Build the CLI from a checkout:

@@ -1,6 +1,7 @@
 ---
 title: API
 weight: 10
+description: "InferenceIdentityBinding API reference covering poolRef, objectiveRef, identity modes, service accounts, container names, and status fields."
 aliases:
   - /operator/reference/api/
 ---

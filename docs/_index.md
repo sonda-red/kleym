@@ -1,8 +1,9 @@
 ---
-title: Introduction
+title: Kleym
+linkTitle: Introduction
 toc: false
 summary: Project scope, intent, and documentation map for kleym.
-description: kleym translates Gateway API Inference Extension (GAIE) inference intent into deterministic Secure Production Identity Framework for Everyone (SPIFFE) identities.
+description: Kleym translates Gateway API Inference Extension (GAIE) inference intent into deterministic Secure Production Identity Framework for Everyone (SPIFFE) identities.
 cascade:
   type: docs
 aliases:

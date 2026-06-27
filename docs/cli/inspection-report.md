@@ -1,6 +1,7 @@
 ---
 title: Inspection Report
 weight: 30
+description: "Field reference for the Kleym binding inspection report, rendered identity details, matched pods, and findings."
 aliases:
   - /reference/inspection-report/
 ---

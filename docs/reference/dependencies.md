@@ -1,6 +1,7 @@
 ---
 title: Dependencies
 weight: 55
+description: "External dependency reference for Gateway API Inference Extension, SPIRE Controller Manager, ClusterSPIFFEID, and Kubernetes requirements."
 aliases:
   - /operator/reference/dependencies/
 ---

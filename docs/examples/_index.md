@@ -1,6 +1,7 @@
 ---
 title: Examples
 weight: 40
+description: "Kleym example manifests for basic pool identity and PerObjective identity registration with expected reconciliation output."
 aliases:
   - /operator/examples/
 ---

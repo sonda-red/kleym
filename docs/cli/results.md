@@ -1,6 +1,7 @@
 ---
 title: Results
 weight: 20
+description: "How to interpret kleym CLI result states, dependency availability, binding health, findings, and status summaries."
 ---
 
 Status results summarize the visible Kleym installation, operator readiness,

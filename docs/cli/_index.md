@@ -1,6 +1,7 @@
 ---
 title: CLI
 weight: 20
+description: "Documentation for the read-only kleym CLI used to inspect installation status and rendered inference identity state."
 ---
 
 `kleym` is the read-only inspection CLI. It renders Kleym identity output,
