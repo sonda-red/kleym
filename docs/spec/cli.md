@@ -1,6 +1,7 @@
 ---
 title: CLI Spec
 weight: 20
+description: "Authoritative CLI contract for kleym status, binding inspection, JSON output, findings, strict mode, and exit codes."
 ---
 
 `kleym` is a read-only CLI for inspecting Kleym identity state. `kleym status` summarizes the visible cluster-level Kleym installation and binding health. `kleym inspect binding` renders Kleym identity output for one `InferenceIdentityBinding`, shows current binding conditions, reports Kubernetes-visible pod matches, and emits findings.

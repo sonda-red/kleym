@@ -1,10 +1,14 @@
 baseURL: "https://kleym.sonda.red/"
 title: "kleym"
-languageCode: "en"
+locale: "en-US"
 defaultContentLanguage: "en"
 
 enableRobotsTXT: true
 enableGitInfo: true
+
+disableKinds:
+  - taxonomy
+  - term
 
 pagination:
   pagerSize: 20
@@ -75,8 +79,12 @@ menu:
       weight: 2
 
 params:
+  title: "kleym"
+  locale: "en-US"
   description: "Kubernetes operator that compiles inference identity intent into deterministic SPIFFE identities."
   keywords: "kubernetes,platform engineering,workload identity,spiffe,spire,mlops,inference,operators,gateway api inference extension"
+  images:
+    - "/images/og/kleym.png"
 
   navbar:
     displayTitle: true

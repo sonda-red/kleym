@@ -1,6 +1,7 @@
 ---
 title: GAIE Compatibility
 weight: 50
+description: "Gateway API Inference Extension compatibility matrix for supported InferencePool and InferenceObjective API groups and versions."
 aliases:
   - /operator/reference/gaie-compatibility/
 ---

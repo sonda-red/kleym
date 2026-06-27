@@ -1,6 +1,7 @@
 ---
 title: Basic Binding
 weight: 10
+description: "Basic InferenceIdentityBinding example that renders one pool-level SPIFFE identity and managed ClusterSPIFFEID resource."
 aliases:
   - /operator/examples/basic-binding/
 ---

@@ -1,6 +1,7 @@
 ---
 title: Demo
 weight: 35
+description: "A reference walkthrough that shows how an InferenceIdentityBinding reconciles into deterministic ClusterSPIFFEID output."
 aliases:
   - /operator/demo/
 ---

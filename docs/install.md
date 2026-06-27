@@ -1,6 +1,7 @@
 ---
 title: Install
 weight: 30
+description: "Install and run kleym-operator, deploy it with Kustomize or GitOps, configure trust domains, expose metrics, and validate a Kubernetes cluster."
 aliases:
   - /operator/install/
 ---

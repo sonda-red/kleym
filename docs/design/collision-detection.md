@@ -1,6 +1,7 @@
 ---
 title: Collision Detection
 weight: 30
+description: "Collision detection design for preventing multiple PerObjective bindings from rendering identities onto the same workload slice."
 aliases:
   - /operator/design/collision-detection/
 ---

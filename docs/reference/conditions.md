@@ -1,6 +1,7 @@
 ---
 title: Conditions
 weight: 20
+description: "Kleym condition reference for Ready, Conflict, InvalidRef, UnsafeSelector, RenderFailure, and related status reasons."
 aliases:
   - /operator/reference/conditions/
 ---

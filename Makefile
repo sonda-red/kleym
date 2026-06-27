@@ -48,7 +48,7 @@ help: ## Display this help.
 
 .PHONY: docs-build
 docs-build: ## Build the Hugo + Hextra docs site.
-	"$(HUGO)" --gc --minify
+	"$(HUGO)" --cleanDestinationDir --gc --minify
 
 .PHONY: docs-serve
 docs-serve: ## Serve docs locally with Hugo; set DOCS_PORT to override 1313.

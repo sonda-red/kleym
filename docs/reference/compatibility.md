@@ -1,6 +1,7 @@
 ---
 title: Compatibility
 weight: 50
+description: "Compatibility notes for Kleym releases, Kubernetes versions, Gateway API Inference Extension inputs, and SPIRE Controller Manager behavior."
 aliases:
   - /operator/reference/compatibility/
 ---

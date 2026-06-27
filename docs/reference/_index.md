@@ -1,6 +1,7 @@
 ---
 title: Reference
 weight: 50
+description: "Reference documentation for Kleym API fields, conditions, managed resources, compatibility, dependencies, and GAIE support."
 aliases:
   - /operator/reference/
 ---

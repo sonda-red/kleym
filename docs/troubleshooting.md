@@ -1,6 +1,7 @@
 ---
 title: Troubleshooting
 weight: 60
+description: "Troubleshooting guide for Kleym binding conditions, missing dependency CRDs, unsafe selectors, identity collisions, and inspection output."
 aliases:
   - /operator/troubleshooting/
 ---

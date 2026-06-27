@@ -1,6 +1,7 @@
 ---
 title: Downstream Patterns
 weight: 40
+description: "Downstream integration patterns for consuming Kleym-rendered SPIFFE identities without making Kleym own routing or authorization."
 aliases:
   - /operator/design/downstream-patterns/
   - /reference/downstream-enforcement/

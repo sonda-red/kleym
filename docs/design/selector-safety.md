@@ -1,6 +1,7 @@
 ---
 title: Selector Safety
 weight: 20
+description: "Selector safety design for proving namespace, service account, pool, and container boundaries before rendering SPIFFE identities."
 aliases:
   - /operator/design/selector-safety/
 ---

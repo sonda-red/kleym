@@ -1,0 +1,126 @@
+{{- $description := partial "utils/page-description.html" . | plainify | htmlUnescape -}}
+{{- $language := site.Params.locale | default site.Language.Lang | default "en" -}}
+{{- $personID := "https://sonda.red/#person-kalin-daskalov" -}}
+{{- $websiteID := printf "%s#website" site.BaseURL -}}
+{{- $softwareID := printf "%s#software-source-code" site.BaseURL -}}
+{{- $webpageID := printf "%s#webpage" .Permalink -}}
+{{- $images := slice -}}
+{{- with .Params.images -}}
+  {{- range . -}}
+    {{- $images = $images | append (. | absURL) -}}
+  {{- end -}}
+{{- else -}}
+  {{- with site.Params.images -}}
+    {{- range . -}}
+      {{- $images = $images | append (. | absURL) -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+<link rel="alternate" type="application/rss+xml" title="{{ site.Title }} docs" href="{{ "index.xml" | absURL }}" />
+
+{{- $person := dict
+  "@type" "Person"
+  "@id" $personID
+  "name" "Kalin Daskalov"
+  "url" "https://sonda.red/about/"
+  "image" "https://sonda.red/images/about/kalin-daskalov.jpg"
+  "sameAs" (slice "https://github.com/sonda-red" "https://linkedin.com/in/daskalovk")
+-}}
+{{- $software := dict
+  "@type" "SoftwareSourceCode"
+  "@id" $softwareID
+  "name" "Kleym"
+  "alternateName" "kleym"
+  "description" site.Params.description
+  "url" site.BaseURL
+  "codeRepository" "https://github.com/sonda-red/kleym"
+  "license" "https://www.apache.org/licenses/LICENSE-2.0"
+  "programmingLanguage" "Go"
+  "runtimePlatform" "Kubernetes"
+  "applicationCategory" "DeveloperApplication"
+  "author" (dict "@id" $personID)
+  "publisher" (dict "@id" $personID)
+  "keywords" site.Params.keywords
+-}}
+{{- if gt (len $images) 0 -}}
+  {{- $software = merge $software (dict "image" (index $images 0)) -}}
+{{- end -}}
+{{- $website := dict
+  "@type" "WebSite"
+  "@id" $websiteID
+  "url" site.BaseURL
+  "name" site.Title
+  "description" site.Params.description
+  "author" (dict "@id" $personID)
+  "publisher" (dict "@id" $personID)
+  "about" (dict "@id" $softwareID)
+  "inLanguage" $language
+-}}
+{{- $pageType := "WebPage" -}}
+{{- if or .IsHome .IsSection -}}
+  {{- $pageType = "CollectionPage" -}}
+{{- end -}}
+{{- $webpage := dict
+  "@type" $pageType
+  "@id" $webpageID
+  "url" .Permalink
+  "name" .Title
+  "description" $description
+  "isPartOf" (dict "@id" $websiteID)
+  "about" (dict "@id" $softwareID)
+  "inLanguage" $language
+-}}
+{{- if .IsHome -}}
+  {{- $webpage = merge $webpage (dict "mainEntity" (dict "@id" $softwareID)) -}}
+{{- end -}}
+{{- $graph := slice $person $software $website -}}
+{{- if and .IsPage (not .IsHome) -}}
+  {{- $articleID := printf "%s#techarticle" .Permalink -}}
+  {{- $article := dict
+    "@type" "TechArticle"
+    "@id" $articleID
+    "mainEntityOfPage" (dict "@id" $webpageID)
+    "url" .Permalink
+    "headline" .Title
+    "description" $description
+    "dateModified" (.Lastmod.Format "2006-01-02T15:04:05-07:00")
+    "author" (dict "@id" $personID)
+    "publisher" (dict "@id" $personID)
+    "about" (dict "@id" $softwareID)
+    "inLanguage" $language
+  -}}
+  {{- with .Parent -}}
+    {{- if ne .RelPermalink "/" -}}
+      {{- $article = merge $article (dict "articleSection" .Title) -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if gt (len $images) 0 -}}
+    {{- $article = merge $article (dict "image" $images) -}}
+  {{- end -}}
+  {{- $webpage = merge $webpage (dict
+    "dateModified" (.Lastmod.Format "2006-01-02T15:04:05-07:00")
+    "author" (dict "@id" $personID)
+    "mainEntity" (dict "@id" $articleID)
+  ) -}}
+  {{- $graph = $graph | append $article -}}
+{{- end -}}
+{{- $graph = $graph | append $webpage -}}
+{{- if not .IsHome -}}
+  {{- $items := slice (dict "@type" "ListItem" "position" 1 "name" "Home" "item" site.BaseURL) -}}
+  {{- $position := 2 -}}
+  {{- with .Parent -}}
+    {{- if ne .RelPermalink "/" -}}
+      {{- $items = $items | append (dict "@type" "ListItem" "position" $position "name" .Title "item" .Permalink) -}}
+      {{- $position = add $position 1 -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $items = $items | append (dict "@type" "ListItem" "position" $position "name" .Title "item" .Permalink) -}}
+  {{- $graph = $graph | append (dict
+    "@type" "BreadcrumbList"
+    "@id" (printf "%s#breadcrumb" .Permalink)
+    "itemListElement" $items
+  ) -}}
+{{- end -}}
+{{- $schema := dict "@context" "https://schema.org" "@graph" $graph -}}
+<script type="application/ld+json">{{ $schema | jsonify (dict "indent" "  ") | safeJS }}</script>

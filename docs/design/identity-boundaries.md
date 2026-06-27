@@ -1,6 +1,7 @@
 ---
 title: Identity Boundaries
 weight: 15
+description: "Design rationale for Kleym identity boundaries across namespaces, service accounts, inference pools, objectives, and containers."
 aliases:
   - /operator/design/identity-boundaries/
 ---

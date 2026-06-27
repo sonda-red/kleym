@@ -1,6 +1,7 @@
 ---
 title: Reconciliation
 weight: 10
+description: "Detailed reconciliation design for resolving inference inputs, rendering identities, applying ClusterSPIFFEID resources, and patching status."
 aliases:
   - /operator/design/reconciliation/
 ---

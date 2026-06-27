@@ -1,6 +1,7 @@
 ---
 title: Design
 weight: 70
+description: "Design notes for Kleym reconciliation, identity boundaries, selector safety, collision detection, and downstream handoff patterns."
 aliases:
   - /operator/design/
 ---

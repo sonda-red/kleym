@@ -1,6 +1,7 @@
 ---
 title: Concepts
 weight: 10
+description: "Kleym concepts for Gateway API Inference Extension inputs, PoolOnly and PerObjective identity modes, container-name boundaries, and selector safety."
 aliases:
   - /operator/concepts/
 ---
