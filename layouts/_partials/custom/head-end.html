@@ -1,5 +1,6 @@
 {{- $description := partial "utils/page-description.html" . | plainify | htmlUnescape -}}
 {{- $language := site.Params.locale | default site.Language.Lang | default "en" -}}
+{{- $ogLocale := replace $language "-" "_" -}}
 {{- $personID := "https://sonda.red/#person-kalin-daskalov" -}}
 {{- $websiteID := printf "%s#website" site.BaseURL -}}
 {{- $softwareID := printf "%s#software-source-code" site.BaseURL -}}
@@ -18,6 +19,16 @@
 {{- end -}}
 
 <link rel="alternate" type="application/rss+xml" title="{{ site.Title }} docs" href="{{ "index.xml" | absURL }}" />
+<link rel="sitemap" type="application/xml" title="{{ site.Title }} sitemap" href="{{ "sitemap.xml" | absURL }}" />
+<meta name="author" content="Kalin Daskalov" />
+<meta property="og:locale" content="{{ $ogLocale }}" />
+{{- if and .IsPage (not .IsHome) }}
+<meta property="article:author" content="Kalin Daskalov" />
+<meta property="article:tag" content="Kleym" />
+<meta property="article:tag" content="Kubernetes" />
+<meta property="article:tag" content="SPIFFE" />
+<meta property="article:tag" content="workload identity" />
+{{- end }}
 
 {{- $person := dict
   "@type" "Person"
@@ -26,6 +37,7 @@
   "url" "https://sonda.red/about/"
   "image" "https://sonda.red/images/about/kalin-daskalov.jpg"
   "sameAs" (slice "https://github.com/sonda-red" "https://linkedin.com/in/daskalovk")
+  "knowsAbout" (slice "Kubernetes" "workload identity" "SPIFFE" "SPIRE" "Gateway API Inference Extension" "Kubernetes operators" "inference systems")
 -}}
 {{- $software := dict
   "@type" "SoftwareSourceCode"
@@ -39,6 +51,7 @@
   "programmingLanguage" "Go"
   "runtimePlatform" "Kubernetes"
   "applicationCategory" "DeveloperApplication"
+  "softwareRequirements" (slice "Kubernetes" "SPIRE Controller Manager" "Gateway API Inference Extension")
   "author" (dict "@id" $personID)
   "publisher" (dict "@id" $personID)
   "keywords" site.Params.keywords
@@ -77,6 +90,10 @@
 {{- $graph := slice $person $software $website -}}
 {{- if and .IsPage (not .IsHome) -}}
   {{- $articleID := printf "%s#techarticle" .Permalink -}}
+  {{- $minutes := div (add .WordCount 199) 200 -}}
+  {{- if lt $minutes 1 -}}
+    {{- $minutes = 1 -}}
+  {{- end -}}
   {{- $article := dict
     "@type" "TechArticle"
     "@id" $articleID
@@ -89,6 +106,11 @@
     "publisher" (dict "@id" $personID)
     "about" (dict "@id" $softwareID)
     "inLanguage" $language
+    "keywords" site.Params.keywords
+    "isAccessibleForFree" true
+    "proficiencyLevel" "Intermediate"
+    "wordCount" .WordCount
+    "timeRequired" (printf "PT%dM" $minutes)
   -}}
   {{- with .Parent -}}
     {{- if ne .RelPermalink "/" -}}
