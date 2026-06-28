@@ -42,7 +42,7 @@ menu:
       weight: 1
     - name: Projects
       identifier: projects
-      url: /projects/
+      url: "https://sonda.red/projects/"
       weight: 2
     - name: Notes
       url: "https://sonda.red/notes/"
