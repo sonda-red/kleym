@@ -8,15 +8,15 @@ Kleym stops at identity registration. It does not deploy inference workloads, ro
 
 ## Canonical Sections
 
-- Documentation home: https://kleym.sonda.red/
-- Install: https://kleym.sonda.red/install/
-- Concepts: https://kleym.sonda.red/concepts/
-- Architecture: https://kleym.sonda.red/architecture/
-- Examples: https://kleym.sonda.red/examples/
-- API reference: https://kleym.sonda.red/reference/api/
-- Operator spec: https://kleym.sonda.red/spec/operator/
-- CLI spec: https://kleym.sonda.red/spec/cli/
-- Source repository: https://github.com/sonda-red/kleym
+- [Documentation home](https://kleym.sonda.red/)
+- [Install](https://kleym.sonda.red/install/)
+- [Concepts](https://kleym.sonda.red/concepts/)
+- [Architecture](https://kleym.sonda.red/architecture/)
+- [Examples](https://kleym.sonda.red/examples/)
+- [API reference](https://kleym.sonda.red/reference/api/)
+- [Operator spec](https://kleym.sonda.red/spec/operator/)
+- [CLI spec](https://kleym.sonda.red/spec/cli/)
+- [Source repository](https://github.com/sonda-red/kleym)
 
 ## Main Topics
 
@@ -31,16 +31,16 @@ Kleym stops at identity registration. It does not deploy inference workloads, ro
 
 ## Key Resources
 
-- https://kleym.sonda.red/concepts/ - GAIE inputs, identity modes, container-name boundaries, and selector safety.
-- https://kleym.sonda.red/architecture/ - End-to-end control flow from `InferenceIdentityBinding` to SPIRE registration state.
-- https://kleym.sonda.red/reference/api/ - `InferenceIdentityBinding` API fields and validation rules.
-- https://kleym.sonda.red/reference/resources/ - Managed `ClusterSPIFFEID` output shape.
-- https://kleym.sonda.red/design/selector-safety/ - Selector safety rationale and failure behavior.
-- https://kleym.sonda.red/design/collision-detection/ - Identity collision model and conflict handling.
-- https://kleym.sonda.red/cli/usage/ - Read-only CLI status and binding inspection usage.
+- [Concepts](https://kleym.sonda.red/concepts/) - GAIE inputs, identity modes, container-name boundaries, and selector safety.
+- [Architecture](https://kleym.sonda.red/architecture/) - End-to-end control flow from `InferenceIdentityBinding` to SPIRE registration state.
+- [API reference](https://kleym.sonda.red/reference/api/) - `InferenceIdentityBinding` API fields and validation rules.
+- [Managed resources](https://kleym.sonda.red/reference/resources/) - Managed `ClusterSPIFFEID` output shape.
+- [Selector safety](https://kleym.sonda.red/design/selector-safety/) - Selector safety rationale and failure behavior.
+- [Collision detection](https://kleym.sonda.red/design/collision-detection/) - Identity collision model and conflict handling.
+- [CLI usage](https://kleym.sonda.red/cli/usage/) - Read-only CLI status and binding inspection usage.
 
 ## Related Sonda Red Links
 
-- Personal lab: https://sonda.red/
-- Notes archive: https://sonda.red/notes/
-- About Kalin Daskalov: https://sonda.red/about/
+- [Personal lab](https://sonda.red/)
+- [Notes archive](https://sonda.red/notes/)
+- [About Kalin Daskalov](https://sonda.red/about/)
