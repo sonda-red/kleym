@@ -52,6 +52,23 @@ Keep the search tight. Read the directly relevant discussion and any immediately
 - For every change, explicitly assess whether docs updates are needed and state the result in your handoff (`updated: <files>` or `not needed: <reason>`).
 - If uncertainty affects scope, safety, API shape, or behavior, stop and report the gap instead of filling it with plausible code.
 
+## Docs SEO Handling
+
+When creating or substantially changing a documentation page under `docs/`, explicitly check whether the existing SEO patterns need to change.
+
+At minimum, review:
+
+- front matter `title`, `linkTitle`, `summary`, `description`, `images`, `aliases`, and `cascade`
+- whether the page title and description are specific enough for search results without sounding like vendor copy
+- whether `layouts/_partials/custom/head-end.html` still emits appropriate `TechArticle`, `SoftwareSourceCode`, breadcrumb, author, and article tag JSON-LD for the new docs page shape
+- whether `layouts/sitemap.xml` still includes the right canonical docs pages and image entries
+- whether `layouts/robots.txt` still points at the canonical XML sitemap
+- whether new or moved docs pages need aliases rather than search-visible duplicate content
+
+Do not add one-off SEO templates, generated assets, or custom routing for a single docs page by default. Prefer improving shared Hugo templates or front matter only when the new page exposes a real gap in the existing discovery patterns.
+
+Before handoff for docs work, build the docs site when practical and inspect the rendered page head plus `public/sitemap.xml` for the changed page.
+
 ## Code Style Baseline
 
 - Prefer simple, readable Go over clever patterns. If a stdlib function exists, use it.
