@@ -6,6 +6,8 @@ aliases:
   - /operator/concepts/
 ---
 
+This page describes Kleym-specific concepts. For the neutral category definition before the project mapping, read [Inference Workload Identity for Kubernetes](/concepts/inference-workload-identity/).
+
 ## GAIE Resources
 
 - [`InferencePool` (GAIE API type)](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/): serving pool intent. `kleym-operator` resolves the pool named by `spec.poolRef.name` and derives selector input from `spec.selector`.
@@ -51,6 +53,7 @@ Every rendered identity must include:
 
 ## See Also
 
+- [Inference Workload Identity for Kubernetes](/concepts/inference-workload-identity/)
 - [Architecture](/architecture/)
 - [Basic Binding](/examples/basic-binding/)
 - [Operator Spec](/spec/operator/)

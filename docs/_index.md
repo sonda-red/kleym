@@ -18,6 +18,8 @@ Kleym connects [Gateway API Inference Extension](https://gateway-api-inference-e
 
 The in-cluster `kleym-operator` watches inference intent from resources such as [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/), then compiles that intent into deterministic SPIFFE identities and materializes them as SPIRE Controller Manager `ClusterSPIFFEID` resources. The companion `kleym` CLI is a read-only inspection tool for the rendered identity state.
 
+For the broader category definition, read [Inference Workload Identity for Kubernetes](/concepts/inference-workload-identity/).
+
 ## Overview
 
 - primary input: [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/); optional objective subject: [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/)
@@ -31,6 +33,7 @@ The in-cluster `kleym-operator` watches inference intent from resources such as 
 
 - [Install](/install/): local run, deployment, GitOps install, metrics, and validation commands
 - [Concepts](/concepts/): GAIE inputs, identity modes, container discrimination, and selector safety
+- [Inference Workload Identity](/concepts/inference-workload-identity/): neutral category reference for Kubernetes model-serving identity boundaries
 - [Architecture](/architecture/): end-to-end reconcile flow from binding intent to SPIRE registration resources
 - [Demo](/demo/): reference binding-to-`ClusterSPIFFEID` walkthrough
 - [Examples](/examples/): concrete manifests and expected reconciliation outcomes

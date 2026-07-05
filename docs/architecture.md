@@ -9,7 +9,7 @@ aliases:
 
 ## Control Flow
 
-This flow uses Gateway API Inference Extension (GAIE) objects as upstream inputs.
+This flow uses Gateway API Inference Extension (GAIE) objects as upstream inputs. For the category-level boundary model behind this flow, read [Inference Workload Identity for Kubernetes](/concepts/inference-workload-identity/).
 
 ```
                 InferenceIdentityBinding
@@ -57,6 +57,7 @@ This flow uses Gateway API Inference Extension (GAIE) objects as upstream inputs
 
 ## See Also
 
+- Read [Inference Workload Identity for Kubernetes](/concepts/inference-workload-identity/) for the neutral category definition.
 - Read [Concepts](/concepts/) for the mode and selector model.
 - Read [Managed Resources](/reference/resources/) for the concrete output object shape.
 - Read [Reconciliation](/design/reconciliation/) for the controller flow in more detail.
