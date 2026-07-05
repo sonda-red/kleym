@@ -13,4 +13,5 @@ identity boundaries, and downstream consumption patterns.
 - [Selector Safety](/design/selector-safety/): selector validation rationale.
 - [Identity Boundaries](/design/identity-boundaries/): pool and objective identity modes.
 - [Collision Detection](/design/collision-detection/): current per-objective collision logic.
+- [Kleym Diff Proof Cases](/design/kleym-diff-proof-cases/): proof cases for a future offline semantic identity diff.
 - [Downstream Patterns](/design/downstream-patterns/): non-normative gateway, proxy, and policy handoff patterns.
