@@ -50,60 +50,45 @@ const (
 
 	noIdentityCollisionMessage = "No identity collision detected"
 
-	fieldIndexObjectiveRefName     = "spec.objectiveRef.name"
 	fieldIndexPoolRefName          = "spec.poolRef.name"
-	fieldIndexEffectiveMode        = "spec.effectiveMode"
-	fieldIndexContainerName        = "spec.containerName"
 	infraNotReadyRequeueAfter      = 30 * time.Second
 	deleteVerificationRequeueAfter = 2 * time.Second
-	identityCollisionMessagePrefix = "identity collision with bindings "
-	identityCollisionMessageSuffix = ": PerObjective bindings must not share the same pod selector and container name"
-	modeValuePerObjective          = string(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
 
-	logKeyBinding          = "binding"
-	logKeyNamespace        = "namespace"
-	logKeyName             = "name"
-	logKeyObjectiveRef     = "objectiveRef"
-	logKeyObjective        = "objective"
-	logKeyObjectiveGVK     = "objectiveGVK"
-	logKeyPool             = "pool"
-	logKeyPoolGVK          = "poolGVK"
-	logKeyPoolGroup        = "poolGroup"
-	logKeyMode             = "mode"
-	logKeySpiffeID         = "spiffeID"
-	logKeyClusterSPIFFEID  = "clusterspiffeid"
-	logKeySelectors        = "selectors"
-	logKeyPodSelector      = "podSelector"
-	logKeyCondition        = "condition"
-	logKeyReason           = "reason"
-	logKeyRequeueAfter     = "requeueAfter"
-	logKeyCollision        = "collision"
-	logKeyCollisionMessage = "collisionMessage"
-	logKeyPeerBinding      = "peerBinding"
+	logKeyBinding         = "binding"
+	logKeyNamespace       = "namespace"
+	logKeyName            = "name"
+	logKeyPool            = "pool"
+	logKeyPoolGVK         = "poolGVK"
+	logKeyPoolGroup       = "poolGroup"
+	logKeySpiffeID        = "spiffeID"
+	logKeyClusterSPIFFEID = "clusterspiffeid"
+	logKeySelectors       = "selectors"
+	logKeyPodSelector     = "podSelector"
+	logKeyCondition       = "condition"
+	logKeyReason          = "reason"
+	logKeyRequeueAfter    = "requeueAfter"
 )
 
 var (
-	inferenceObjectiveGVKs = gaie.InferenceObjectiveGVKs()
-	inferencePoolGVKs      = gaie.InferencePoolGVKs()
-	clusterSPIFFEIDGVK     = spirecm.ClusterSPIFFEIDGVK()
+	inferencePoolGVKs  = gaie.InferencePoolGVKs()
+	clusterSPIFFEIDGVK = spirecm.ClusterSPIFFEIDGVK()
 )
 
 // InferenceIdentityBindingReconciler reconciles a InferenceIdentityBinding object
 type InferenceIdentityBindingReconciler struct {
 	client.Client
-	Scheme                 *runtime.Scheme
-	Config                 OperatorConfig
-	Recorder               events.EventRecorder
-	MetricsRecorder        bindingOutcomeRecorder
-	availableObjectiveGVKs []schema.GroupVersionKind
-	availablePoolGVKs      []schema.GroupVersionKind
+	Scheme            *runtime.Scheme
+	Config            OperatorConfig
+	Recorder          events.EventRecorder
+	MetricsRecorder   bindingOutcomeRecorder
+	availablePoolGVKs []schema.GroupVersionKind
 }
 
 // +kubebuilder:rbac:groups=kleym.sonda.red,resources=inferenceidentitybindings,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=kleym.sonda.red,resources=inferenceidentitybindings/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=kleym.sonda.red,resources=inferenceidentitybindings/finalizers,verbs=update
-// +kubebuilder:rbac:groups=inference.networking.k8s.io,resources=inferenceobjectives;inferencepools,verbs=get;list;watch
-// +kubebuilder:rbac:groups=inference.networking.x-k8s.io,resources=inferenceobjectives;inferencepools,verbs=get;list;watch
+// +kubebuilder:rbac:groups=inference.networking.k8s.io,resources=inferencepools,verbs=get;list;watch
+// +kubebuilder:rbac:groups=inference.networking.x-k8s.io,resources=inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups=spire.spiffe.io,resources=clusterspiffeids,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -115,7 +100,7 @@ type InferenceIdentityBindingReconciler struct {
 //  1. Fetch — get the binding; exit if not found.
 //  2. Delete — if DeletionTimestamp is set, clean up ClusterSPIFFEIDs and remove the finalizer.
 //  3. Finalizer — if not present, add and requeue (implicit via Update).
-//  4. Compute + validate — resolve references, render identity, detect collisions.
+//  4. Compute + validate — resolve the pool reference and render identity.
 //     Errors here are either:
 //     - infrastructure-not-ready (CRD missing, transient) → requeue on a timer so recovery
 //     does not depend on an unrelated watch event.
@@ -159,7 +144,6 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 	}
 	logger = logger.WithValues(
 		logKeyPool, binding.Spec.PoolRef.Name,
-		logKeyMode, effectiveMode(binding.Spec.Mode),
 	)
 	ctx = logf.IntoContext(ctx, logger)
 
@@ -178,13 +162,12 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 		}
 	}
 
-	// Phase 4: Compute desired state — resolve objective → pool → identity → collisions.
+	// Phase 4: Compute desired state — resolve pool → identity.
 	statusBase := binding.DeepCopy()
 	initializeConditions(&binding.Status, binding.Generation)
 	applyOperatorConfig(&binding.Status, r.Config)
-	wasColliding := conditionIsTrue(statusBase.Status.Conditions, conditionTypeConflict)
 
-	desiredState, err := r.computeDesiredState(ctx, binding, wasColliding)
+	desiredState, err := r.computeDesiredState(ctx, binding)
 	if err != nil {
 		// reconcileStateError carries condition type + reason + message so we can
 		// set the right status condition from a single error return. Any other
@@ -221,33 +204,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 		return ctrl.Result{}, nil
 	}
 
-	// Phase 5a: Apply collision state — if colliding, block ClusterSPIFFEID reconciliation.
-	collisionResult, err := r.applyCollisionState(ctx, binding, desiredState.perObjectiveCollisionSet, wasColliding)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if collisionResult.currentHasCollision {
-		applyCollisionStatus(&binding.Status, binding.Generation, true, collisionResult.currentMessage)
-		if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
-			return ctrl.Result{}, err
-		}
-		r.recordTerminalOutcome(binding)
-		if collisionResult.currentDetected {
-			r.recordEventf(binding, corev1.EventTypeWarning, "IdentityCollision", "%s", collisionResult.currentMessage)
-		}
-		if collisionResult.currentResolved {
-			r.recordEventf(binding, corev1.EventTypeNormal, "IdentityCollisionResolved", "identity collision resolved")
-		}
-		logger.Info(
-			"skipping ClusterSPIFFEID reconciliation due to per-objective identity collision",
-			logKeyCondition, conditionTypeConflict,
-			logKeyReason, "IdentityCollision",
-			logKeyCollisionMessage, collisionResult.currentMessage,
-		)
-		return ctrl.Result{}, nil
-	}
-
-	// Phase 5b: Apply — reconcile ClusterSPIFFEID resources.
+	// Phase 5: Apply — reconcile ClusterSPIFFEID resources.
 	if err := r.reconcileClusterSPIFFEIDs(ctx, binding, desiredState.identities); err != nil {
 		if meta.IsNoMatchError(err) {
 			stateErr := newStateError(conditionTypeRenderFailure, "ClusterSPIFFEIDCRDMissing", "ClusterSPIFFEID CRD is not installed")
@@ -285,10 +242,6 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 		logKeyReason, "Reconciled",
 	)
 
-	if collisionResult.currentResolved {
-		r.recordEventf(binding, corev1.EventTypeNormal, "IdentityCollisionResolved", "identity collision resolved")
-	}
-
 	primaryIdentity := desiredState.identities[0]
 	primaryClusterSPIFFEIDName := spirecm.DesiredClusterSPIFFEID(
 		binding,
@@ -325,15 +278,6 @@ func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) 
 		return err
 	}
 
-	availableObjectiveGVKs, err := filterAvailableGVKs(
-		mgr.GetRESTMapper(),
-		inferenceObjectiveGVKs,
-		setupLogger.WithValues("resourceKind", "InferenceObjective"),
-	)
-	if err != nil {
-		return err
-	}
-
 	availablePoolGVKs, err := filterAvailableGVKs(
 		mgr.GetRESTMapper(),
 		inferencePoolGVKs,
@@ -345,16 +289,11 @@ func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) 
 
 	if len(availablePoolGVKs) == 0 {
 		return fmt.Errorf(
-			"no supported GAIE InferencePool GVKs are available: objective candidates=%v, pool candidates=%v",
-			inferenceObjectiveGVKs,
+			"no supported GAIE InferencePool GVKs are available: pool candidates=%v",
 			inferencePoolGVKs,
 		)
 	}
 
-	r.availableObjectiveGVKs = append(
-		make([]schema.GroupVersionKind, 0, len(availableObjectiveGVKs)),
-		availableObjectiveGVKs...,
-	)
 	r.availablePoolGVKs = append(
 		make([]schema.GroupVersionKind, 0, len(availablePoolGVKs)),
 		availablePoolGVKs...,
@@ -364,16 +303,6 @@ func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) 
 	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
 		For(&kleymv1alpha1.InferenceIdentityBinding{}, builder.WithPredicates(watchPredicate)).
 		Named("inferenceidentitybinding")
-
-	for _, gvk := range availableObjectiveGVKs {
-		objective := &unstructured.Unstructured{}
-		objective.SetGroupVersionKind(gvk)
-		controllerBuilder = controllerBuilder.Watches(
-			objective,
-			handler.EnqueueRequestsFromMapFunc(r.mapObjectiveToBindings),
-			builder.WithPredicates(watchPredicate),
-		)
-	}
 
 	for _, gvk := range availablePoolGVKs {
 		pool := &unstructured.Unstructured{}
@@ -446,11 +375,9 @@ func (r *InferenceIdentityBindingReconciler) reconcileDelete(
 func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
-	wasCurrentColliding bool,
 ) (desiredBindingState, error) {
 	logger := logf.FromContext(ctx)
 
-	mode := effectiveMode(binding.Spec.Mode)
 	poolRef, err := gaie.BindingPoolRef(binding)
 	if err != nil {
 		return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidPoolRef", err.Error())
@@ -471,41 +398,12 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 		logKeyPoolGVK, pool.GroupVersionKind().String(),
 	)
 
-	var objective *unstructured.Unstructured
-	objectiveRef, hasObjectiveRef, err := gaie.BindingObjectiveRef(binding)
-	if err != nil {
-		return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidObjectiveRef", err.Error())
-	}
-	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective && !hasObjectiveRef {
-		return desiredBindingState{}, newStateError(
-			conditionTypeRenderFailure,
-			"MissingObjectiveRef",
-			"objectiveRef is required when mode is PerObjective",
-		)
-	}
-	if hasObjectiveRef {
-		objective, err = r.resolveInferenceObjective(ctx, objectiveRef)
-		if err != nil {
-			return desiredBindingState{}, err
-		}
-		logger.Info(
-			"resolved target InferenceObjective",
-			logKeyObjectiveRef, objectiveRef.Name,
-			logKeyObjective, namespacedBindingKey(objective.GetNamespace(), objective.GetName()),
-			logKeyObjectiveGVK, objective.GroupVersionKind().String(),
-		)
-		if err := gaie.ValidateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
-			return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidObjectiveRef", err.Error())
-		}
-	}
-
-	identity, err := r.renderIdentity(binding, objective, pool)
+	identity, err := r.renderIdentity(binding, pool)
 	if err != nil {
 		return desiredBindingState{}, err
 	}
 	logger.Info(
 		"rendered identity from inference intent",
-		logKeyMode, identity.Mode,
 		logKeySpiffeID, identity.SpiffeID,
 		logKeyClusterSPIFFEID, spirecm.DesiredClusterSPIFFEID(
 			binding,
@@ -514,27 +412,11 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 		).GetName(),
 		logKeySelectors, identity.Selectors,
 		logKeyPodSelector, identity.PodSelector,
-		logKeyObjective, identity.ObjectiveRef,
 		logKeyPool, identity.PoolRef,
 	)
 
-	collisionSet, err := r.computePerObjectiveCollisionSet(ctx, binding, identity, wasCurrentColliding)
-	if err != nil {
-		return desiredBindingState{}, err
-	}
-	if collisionSet.currentHasCollision {
-		logger.Info(
-			"computed per-objective identity collision",
-			logKeyCollision, true,
-			logKeyCollisionMessage, collisionSet.currentMessage,
-		)
-	} else {
-		logger.V(1).Info("computed per-objective identity collision state", logKeyCollision, false)
-	}
-
 	return desiredBindingState{
-		identities:               []renderedIdentity{identity},
-		perObjectiveCollisionSet: collisionSet,
+		identities: []renderedIdentity{identity},
 	}, nil
 }
 
@@ -557,72 +439,6 @@ func (r *InferenceIdentityBindingReconciler) applyStateError(
 
 	applyFailureStatus(&binding.Status, binding.Generation, stateErr)
 	return nil
-}
-
-func (r *InferenceIdentityBindingReconciler) applyCollisionState(
-	ctx context.Context,
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-	collisionSet perObjectiveCollisionSet,
-	wasCurrentColliding bool,
-) (collisionApplyResult, error) {
-	logger := logf.FromContext(ctx)
-	currentBindingKey := namespacedBindingKey(binding.Namespace, binding.Name)
-	result := collisionApplyResult{
-		currentHasCollision: collisionSet.currentHasCollision,
-		currentMessage:      collisionSet.currentMessage,
-		currentDetected:     !wasCurrentColliding && collisionSet.currentHasCollision,
-		currentResolved:     wasCurrentColliding && !collisionSet.currentHasCollision,
-	}
-
-	for i := range collisionSet.states {
-		state := collisionSet.states[i]
-		bindingKey := namespacedBindingKey(state.binding.Namespace, state.binding.Name)
-		wasColliding := conditionIsTrue(state.binding.Status.Conditions, conditionTypeConflict)
-
-		if state.hasCollision {
-			if err := r.cleanupManagedClusterSPIFFEIDs(ctx, state.binding); err != nil {
-				return collisionApplyResult{}, err
-			}
-		}
-
-		if bindingKey == currentBindingKey {
-			continue
-		}
-
-		if err := r.patchStatus(ctx, state.binding, func(status *kleymv1alpha1.InferenceIdentityBindingStatus) {
-			initializeConditions(status, state.binding.Generation)
-			applyOperatorConfig(status, r.Config)
-			applyCollisionStatus(status, state.binding.Generation, state.hasCollision, state.message)
-		}); err != nil {
-			return collisionApplyResult{}, err
-		}
-		logger.Info(
-			"applied peer collision status",
-			logKeyPeerBinding, bindingKey,
-			logKeyCollision, state.hasCollision,
-			logKeyCollisionMessage, state.message,
-		)
-
-		if !wasColliding && state.hasCollision {
-			r.recordEventf(state.binding, corev1.EventTypeWarning, "IdentityCollision", "%s", state.message)
-		}
-		if wasColliding && !state.hasCollision {
-			r.recordEventf(state.binding, corev1.EventTypeNormal, "IdentityCollisionResolved", "identity collision resolved")
-		}
-	}
-
-	if result.currentHasCollision {
-		logger.Info(
-			"cleaning up managed ClusterSPIFFEIDs for colliding binding",
-			logKeyCondition, conditionTypeConflict,
-			logKeyReason, "IdentityCollision",
-		)
-		if err := r.cleanupManagedClusterSPIFFEIDs(ctx, binding); err != nil {
-			return collisionApplyResult{}, err
-		}
-	}
-
-	return result, nil
 }
 
 func (r *InferenceIdentityBindingReconciler) recordEventf(

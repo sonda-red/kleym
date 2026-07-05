@@ -56,7 +56,6 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 			logger.Info(
 				"creating managed ClusterSPIFFEID",
 				logKeyClusterSPIFFEID, desiredName,
-				logKeyMode, identity.Mode,
 				logKeySpiffeID, identity.SpiffeID,
 			)
 			if err := r.Create(ctx, desired); err != nil && !apierrors.IsAlreadyExists(err) {
@@ -69,7 +68,6 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 			logger.Info(
 				"updating drifted managed ClusterSPIFFEID",
 				logKeyClusterSPIFFEID, desiredName,
-				logKeyMode, identity.Mode,
 				logKeySpiffeID, identity.SpiffeID,
 			)
 			spirecm.MergeDesiredClusterSPIFFEID(current, desired)
@@ -81,7 +79,6 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 		logger.V(1).Info(
 			"managed ClusterSPIFFEID already in sync",
 			logKeyClusterSPIFFEID, desiredName,
-			logKeyMode, identity.Mode,
 			logKeySpiffeID, identity.SpiffeID,
 		)
 	}

@@ -23,7 +23,7 @@ func TestReconcileDeleteWaitsForManagedClusterSPIFFEIDsToDisappear(t *testing.T)
 	ctx := context.Background()
 	scheme := newCollisionTestScheme(t)
 
-	binding := newPerObjectiveBinding("binding-delete", "objective-a")
+	binding := newPoolOnlyBinding("binding-delete", "")
 	controllerutil.AddFinalizer(binding, inferenceIdentityBindingFinalizer)
 	binding.SetDeletionTimestamp(&metav1.Time{Time: metav1.Now().Time})
 
@@ -113,7 +113,7 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 	ctx := context.Background()
 	scheme := newCollisionTestScheme(t)
 
-	binding := newPerObjectiveBinding("binding-drift", "objective-a")
+	binding := newPoolOnlyBinding("binding-drift", "")
 
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
@@ -121,7 +121,6 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
 			WithObjects(
 				newTestPool(),
-				newTestObjective("objective-a"),
 				binding,
 			).
 			Build(),

@@ -23,13 +23,6 @@ import (
 	"github.com/sonda-red/kleym/internal/gaie"
 )
 
-func (r *InferenceIdentityBindingReconciler) resolveInferenceObjective(
-	ctx context.Context,
-	objectiveRef gaie.ObjectiveRef,
-) (*unstructured.Unstructured, error) {
-	return gaie.ResolveInferenceObjective(ctx, r.Client, r.resolveObjectiveGVKs(), objectiveRef)
-}
-
 func (r *InferenceIdentityBindingReconciler) resolveInferencePool(
 	ctx context.Context,
 	poolRef gaie.PoolRef,
@@ -45,7 +38,6 @@ func shouldCleanupManagedClusterSPIFFEIDs(conditionType string) bool {
 }
 
 func isInfrastructureNotReadyReason(reason string) bool {
-	return reason == "InferenceObjectiveCRDMissing" ||
-		reason == "InferencePoolCRDMissing" ||
+	return reason == "InferencePoolCRDMissing" ||
 		reason == "ClusterSPIFFEIDCRDMissing"
 }

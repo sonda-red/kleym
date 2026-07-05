@@ -27,7 +27,6 @@ import (
 
 func (r *InferenceIdentityBindingReconciler) renderIdentity(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
-	objective *unstructured.Unstructured,
 	pool *unstructured.Unstructured,
 ) (identity.RenderedIdentity, error) {
 	podSelector, poolDerivedSelectors, err := gaie.DeriveSelectorsFromPool(pool)
@@ -38,14 +37,9 @@ func (r *InferenceIdentityBindingReconciler) renderIdentity(
 			Message:       err.Error(),
 		}
 	}
-	objectiveName := ""
-	if objective != nil {
-		objectiveName = objective.GetName()
-	}
 	return identity.PlanIdentity(identity.PlanInput{
 		Binding:              binding,
 		TrustDomain:          r.Config.TrustDomain,
-		ObjectiveName:        objectiveName,
 		PoolName:             pool.GetName(),
 		PodSelector:          podSelector,
 		PoolDerivedSelectors: poolDerivedSelectors,
@@ -66,20 +60,5 @@ func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
 		return identity.RenderedIdentity{}, err
 	}
 
-	var objective *unstructured.Unstructured
-	objectiveRef, hasObjectiveRef, err := gaie.BindingObjectiveRef(binding)
-	if err != nil {
-		return identity.RenderedIdentity{}, err
-	}
-	if hasObjectiveRef {
-		objective, err = r.resolveInferenceObjective(ctx, objectiveRef)
-		if err != nil {
-			return identity.RenderedIdentity{}, err
-		}
-		if err := gaie.ValidateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
-			return identity.RenderedIdentity{}, err
-		}
-	}
-
-	return r.renderIdentity(binding, objective, pool)
+	return r.renderIdentity(binding, pool)
 }

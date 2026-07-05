@@ -2,7 +2,6 @@ package identity
 
 import (
 	"errors"
-	"slices"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,7 +9,7 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
-func TestRenderIdentityRejectsInvalidServiceAccountName(t *testing.T) {
+func TestPlanIdentityRejectsInvalidServiceAccountName(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]string{
@@ -23,10 +22,10 @@ func TestRenderIdentityRejectsInvalidServiceAccountName(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePoolOnly)
+			binding := testBinding()
 			binding.Spec.ServiceAccountName = serviceAccountName
 
-			_, err := PlanIdentity(testPlanInput(binding, "objective-a", "pool-a"))
+			_, err := PlanIdentity(testPlanInput(binding, "pool-a"))
 			if err == nil {
 				t.Fatalf("expected invalid service account error, got nil")
 			}
@@ -42,109 +41,12 @@ func TestRenderIdentityRejectsInvalidServiceAccountName(t *testing.T) {
 	}
 }
 
-func TestRenderIdentityRejectsInvalidContainerName(t *testing.T) {
+func TestPlanIdentityUsesPoolSPIFFEID(t *testing.T) {
 	t.Parallel()
 
-	cases := map[string]string{
-		"invalid-character":   "model_server",
-		"leading-whitespace":  " main",
-		"trailing-whitespace": "main ",
-	}
+	binding := testBinding()
 
-	for name, containerName := range cases {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
-			binding.Spec.ContainerName = containerName
-
-			_, err := PlanIdentity(testPlanInput(binding, "objective-a", "pool-a"))
-			if err == nil {
-				t.Fatalf("expected invalid container name error, got nil")
-			}
-
-			var stateErr *StateError
-			if !errors.As(err, &stateErr) {
-				t.Fatalf("expected StateError, got %T", err)
-			}
-			if stateErr.ConditionType != ConditionTypeRenderFailure || stateErr.Reason != "InvalidContainerName" {
-				t.Fatalf("condition/reason = %q/%q, want %q/InvalidContainerName", stateErr.ConditionType, stateErr.Reason, ConditionTypeRenderFailure)
-			}
-		})
-	}
-}
-
-func TestRenderIdentityRejectsContainerNameInPoolOnly(t *testing.T) {
-	t.Parallel()
-
-	cases := map[string]string{
-		"name":            "main",
-		"whitespace-only": " ",
-	}
-
-	for name, containerName := range cases {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePoolOnly)
-			binding.Spec.ContainerName = containerName
-
-			_, err := PlanIdentity(testPlanInput(binding, "objective-a", "pool-a"))
-			if err == nil {
-				t.Fatalf("expected unexpected container name error, got nil")
-			}
-
-			var stateErr *StateError
-			if !errors.As(err, &stateErr) {
-				t.Fatalf("expected StateError, got %T", err)
-			}
-			if stateErr.ConditionType != ConditionTypeRenderFailure || stateErr.Reason != "UnexpectedContainerName" {
-				t.Fatalf("condition/reason = %q/%q, want %q/UnexpectedContainerName", stateErr.ConditionType, stateErr.Reason, ConditionTypeRenderFailure)
-			}
-		})
-	}
-}
-
-func TestRenderIdentityPerObjectiveAddsContainerSelector(t *testing.T) {
-	t.Parallel()
-
-	binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
-
-	identity, err := PlanIdentity(testPlanInput(binding, "objective-a", "pool-a"))
-	if err != nil {
-		t.Fatalf("PlanIdentity returned error: %v", err)
-	}
-
-	if identity.Mode != kleymv1alpha1.InferenceIdentityBindingModePerObjective {
-		t.Fatalf("mode = %q, want %q", identity.Mode, kleymv1alpha1.InferenceIdentityBindingModePerObjective)
-	}
-	if !slices.Contains(identity.Selectors, "k8s:container-name:main") {
-		t.Fatalf("expected container selector, selectors: %v", identity.Selectors)
-	}
-}
-
-func TestRenderIdentityUsesDeterministicSPIFFEID(t *testing.T) {
-	t.Parallel()
-
-	binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePerObjective)
-
-	identity, err := PlanIdentity(testPlanInput(binding, "objective-a", "pool-a"))
-	if err != nil {
-		t.Fatalf("PlanIdentity returned error: %v", err)
-	}
-
-	expectedSPIFFEID := "spiffe://example.org/ns/default/objective/objective-a"
-	if identity.SpiffeID != expectedSPIFFEID {
-		t.Fatalf("spiffeID = %q, want %q", identity.SpiffeID, expectedSPIFFEID)
-	}
-}
-
-func TestRenderIdentityUsesConfiguredTrustDomainForPoolOnly(t *testing.T) {
-	t.Parallel()
-
-	binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePoolOnly)
-
-	identity, err := PlanIdentity(testPlanInput(binding, "objective-a", "pool-a"))
+	identity, err := PlanIdentity(testPlanInput(binding, "pool-a"))
 	if err != nil {
 		t.Fatalf("PlanIdentity returned error: %v", err)
 	}
@@ -153,13 +55,22 @@ func TestRenderIdentityUsesConfiguredTrustDomainForPoolOnly(t *testing.T) {
 	if identity.SpiffeID != expectedSPIFFEID {
 		t.Fatalf("spiffeID = %q, want %q", identity.SpiffeID, expectedSPIFFEID)
 	}
+	for _, expectedSelector := range []string{
+		"k8s:ns:default",
+		"k8s:sa:inference-sa",
+		"k8s:pod-label:app:model-server",
+	} {
+		if !containsString(identity.Selectors, expectedSelector) {
+			t.Fatalf("expected selector %q, selectors: %v", expectedSelector, identity.Selectors)
+		}
+	}
 }
 
-func TestRenderIdentityRejectsMissingTrustDomain(t *testing.T) {
+func TestPlanIdentityRejectsMissingTrustDomain(t *testing.T) {
 	t.Parallel()
 
-	binding := testBinding(kleymv1alpha1.InferenceIdentityBindingModePoolOnly)
-	input := testPlanInput(binding, "objective-a", "pool-a")
+	binding := testBinding()
+	input := testPlanInput(binding, "pool-a")
 	input.TrustDomain = ""
 
 	_, err := PlanIdentity(input)
@@ -175,42 +86,8 @@ func TestRenderIdentityRejectsMissingTrustDomain(t *testing.T) {
 	}
 }
 
-func TestPerObjectiveCollisionFingerprintValidatesInputs(t *testing.T) {
-	t.Parallel()
-
-	identity := RenderedIdentity{
-		PodSelector: map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
-		Selectors:   []string{"k8s:container-name:main", "k8s:ns:default", "k8s:sa:inference-sa"},
-	}
-
-	fingerprint, err := PerObjectiveCollisionFingerprint(identity, "main")
-	if err != nil {
-		t.Fatalf("PerObjectiveCollisionFingerprint returned error: %v", err)
-	}
-
-	repeated, err := PerObjectiveCollisionFingerprint(identity, "main")
-	if err != nil {
-		t.Fatalf("repeated PerObjectiveCollisionFingerprint returned error: %v", err)
-	}
-	if repeated != fingerprint {
-		t.Fatalf("repeated fingerprint = %q, want %q", repeated, fingerprint)
-	}
-
-	otherContainer, err := PerObjectiveCollisionFingerprint(identity, "sidecar")
-	if err != nil {
-		t.Fatalf("fingerprint with different containerName returned error: %v", err)
-	}
-	if otherContainer == fingerprint {
-		t.Fatalf("fingerprint did not change for different containerName: %q", fingerprint)
-	}
-
-	if _, err := PerObjectiveCollisionFingerprint(identity, " main"); err == nil {
-		t.Fatalf("expected invalid containerName error, got nil")
-	}
-}
-
-func testBinding(mode kleymv1alpha1.InferenceIdentityBindingMode) *kleymv1alpha1.InferenceIdentityBinding {
-	binding := &kleymv1alpha1.InferenceIdentityBinding{
+func testBinding() *kleymv1alpha1.InferenceIdentityBinding {
+	return &kleymv1alpha1.InferenceIdentityBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "binding-a",
 			Namespace: "default",
@@ -218,27 +95,28 @@ func testBinding(mode kleymv1alpha1.InferenceIdentityBindingMode) *kleymv1alpha1
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
 			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-a"},
 			ServiceAccountName: "inference-sa",
-			Mode:               mode,
 		},
 	}
-	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective {
-		binding.Spec.ObjectiveRef = &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "objective-a"}
-		binding.Spec.ContainerName = "main"
-	}
-	return binding
 }
 
 func testPlanInput(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
-	objectiveName string,
 	poolName string,
 ) PlanInput {
 	return PlanInput{
 		Binding:              binding,
 		TrustDomain:          "example.org",
-		ObjectiveName:        objectiveName,
 		PoolName:             poolName,
 		PodSelector:          map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
 		PoolDerivedSelectors: []string{"k8s:pod-label:app:model-server"},
 	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

@@ -20,14 +20,13 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 
-	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 	"github.com/sonda-red/kleym/internal/gaie"
 	"github.com/sonda-red/kleym/internal/identity"
 )
 
 // reconcileStateError bundles a Kubernetes condition type, reason, and message
 // into a single error value. This lets helper functions (resolver, render,
-// collision) return domain-specific errors that the Reconcile() caller can
+// render) return domain-specific errors that the Reconcile() caller can
 // convert directly into the right status condition, without scattering
 // condition-setting logic across multiple files.
 //
@@ -54,40 +53,11 @@ func newStateError(conditionType, reason, message string) *reconcileStateError {
 type renderedIdentity = identity.RenderedIdentity
 
 type desiredBindingState struct {
-	identities               []renderedIdentity
-	perObjectiveCollisionSet perObjectiveCollisionSet
-}
-
-type collisionApplyResult struct {
-	currentHasCollision bool
-	currentMessage      string
-	currentDetected     bool
-	currentResolved     bool
-}
-
-type perObjectiveCollisionCandidate struct {
-	binding *kleymv1alpha1.InferenceIdentityBinding
-	key     string
-}
-
-type perObjectiveCollisionState struct {
-	binding      *kleymv1alpha1.InferenceIdentityBinding
-	hasCollision bool
-	message      string
-}
-
-type perObjectiveCollisionSet struct {
-	states              []perObjectiveCollisionState
-	currentHasCollision bool
-	currentMessage      string
+	identities []renderedIdentity
 }
 
 func namespacedBindingKey(namespace, name string) string {
 	return types.NamespacedName{Namespace: namespace, Name: name}.String()
-}
-
-func effectiveMode(mode kleymv1alpha1.InferenceIdentityBindingMode) kleymv1alpha1.InferenceIdentityBindingMode {
-	return identity.EffectiveMode(mode)
 }
 
 // errorsAsStateError is a type-assertion helper that extracts a

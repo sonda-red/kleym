@@ -55,7 +55,6 @@ func newStateError(conditionType, reason, message string) *StateError {
 type PlanInput struct {
 	Binding              *kleymv1alpha1.InferenceIdentityBinding
 	TrustDomain          string
-	ObjectiveName        string
 	PoolName             string
 	PodSelector          map[string]any
 	PoolDerivedSelectors []string
@@ -63,34 +62,22 @@ type PlanInput struct {
 
 // Plan is the pure desired identity state shared by the controller and CLI.
 type Plan struct {
-	Mode         kleymv1alpha1.InferenceIdentityBindingMode
-	SpiffeID     string
-	Selectors    []string
-	PodSelector  map[string]any
-	ObjectiveRef string
-	PoolRef      string
+	SpiffeID    string
+	Selectors   []string
+	PodSelector map[string]any
+	PoolRef     string
 }
 
 // RenderedIdentity is kept as a compatibility alias for callers during the package split.
 type RenderedIdentity = Plan
 
 type renderTemplateData struct {
-	Namespace     string
-	BindingName   string
-	ObjectiveName string
-	PoolName      string
-	Mode          string
+	Namespace   string
+	BindingName string
+	PoolName    string
 }
 
 // NamespacedBindingKey returns the canonical namespace/name key used in logs and messages.
 func NamespacedBindingKey(namespace, name string) string {
 	return types.NamespacedName{Namespace: namespace, Name: name}.String()
-}
-
-// EffectiveMode applies the API default for InferenceIdentityBinding mode.
-func EffectiveMode(mode kleymv1alpha1.InferenceIdentityBindingMode) kleymv1alpha1.InferenceIdentityBindingMode {
-	if mode == "" {
-		return kleymv1alpha1.InferenceIdentityBindingModePerObjective
-	}
-	return mode
 }

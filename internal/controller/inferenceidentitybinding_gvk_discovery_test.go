@@ -13,42 +13,42 @@ import (
 func TestFilterAvailableGVKs_AllAvailable(t *testing.T) {
 	t.Parallel()
 
-	mapper := newTestRESTMapper(inferenceObjectiveGVKs, inferenceObjectiveGVKs)
-	available, err := filterAvailableGVKs(mapper, inferenceObjectiveGVKs, logr.Discard())
+	mapper := newTestRESTMapper(inferencePoolGVKs, inferencePoolGVKs)
+	available, err := filterAvailableGVKs(mapper, inferencePoolGVKs, logr.Discard())
 	if err != nil {
 		t.Fatalf("filterAvailableGVKs returned error: %v", err)
 	}
 
-	if !equalGVKSets(available, inferenceObjectiveGVKs) {
-		t.Fatalf("available GVKs = %v, want %v", available, inferenceObjectiveGVKs)
-	}
-}
-
-func TestFilterAvailableGVKs_XOnlyAvailable(t *testing.T) {
-	t.Parallel()
-
-	mapper := newTestRESTMapper(inferenceObjectiveGVKs, []schema.GroupVersionKind{inferenceObjectiveGVKs[0]})
-	available, err := filterAvailableGVKs(mapper, inferenceObjectiveGVKs, logr.Discard())
-	if err != nil {
-		t.Fatalf("filterAvailableGVKs returned error: %v", err)
-	}
-
-	want := []schema.GroupVersionKind{inferenceObjectiveGVKs[0]}
-	if !equalGVKSets(available, want) {
-		t.Fatalf("available GVKs = %v, want %v", available, want)
+	if !equalGVKSets(available, inferencePoolGVKs) {
+		t.Fatalf("available GVKs = %v, want %v", available, inferencePoolGVKs)
 	}
 }
 
 func TestFilterAvailableGVKs_K8sOnlyAvailable(t *testing.T) {
 	t.Parallel()
 
-	mapper := newTestRESTMapper(inferenceObjectiveGVKs, []schema.GroupVersionKind{inferenceObjectiveGVKs[1]})
-	available, err := filterAvailableGVKs(mapper, inferenceObjectiveGVKs, logr.Discard())
+	mapper := newTestRESTMapper(inferencePoolGVKs, []schema.GroupVersionKind{inferencePoolGVKs[0]})
+	available, err := filterAvailableGVKs(mapper, inferencePoolGVKs, logr.Discard())
 	if err != nil {
 		t.Fatalf("filterAvailableGVKs returned error: %v", err)
 	}
 
-	want := []schema.GroupVersionKind{inferenceObjectiveGVKs[1]}
+	want := []schema.GroupVersionKind{inferencePoolGVKs[0]}
+	if !equalGVKSets(available, want) {
+		t.Fatalf("available GVKs = %v, want %v", available, want)
+	}
+}
+
+func TestFilterAvailableGVKs_XOnlyAvailable(t *testing.T) {
+	t.Parallel()
+
+	mapper := newTestRESTMapper(inferencePoolGVKs, []schema.GroupVersionKind{inferencePoolGVKs[1]})
+	available, err := filterAvailableGVKs(mapper, inferencePoolGVKs, logr.Discard())
+	if err != nil {
+		t.Fatalf("filterAvailableGVKs returned error: %v", err)
+	}
+
+	want := []schema.GroupVersionKind{inferencePoolGVKs[1]}
 	if !equalGVKSets(available, want) {
 		t.Fatalf("available GVKs = %v, want %v", available, want)
 	}
@@ -57,8 +57,8 @@ func TestFilterAvailableGVKs_K8sOnlyAvailable(t *testing.T) {
 func TestFilterAvailableGVKs_NoneAvailable(t *testing.T) {
 	t.Parallel()
 
-	mapper := newTestRESTMapper(inferenceObjectiveGVKs, nil)
-	available, err := filterAvailableGVKs(mapper, inferenceObjectiveGVKs, logr.Discard())
+	mapper := newTestRESTMapper(inferencePoolGVKs, nil)
+	available, err := filterAvailableGVKs(mapper, inferencePoolGVKs, logr.Discard())
 	if err != nil {
 		t.Fatalf("filterAvailableGVKs returned error: %v", err)
 	}
@@ -70,14 +70,14 @@ func TestFilterAvailableGVKs_NoneAvailable(t *testing.T) {
 func TestFilterAvailableGVKs_PropagatesUnexpectedRESTMapperError(t *testing.T) {
 	t.Parallel()
 
-	base := newTestRESTMapper(inferenceObjectiveGVKs, []schema.GroupVersionKind{inferenceObjectiveGVKs[0]})
+	base := newTestRESTMapper(inferencePoolGVKs, []schema.GroupVersionKind{inferencePoolGVKs[0]})
 	mapper := restMapperWithInjectedError{
 		RESTMapper: base,
-		groupKind:  inferenceObjectiveGVKs[0].GroupKind(),
+		groupKind:  inferencePoolGVKs[0].GroupKind(),
 		err:        errors.New("boom"),
 	}
 
-	_, err := filterAvailableGVKs(mapper, inferenceObjectiveGVKs, logr.Discard())
+	_, err := filterAvailableGVKs(mapper, inferencePoolGVKs, logr.Discard())
 	if err == nil {
 		t.Fatalf("filterAvailableGVKs returned nil error")
 	}

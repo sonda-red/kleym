@@ -53,13 +53,6 @@ type PoolRef struct {
 	Namespace string
 }
 
-// ObjectiveRef is the normalized namespaced target for a GAIE InferenceObjective.
-type ObjectiveRef struct {
-	Name      string
-	Group     string
-	Namespace string
-}
-
 // BindingPoolRef normalizes the binding's required pool anchor.
 func BindingPoolRef(binding *kleymv1alpha1.InferenceIdentityBinding) (PoolRef, error) {
 	name := strings.TrimSpace(binding.Spec.PoolRef.Name)
@@ -77,29 +70,4 @@ func BindingPoolRef(binding *kleymv1alpha1.InferenceIdentityBinding) (PoolRef, e
 		Group:     group,
 		Namespace: binding.Namespace,
 	}, nil
-}
-
-// BindingObjectiveRef normalizes the optional objective subject.
-func BindingObjectiveRef(
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-) (ObjectiveRef, bool, error) {
-	if binding.Spec.ObjectiveRef == nil {
-		return ObjectiveRef{}, false, nil
-	}
-
-	name := strings.TrimSpace(binding.Spec.ObjectiveRef.Name)
-	if name == "" {
-		return ObjectiveRef{}, true, fmt.Errorf("spec.objectiveRef.name is required")
-	}
-
-	group := strings.TrimSpace(binding.Spec.ObjectiveRef.Group)
-	if group != "" && !IsSupportedInferenceObjectiveGroup(group) {
-		return ObjectiveRef{}, true, fmt.Errorf("spec.objectiveRef.group %q is not a supported GAIE InferenceObjective group", group)
-	}
-
-	return ObjectiveRef{
-		Name:      name,
-		Group:     group,
-		Namespace: binding.Namespace,
-	}, true, nil
 }

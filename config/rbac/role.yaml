@@ -16,7 +16,6 @@ rules:
   - inference.networking.k8s.io
   - inference.networking.x-k8s.io
   resources:
-  - inferenceobjectives
   - inferencepools
   verbs:
   - get

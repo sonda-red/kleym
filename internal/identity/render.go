@@ -21,29 +21,11 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/validation"
-
-	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
 // PlanIdentity computes desired identity state from resolved, read-only inputs.
 func PlanIdentity(input PlanInput) (Plan, error) {
 	binding := input.Binding
-	mode := EffectiveMode(binding.Spec.Mode)
-	if mode != kleymv1alpha1.InferenceIdentityBindingModePoolOnly &&
-		mode != kleymv1alpha1.InferenceIdentityBindingModePerObjective {
-		return Plan{}, newStateError(
-			ConditionTypeRenderFailure,
-			"UnsupportedMode",
-			fmt.Sprintf("unsupported mode %q", mode),
-		)
-	}
-	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective && strings.TrimSpace(input.ObjectiveName) == "" {
-		return Plan{}, newStateError(
-			ConditionTypeRenderFailure,
-			"MissingObjectiveRef",
-			"objectiveRef is required when mode is PerObjective",
-		)
-	}
 	if strings.TrimSpace(input.TrustDomain) == "" {
 		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
@@ -53,11 +35,9 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 	}
 
 	templateData := renderTemplateData{
-		Namespace:     binding.Namespace,
-		BindingName:   binding.Name,
-		ObjectiveName: input.ObjectiveName,
-		PoolName:      input.PoolName,
-		Mode:          string(mode),
+		Namespace:   binding.Namespace,
+		BindingName: binding.Name,
+		PoolName:    input.PoolName,
 	}
 
 	renderedSelectors, err := renderSafetySelectors(binding.Namespace, binding.Spec.ServiceAccountName)
@@ -70,24 +50,6 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 	}
 
 	selectors := append(renderedSelectors, input.PoolDerivedSelectors...)
-	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective {
-		containerSelector, selectorErr := SelectorForContainerName(binding.Spec.ContainerName)
-		if selectorErr != nil {
-			return Plan{}, newStateError(
-				ConditionTypeRenderFailure,
-				"InvalidContainerName",
-				selectorErr.Error(),
-			)
-		}
-		selectors = append(selectors, containerSelector)
-	} else if binding.Spec.ContainerName != "" {
-		return Plan{}, newStateError(
-			ConditionTypeRenderFailure,
-			"UnexpectedContainerName",
-			"containerName must be empty when mode is PoolOnly",
-		)
-	}
-
 	selectors = UniqueAndSorted(selectors)
 	if err := validateRenderedSafetySelectors(binding.Namespace, selectors); err != nil {
 		return Plan{}, newStateError(
@@ -97,7 +59,7 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 		)
 	}
 
-	spiffeID := renderSPIFFEID(mode, input.TrustDomain, templateData)
+	spiffeID := renderPoolSPIFFEID(input.TrustDomain, templateData)
 	if !strings.HasPrefix(spiffeID, "spiffe://") {
 		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
@@ -107,12 +69,10 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 	}
 
 	return Plan{
-		Mode:         mode,
-		SpiffeID:     spiffeID,
-		Selectors:    selectors,
-		PodSelector:  input.PodSelector,
-		ObjectiveRef: input.ObjectiveName,
-		PoolRef:      input.PoolName,
+		SpiffeID:    spiffeID,
+		Selectors:   selectors,
+		PodSelector: input.PodSelector,
+		PoolRef:     input.PoolName,
 	}, nil
 }
 
@@ -130,31 +90,9 @@ func renderSafetySelectors(namespace, serviceAccountName string) ([]string, erro
 	}, nil
 }
 
-// SelectorForContainerName renders the SPIRE selector for the per-objective container boundary.
-func SelectorForContainerName(containerName string) (string, error) {
-	if strings.TrimSpace(containerName) == "" {
-		return "", fmt.Errorf("containerName is required when mode is PerObjective")
-	}
-	if errs := validation.IsDNS1123Label(containerName); len(errs) > 0 {
-		return "", fmt.Errorf("containerName %q is invalid: %s", containerName, strings.Join(errs, "; "))
-	}
-	return "k8s:container-name:" + containerName, nil
-}
-
-// renderSPIFFEID computes the fixed SPIFFE ID forms defined by docs/spec/operator.md.
-func renderSPIFFEID(
-	mode kleymv1alpha1.InferenceIdentityBindingMode,
-	trustDomain string,
-	data renderTemplateData,
-) string {
-	switch mode {
-	case kleymv1alpha1.InferenceIdentityBindingModePoolOnly:
-		return fmt.Sprintf("spiffe://%s/ns/%s/pool/%s", trustDomain, data.Namespace, data.PoolName)
-	case kleymv1alpha1.InferenceIdentityBindingModePerObjective:
-		return fmt.Sprintf("spiffe://%s/ns/%s/objective/%s", trustDomain, data.Namespace, data.ObjectiveName)
-	default:
-		return ""
-	}
+// renderPoolSPIFFEID computes the fixed pool SPIFFE ID form defined by docs/spec/operator.md.
+func renderPoolSPIFFEID(trustDomain string, data renderTemplateData) string {
+	return fmt.Sprintf("spiffe://%s/ns/%s/pool/%s", trustDomain, data.Namespace, data.PoolName)
 }
 
 // validateRenderedSafetySelectors verifies that internally-rendered safety selectors are still present.

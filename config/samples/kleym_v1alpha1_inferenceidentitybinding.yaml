@@ -9,4 +9,3 @@ spec:
   poolRef:
     name: inferencepool-sample
   serviceAccountName: sample-sa
-  mode: PoolOnly

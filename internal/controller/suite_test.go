@@ -70,9 +70,6 @@ var _ = BeforeSuite(func() {
 	err = kleymv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 	registerEnvtestUnstructuredGVK(scheme.Scheme, clusterSPIFFEIDGVK)
-	for _, gvk := range inferenceObjectiveGVKs {
-		registerEnvtestUnstructuredGVK(scheme.Scheme, gvk)
-	}
 	for _, gvk := range inferencePoolGVKs {
 		registerEnvtestUnstructuredGVK(scheme.Scheme, gvk)
 	}

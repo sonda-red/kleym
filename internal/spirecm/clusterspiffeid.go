@@ -75,7 +75,7 @@ func DesiredClusterSPIFFEID(
 ) *unstructured.Unstructured {
 	object := &unstructured.Unstructured{}
 	object.SetGroupVersionKind(ClusterSPIFFEIDGVK())
-	object.SetName(BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, plan.Mode, plan.SpiffeID))
+	object.SetName(BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, plan.SpiffeID))
 	object.SetLabels(ManagedClusterSPIFFEIDLabels(binding))
 
 	selectorTemplates := make([]any, 0, len(plan.Selectors))
@@ -111,13 +111,9 @@ func ManagedClusterSPIFFEIDLabels(binding *kleymv1alpha1.InferenceIdentityBindin
 func BuildClusterSPIFFEIDName(
 	namespace string,
 	bindingName string,
-	mode kleymv1alpha1.InferenceIdentityBindingMode,
 	spiffeID string,
 ) string {
 	modeText := "pool"
-	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective {
-		modeText = "objective"
-	}
 
 	hashSum := sha1.Sum([]byte(spiffeID))
 	hashSuffix := hex.EncodeToString(hashSum[:nameHashBytes])
