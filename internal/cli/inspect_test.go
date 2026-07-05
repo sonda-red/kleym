@@ -119,13 +119,13 @@ func TestInspectBindingDefaultTextUsesRunner(t *testing.T) {
 
 	fakeReport := inspection.NewBindingInspectionReport()
 	fakeReport.GeneratedAt = "2026-05-18T10:11:12Z"
-	fakeReport.BindingRef = inspection.BindingInspectionBindingRef{Namespace: "tenant-a", Name: "binding-a", Mode: "PerObjective"}
+	fakeReport.BindingRef = inspection.BindingInspectionBindingRef{Namespace: "tenant-a", Name: "binding-a"}
 	fakeReport.RenderedIdentity = inspection.BindingInspectionRenderedIdentity{
-		SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+		SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
 	}
 	fakeReport.RenderedClusterSPIFFEID = inspection.BindingInspectionRenderedClusterSPIFFEID{
 		Name:     "tenant-a-binding-a-1234abcd",
-		SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+		SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
 	}
 	newBindingInspectionRunner = func(_ *Options) (inspection.BindingInspector, error) {
 		return fixedInspectionRunner{report: fakeReport}, nil
@@ -148,9 +148,8 @@ func TestInspectBindingDefaultTextUsesRunner(t *testing.T) {
 	out := stdout.String()
 	for _, want := range []string{
 		"Binding: tenant-a/binding-a",
-		"Mode: PerObjective",
 		"Identity:",
-		"SPIFFE ID: spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+		"SPIFFE ID: spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
 		"ClusterSPIFFEID:",
 		"Name: tenant-a-binding-a-1234abcd",
 		"Findings: none",

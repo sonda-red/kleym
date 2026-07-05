@@ -82,7 +82,6 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 							Name: "example-pool",
 						},
 						ServiceAccountName: "inference-sa",
-						Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
@@ -182,13 +181,13 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 		})
 	})
 
-	Context("When validating mode-specific API schema behavior", func() {
+	Context("When validating pool-only API schema behavior", func() {
 		ctx := context.Background()
 
-		newResource := func(name string) *kleymv1alpha1.InferenceIdentityBinding {
-			return &kleymv1alpha1.InferenceIdentityBinding{
+		It("should allow a binding with only poolRef and serviceAccountName", func() {
+			resource := &kleymv1alpha1.InferenceIdentityBinding{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
+					Name:      "test-resource-pool-only-schema",
 					Namespace: "default",
 				},
 				Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
@@ -198,74 +197,12 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 					ServiceAccountName: "inference-sa",
 				},
 			}
-		}
 
-		It("should allow PerObjective mode with a containerName", func() {
-			resource := newResource("test-resource-perobjective")
-			resource.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePerObjective
-			resource.Spec.ObjectiveRef = &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "example-objective"}
-			resource.Spec.ContainerName = "main"
-
-			By("creating a valid PerObjective resource")
+			By("creating a valid pool-only resource")
 			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			DeferCleanup(func() {
 				cleanupBinding(ctx, types.NamespacedName{Name: resource.Name, Namespace: resource.Namespace})
 			})
-
-			By("reconciling the created resource")
-			controllerReconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
-
-			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: types.NamespacedName{Name: resource.Name, Namespace: resource.Namespace},
-			})
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result).To(SatisfyAny(
-				Equal(ctrl.Result{}),
-				Equal(ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}),
-			))
-		})
-
-		It("should default omitted mode to PerObjective and allow a containerName", func() {
-			resource := newResource("test-resource-default-perobjective")
-			resource.Spec.ObjectiveRef = &kleymv1alpha1.InferenceObjectiveTargetRef{Name: "example-objective"}
-			resource.Spec.ContainerName = "main"
-
-			By("creating a resource without an explicit mode")
-			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			DeferCleanup(func() {
-				cleanupBinding(ctx, types.NamespacedName{Name: resource.Name, Namespace: resource.Namespace})
-			})
-
-			By("verifying the API server defaulted mode to PerObjective")
-			fetched := &kleymv1alpha1.InferenceIdentityBinding{}
-			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: resource.Name, Namespace: resource.Namespace}, fetched)).To(Succeed())
-			Expect(fetched.Spec.Mode).To(BeEquivalentTo(kleymv1alpha1.InferenceIdentityBindingModePerObjective))
-			Expect(fetched.Spec.ContainerName).To(Equal("main"))
-		})
-
-		It("should reject omitted objectiveRef when mode defaults to PerObjective", func() {
-			resource := newResource("test-resource-missing-objective")
-			resource.Spec.ContainerName = "main"
-
-			err := k8sClient.Create(ctx, resource)
-			Expect(err).To(HaveOccurred())
-			Expect(errors.IsInvalid(err)).To(BeTrue())
-			Expect(err.Error()).To(ContainSubstring("objectiveRef is required when mode is PerObjective"))
-		})
-
-		It("should reject containerName when mode is PoolOnly", func() {
-			resource := newResource("test-resource-poolonly-invalid")
-			resource.Spec.Mode = kleymv1alpha1.InferenceIdentityBindingModePoolOnly
-			resource.Spec.ContainerName = "main"
-
-			By("creating an invalid PoolOnly resource")
-			err := k8sClient.Create(ctx, resource)
-			Expect(err).To(HaveOccurred())
-			Expect(errors.IsInvalid(err)).To(BeTrue())
-			Expect(err.Error()).To(ContainSubstring("containerName must be empty when mode is PoolOnly"))
 		})
 	})
 

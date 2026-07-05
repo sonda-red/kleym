@@ -9,11 +9,10 @@ import (
 )
 
 const (
-	referenceNamespace            = "kleym-reference-inference"
-	referenceBinding              = "binding"
-	referenceSPIFFEID             = "spiffe://kleym.sonda.red/ns/kleym-reference-inference/objective/reference-objective"
-	referenceClusterSPIFFEID      = "kleym-kleym-reference-inference-binding-objective-3b2d9110"
-	referenceMatchedContainerName = "model-server"
+	referenceNamespace       = "kleym-reference-inference"
+	referenceBinding         = "binding"
+	referenceSPIFFEID        = "spiffe://kleym.sonda.red/ns/kleym-reference-inference/pool/reference-pool"
+	referenceClusterSPIFFEID = "kleym-kleym-reference-inference-binding-pool-e2d8bd8d"
 )
 
 func main() {
@@ -55,14 +54,13 @@ func assertSuccess(report inspection.BindingInspectionReport) {
 	assertCommonShape(report)
 	assertEqual("bindingRef.namespace", report.BindingRef.Namespace, referenceNamespace)
 	assertEqual("bindingRef.name", report.BindingRef.Name, referenceBinding)
-	assertEqual("bindingRef.mode", report.BindingRef.Mode, "PerObjective")
 	assertEqual("renderedClusterSPIFFEID.name", report.RenderedClusterSPIFFEID.Name, referenceClusterSPIFFEID)
 	assertEqual("renderedIdentity.spiffeID", report.RenderedIdentity.SPIFFEID, referenceSPIFFEID)
 
 	if len(report.Findings) != 0 {
 		failf("findings = %d, want 0: %#v", len(report.Findings), report.Findings)
 	}
-	assertMatchedContainer(report)
+	assertMatchedPod(report)
 }
 
 // assertNotFound verifies the CLI still emits machine-readable JSON for a missing binding.
@@ -87,14 +85,14 @@ func assertCommonShape(report inspection.BindingInspectionReport) {
 	}
 }
 
-// assertMatchedContainer proves live pod visibility contributed to the inspection result.
-func assertMatchedContainer(report inspection.BindingInspectionReport) {
+// assertMatchedPod proves live pod visibility contributed to the inspection result.
+func assertMatchedPod(report inspection.BindingInspectionReport) {
 	for _, workload := range report.MatchedPods {
-		if workload.Namespace == referenceNamespace && workload.Container == referenceMatchedContainerName {
+		if workload.Namespace == referenceNamespace && workload.Pod != "" && workload.Container == "" {
 			return
 		}
 	}
-	failf("missing matched %q container workload: %#v", referenceMatchedContainerName, report.MatchedPods)
+	failf("missing matched pod-level workload: %#v", report.MatchedPods)
 }
 
 func assertEqual(field string, got string, want string) {

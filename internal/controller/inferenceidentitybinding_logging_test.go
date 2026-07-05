@@ -30,7 +30,7 @@ func TestReconcileLogsStructuredSuccessPath(t *testing.T) {
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
-			WithObjects(newTestPool(), newTestObjective("objective-a"), binding).
+			WithObjects(newTestPool(), binding).
 			Build(),
 		Scheme: scheme,
 	}
@@ -51,13 +51,10 @@ func TestReconcileLogsStructuredSuccessPath(t *testing.T) {
 		logKeyPool: "default/pool-a",
 	})
 	logs.requireEntry(t, "rendered identity from inference intent", map[string]string{
-		logKeyMode:      string(kleymv1alpha1.InferenceIdentityBindingModePoolOnly),
-		logKeyObjective: "",
-		logKeyPool:      "pool-a",
-		logKeySpiffeID:  "spiffe://kleym.sonda.red/ns/default/pool/pool-a",
+		logKeyPool:     "pool-a",
+		logKeySpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a",
 	})
 	logs.requireEntry(t, "creating managed ClusterSPIFFEID", map[string]string{
-		logKeyMode:     string(kleymv1alpha1.InferenceIdentityBindingModePoolOnly),
 		logKeySpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a",
 	})
 	logs.requireEntry(t, "applied success status", map[string]string{
@@ -77,7 +74,8 @@ func TestReconcileLogsFailureStatus(t *testing.T) {
 	ctx = logf.IntoContext(ctx, logger)
 
 	scheme := newCollisionTestScheme(t)
-	binding := newPerObjectiveBinding("binding-log-failure", "missing-objective")
+	binding := newPoolOnlyBinding("binding-log-failure", "")
+	binding.Spec.PoolRef.Name = "missing-pool"
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
@@ -96,11 +94,11 @@ func TestReconcileLogsFailureStatus(t *testing.T) {
 
 	logs.requireEntry(t, "cleaning up managed ClusterSPIFFEIDs after reconcile failure", map[string]string{
 		logKeyCondition: conditionTypeInvalidRef,
-		logKeyReason:    "TargetObjectiveNotFound",
+		logKeyReason:    "TargetPoolNotFound",
 	})
 	logs.requireEntry(t, "applied failure status", map[string]string{
 		logKeyCondition: conditionTypeInvalidRef,
-		logKeyReason:    "TargetObjectiveNotFound",
+		logKeyReason:    "TargetPoolNotFound",
 	})
 	logs.requireEntry(t, "finished InferenceIdentityBinding reconcile", map[string]string{
 		logKeyBinding: "default/binding-log-failure",
@@ -117,7 +115,6 @@ func TestReconcileClusterSPIFFEIDsLogsApplyDecisions(t *testing.T) {
 	scheme := newCollisionTestScheme(t)
 	binding := newPoolOnlyBinding("binding-log-apply", "objective-a")
 	identity := renderedIdentity{
-		Mode:     kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 		SpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a",
 		Selectors: []string{
 			"k8s:ns:default",
@@ -127,8 +124,7 @@ func TestReconcileClusterSPIFFEIDsLogsApplyDecisions(t *testing.T) {
 		PodSelector: map[string]any{
 			"matchLabels": map[string]any{"app": "model-server"},
 		},
-		ObjectiveRef: "objective-a",
-		PoolRef:      "pool-a",
+		PoolRef: "pool-a",
 	}
 
 	drifted := spirecm.DesiredClusterSPIFFEID(binding, identity, "")

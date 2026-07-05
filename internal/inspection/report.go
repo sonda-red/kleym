@@ -68,13 +68,11 @@ type BindingInspectionIdentityConfig struct {
 
 // BindingInspectionBindingRef identifies the binding being inspected.
 type BindingInspectionBindingRef struct {
-	Namespace    string                      `json:"namespace,omitempty"`
-	Name         string                      `json:"name,omitempty"`
-	Generation   int64                       `json:"generation,omitempty"`
-	Mode         string                      `json:"mode,omitempty"`
-	PoolRef      *BindingInspectionTargetRef `json:"poolRef,omitempty"`
-	ObjectiveRef *BindingInspectionTargetRef `json:"objectiveRef,omitempty"`
-	Conditions   []metav1.Condition          `json:"conditions,omitempty"`
+	Namespace  string                      `json:"namespace,omitempty"`
+	Name       string                      `json:"name,omitempty"`
+	Generation int64                       `json:"generation,omitempty"`
+	PoolRef    *BindingInspectionTargetRef `json:"poolRef,omitempty"`
+	Conditions []metav1.Condition          `json:"conditions,omitempty"`
 }
 
 // BindingInspectionTargetRef is a stable compact reference shape for binding inputs.
@@ -89,10 +87,8 @@ type BindingInspectionTargetRef struct {
 // BindingInspectionResolvedInput captures the resolved resources and selector inputs.
 type BindingInspectionResolvedInput struct {
 	PoolRef            *BindingInspectionTargetRef          `json:"poolRef,omitempty"`
-	ObjectiveRef       *BindingInspectionTargetRef          `json:"objectiveRef,omitempty"`
 	ServedGVKs         []BindingInspectionGVK               `json:"servedGVKs,omitempty"`
 	PoolSelector       map[string]any                       `json:"poolSelector,omitempty"`
-	ContainerName      string                               `json:"containerName,omitempty"`
 	SelectorProvenance *BindingInspectionSelectorProvenance `json:"selectorProvenance,omitempty"`
 }
 
@@ -106,7 +102,6 @@ type BindingInspectionGVK struct {
 // BindingInspectionSelectorProvenance records how the effective selector set was assembled.
 type BindingInspectionSelectorProvenance struct {
 	PoolDerivedSelectors []string `json:"poolDerivedSelectors,omitempty"`
-	ContainerSelector    string   `json:"containerSelector,omitempty"`
 	SafetySelectors      []string `json:"safetySelectors,omitempty"`
 }
 
@@ -193,11 +188,7 @@ func writeBindingInspectionReportText(w io.Writer, report BindingInspectionRepor
 
 	var builder strings.Builder
 	appendTextLine(&builder, "Binding: %s", textNamespacedName(report.BindingRef.Namespace, report.BindingRef.Name))
-	appendTextLine(&builder, "Mode: %s", textString(report.BindingRef.Mode))
 	appendTextLine(&builder, "Source: %s", textShortTargetRef(firstTargetRef(report.Resolved.PoolRef, report.BindingRef.PoolRef), "InferencePool"))
-	if report.BindingRef.Mode == "PerObjective" || report.BindingRef.ObjectiveRef != nil || report.Resolved.ObjectiveRef != nil {
-		appendTextLine(&builder, "Objective: %s", textShortTargetRef(firstTargetRef(report.Resolved.ObjectiveRef, report.BindingRef.ObjectiveRef), "InferenceObjective"))
-	}
 
 	appendTextLine(&builder, "")
 	appendTextLine(&builder, "Identity:")

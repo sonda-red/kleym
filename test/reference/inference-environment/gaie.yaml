@@ -1,6 +1,5 @@
-# Externally owned GAIE reference inputs. kleym resolves the pool directly and
-# optionally validates the objective subject, but it does not create, modify, or
-# manage either resource.
+# Externally owned GAIE reference input. kleym resolves the pool directly, but
+# it does not create, modify, or manage the resource.
 apiVersion: inference.networking.k8s.io/v1
 kind: InferencePool
 metadata:
@@ -17,17 +16,3 @@ spec:
       app.kubernetes.io/part-of: kleym-reference-inference
   targetPorts:
     - number: 8000
----
-apiVersion: inference.networking.x-k8s.io/v1alpha2
-kind: InferenceObjective
-metadata:
-  name: reference-objective
-  namespace: kleym-reference-inference
-  labels:
-    app.kubernetes.io/name: reference-objective
-    app.kubernetes.io/part-of: kleym-reference-inference
-    kleym.sonda.red/reference: inference-environment
-spec:
-  poolRef:
-    name: reference-pool
-  priority: 0

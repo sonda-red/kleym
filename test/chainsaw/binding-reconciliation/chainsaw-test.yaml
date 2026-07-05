@@ -4,7 +4,7 @@ kind: Test
 metadata:
   name: binding-reconciliation
 spec:
-  description: Verifies that reference PerObjective and PoolOnly bindings reconcile to stable managed ClusterSPIFFEIDs.
+  description: Verifies that reference pool-backed bindings reconcile to stable managed ClusterSPIFFEIDs.
   timeouts:
     apply: 30s
     assert: 2m
@@ -164,7 +164,7 @@ spec:
               kubectl wait --for=delete inferenceidentitybinding/binding \
                 -n kleym-reference-inference \
                 --timeout=60s
-              kubectl wait --for=delete clusterspiffeid/kleym-kleym-reference-inference-binding-objective-3b2d9110 \
+              kubectl wait --for=delete clusterspiffeid/kleym-kleym-reference-inference-binding-pool-e2d8bd8d \
                 --timeout=60s
 
     - name: apply-pool-binding

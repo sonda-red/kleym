@@ -34,7 +34,6 @@ const (
 	metricNameIdentityBindings        = "kleym_identity_bindings"
 	metricLabelCondition              = "condition"
 	metricLabelReason                 = "reason"
-	metricLabelMode                   = "mode"
 	metricReasonInitializing          = "Initializing"
 )
 
@@ -50,7 +49,6 @@ var defaultBindingMetrics = newInferenceIdentityBindingMetrics()
 type bindingOutcomeLabels struct {
 	condition string
 	reason    string
-	mode      string
 }
 
 type bindingOutcomeRecorder interface {
@@ -82,7 +80,7 @@ func newInferenceIdentityBindingMetrics() *inferenceIdentityBindingMetrics {
 					Name: metricNameIdentityBindingOutcomes,
 					Help: "Terminal reconcile outcomes for InferenceIdentityBinding resources.",
 				},
-				[]string{metricLabelCondition, metricLabelReason, metricLabelMode},
+				[]string{metricLabelCondition, metricLabelReason},
 			),
 		},
 		gaugeCollector: newIdentityBindingGaugeCollector(),
@@ -94,7 +92,7 @@ func newIdentityBindingGaugeCollector() *identityBindingGaugeCollector {
 		desc: prometheus.NewDesc(
 			metricNameIdentityBindings,
 			"Current InferenceIdentityBinding outcomes aggregated from object status.",
-			[]string{metricLabelCondition, metricLabelReason, metricLabelMode},
+			[]string{metricLabelCondition, metricLabelReason},
 			nil,
 		),
 	}
@@ -134,7 +132,7 @@ func (r *prometheusBindingOutcomeRecorder) RecordTerminalOutcome(binding *kleymv
 		return
 	}
 
-	r.counter.WithLabelValues(labels.condition, labels.reason, labels.mode).Inc()
+	r.counter.WithLabelValues(labels.condition, labels.reason).Inc()
 }
 
 func (c *identityBindingGaugeCollector) setListFunc(listFunc bindingsListFunc) {
@@ -174,7 +172,6 @@ func (c *identityBindingGaugeCollector) Collect(ch chan<- prometheus.Metric) {
 			value,
 			labels.condition,
 			labels.reason,
-			labels.mode,
 		)
 	}
 }
@@ -192,21 +189,18 @@ func deriveBindingOutcomeLabels(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	allowInitializing bool,
 ) (bindingOutcomeLabels, bool) {
-	mode := string(effectiveMode(binding.Spec.Mode))
 	ready := meta.FindStatusCondition(binding.Status.Conditions, conditionTypeReady)
 	if ready != nil {
 		if ready.Status == metav1.ConditionTrue {
 			return bindingOutcomeLabels{
 				condition: conditionTypeReady,
 				reason:    ready.Reason,
-				mode:      mode,
 			}, true
 		}
 		if allowInitializing && ready.Status == metav1.ConditionUnknown && ready.Reason == metricReasonInitializing {
 			return bindingOutcomeLabels{
 				condition: conditionTypeReady,
 				reason:    metricReasonInitializing,
-				mode:      mode,
 			}, true
 		}
 	}
@@ -217,7 +211,6 @@ func deriveBindingOutcomeLabels(
 			return bindingOutcomeLabels{
 				condition: condition.Type,
 				reason:    condition.Reason,
-				mode:      mode,
 			}, true
 		}
 	}

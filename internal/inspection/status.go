@@ -151,23 +151,17 @@ func (i *statusInspector) inspectCRDs(report *StatusReport) error {
 	if err != nil {
 		return err
 	}
-	objectiveVersions, err := i.availableVersions(gaie.InferenceObjectiveGVKs())
-	if err != nil {
-		return err
-	}
 	if len(poolVersions) > 0 {
 		report.Components.GAIECRDs = GAIEStatus{
-			Status:             StatusResultOK,
-			InferencePool:      strings.Join(poolVersions, ","),
-			InferenceObjective: textVersions(objectiveVersions),
+			Status:        StatusResultOK,
+			InferencePool: strings.Join(poolVersions, ","),
 		}
 		return nil
 	}
 	report.Components.GAIECRDs = GAIEStatus{
-		Status:             StatusResultError,
-		Message:            "missing InferencePool",
-		InferencePool:      "unavailable",
-		InferenceObjective: textVersions(objectiveVersions),
+		Status:        StatusResultError,
+		Message:       "missing InferencePool",
+		InferencePool: "unavailable",
 	}
 	report.Findings = append(report.Findings, crdMissingFinding(reasonGAIECRDMissing, "InferencePool CRD is not installed"))
 	return nil
@@ -386,13 +380,6 @@ func addBindingConditionCounts(
 func conditionIsTrue(binding *kleymv1alpha1.InferenceIdentityBinding, conditionType string) bool {
 	condition := meta.FindStatusCondition(binding.Status.Conditions, conditionType)
 	return condition != nil && condition.Status == metav1.ConditionTrue
-}
-
-func textVersions(versions []string) string {
-	if len(versions) == 0 {
-		return "unavailable"
-	}
-	return strings.Join(versions, ",")
 }
 
 func inspectBindings(bindings []kleymv1alpha1.InferenceIdentityBinding, report *StatusReport) {

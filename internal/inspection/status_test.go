@@ -47,8 +47,7 @@ func TestStatusHealthyInstallation(t *testing.T) {
 		!report.Config.ClusterSPIFFEIDClassNameKnown {
 		t.Fatalf("config = %#v, want operator config", report.Config)
 	}
-	if report.Components.GAIECRDs.InferencePool != "v1,v1alpha2" ||
-		report.Components.GAIECRDs.InferenceObjective != "v1alpha2,v1" {
+	if report.Components.GAIECRDs.InferencePool != "v1,v1alpha2" {
 		t.Fatalf("gaie = %#v, want served versions", report.Components.GAIECRDs)
 	}
 }
@@ -161,12 +160,11 @@ func testStatusBinding(
 		},
 	}
 	binding.Status.RenderedSelectors = []kleymv1alpha1.RenderedSelectorStatus{{
-		SpiffeID: "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+		SpiffeID: "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
 		Selectors: []string{
 			"k8s:ns:tenant-a",
 			"k8s:sa:model-sa",
 			"k8s:pod-label:app:model-server",
-			"k8s:container-name:model-server",
 		},
 	}}
 	return binding
@@ -237,7 +235,7 @@ func defaultStatusGVKs() []schema.GroupVersionKind {
 			kleymv1alpha1.GroupVersion.WithKind("InferenceIdentityBinding"),
 			spirecm.ClusterSPIFFEIDGVK(),
 		},
-		append(gaie.InferencePoolGVKs(), gaie.InferenceObjectiveGVKs()...)...,
+		gaie.InferencePoolGVKs()...,
 	)
 }
 

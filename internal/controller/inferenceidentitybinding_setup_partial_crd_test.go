@@ -23,7 +23,7 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
-func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) {
+func TestSetupWithManagerStartsAndReconcilesWithXPoolCRD(t *testing.T) {
 	t.Helper()
 
 	testScheme := runtime.NewScheme()
@@ -34,15 +34,11 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 		t.Fatalf("add kleym scheme: %v", err)
 	}
 	registerEnvtestUnstructuredGVK(testScheme, clusterSPIFFEIDGVK)
-	for _, gvk := range inferenceObjectiveGVKs {
-		registerEnvtestUnstructuredGVK(testScheme, gvk)
-	}
 	for _, gvk := range inferencePoolGVKs {
 		registerEnvtestUnstructuredGVK(testScheme, gvk)
 	}
 
 	crdDir := t.TempDir()
-	copyCRDFile(t, filepath.Join("testdata", "crds", "inference.networking.x-k8s.io_inferenceobjectives.yaml"), crdDir)
 	copyCRDFile(t, filepath.Join("testdata", "crds", "inference.networking.x-k8s.io_inferencepools.yaml"), crdDir)
 	copyCRDFile(t, filepath.Join("testdata", "crds", "inference.networking.k8s.io_inferencepools.yaml"), crdDir)
 	copyCRDFile(t, filepath.Join("testdata", "crds", "spire.spiffe.io_clusterspiffeids.yaml"), crdDir)
@@ -88,8 +84,8 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 		t.Fatalf("setup controller with partial CRDs: %v", err)
 	}
 
-	if len(reconciler.availableObjectiveGVKs) != 1 || reconciler.availableObjectiveGVKs[0] != inferenceObjectiveGVKs[0] {
-		t.Fatalf("availableObjectiveGVKs = %v, want [%v]", reconciler.availableObjectiveGVKs, inferenceObjectiveGVKs[0])
+	if len(reconciler.availablePoolGVKs) != 2 {
+		t.Fatalf("availablePoolGVKs = %v, want both supported pool GVKs", reconciler.availablePoolGVKs)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -110,7 +106,6 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 	})
 
 	poolName := "pool-x"
-	objectiveName := "objective-x"
 	bindingName := "binding-x"
 
 	pool := &unstructured.Unstructured{
@@ -129,23 +124,6 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 		t.Fatalf("create pool: %v", err)
 	}
 
-	objective := &unstructured.Unstructured{
-		Object: map[string]any{
-			"spec": map[string]any{
-				"poolRef": map[string]any{
-					"name":  poolName,
-					"group": "inference.networking.x-k8s.io",
-				},
-			},
-		},
-	}
-	objective.SetGroupVersionKind(inferenceObjectiveGVKs[0])
-	objective.SetNamespace(testNamespace)
-	objective.SetName(objectiveName)
-	if err := mgr.GetClient().Create(ctx, objective); err != nil {
-		t.Fatalf("create objective: %v", err)
-	}
-
 	binding := &kleymv1alpha1.InferenceIdentityBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: testNamespace,
@@ -154,7 +132,6 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
 			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName, Group: "inference.networking.x-k8s.io"},
 			ServiceAccountName: "inference-sa",
-			Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 		},
 	}
 	if err := mgr.GetClient().Create(ctx, binding); err != nil {
@@ -175,9 +152,6 @@ func TestSetupWithManagerFailsWithoutAnySupportedGAIEGVKs(t *testing.T) {
 		t.Fatalf("add kleym scheme: %v", err)
 	}
 	registerEnvtestUnstructuredGVK(testScheme, clusterSPIFFEIDGVK)
-	for _, gvk := range inferenceObjectiveGVKs {
-		registerEnvtestUnstructuredGVK(testScheme, gvk)
-	}
 	for _, gvk := range inferencePoolGVKs {
 		registerEnvtestUnstructuredGVK(testScheme, gvk)
 	}

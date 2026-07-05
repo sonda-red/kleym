@@ -16,7 +16,6 @@ func TestDesiredClusterSPIFFEIDIncludesHintAndFallback(t *testing.T) {
 	binding.Name = "binding-a"
 	binding.Namespace = "default"
 	plan := identity.Plan{
-		Mode:        kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 		SpiffeID:    "spiffe://kleym.sonda.red/ns/default/pool/pool-a",
 		PodSelector: map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
 		Selectors:   []string{"k8s:ns:default", "k8s:sa:inference-sa", "k8s:pod-label:app:model-server"},
@@ -45,7 +44,6 @@ func TestDesiredClusterSPIFFEIDClassName(t *testing.T) {
 	binding.Name = "binding-a"
 	binding.Namespace = "default"
 	plan := identity.Plan{
-		Mode:        kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 		SpiffeID:    "spiffe://example.org/ns/default/pool/pool-a",
 		PodSelector: map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
 		Selectors:   []string{"k8s:ns:default", "k8s:sa:inference-sa", "k8s:pod-label:app:model-server"},

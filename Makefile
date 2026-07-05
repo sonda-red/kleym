@@ -102,10 +102,8 @@ setup-test-e2e: kind ## Set up a Kind cluster for e2e tests if it does not exist
 install-e2e-crds: install ## Install minimal external CRDs required by e2e tests.
 	"$(KUBECTL)" apply -f internal/controller/testdata/crds/spire.spiffe.io_clusterspiffeids.yaml
 	"$(KUBECTL)" apply -f internal/controller/testdata/crds/inference.networking.k8s.io_inferencepools.yaml
-	"$(KUBECTL)" apply -f internal/controller/testdata/crds/inference.networking.x-k8s.io_inferenceobjectives.yaml
 	"$(KUBECTL)" wait --for condition=Established crd/clusterspiffeids.spire.spiffe.io --timeout=60s
 	"$(KUBECTL)" wait --for condition=Established crd/inferencepools.inference.networking.k8s.io --timeout=60s
-	"$(KUBECTL)" wait --for condition=Established crd/inferenceobjectives.inference.networking.x-k8s.io --timeout=60s
 
 .PHONY: prepare-e2e-namespace
 prepare-e2e-namespace: ## Create the operator namespace with restricted Pod Security for e2e.

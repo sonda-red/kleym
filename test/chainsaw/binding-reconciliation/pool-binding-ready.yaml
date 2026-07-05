@@ -6,8 +6,7 @@ metadata:
 status:
   trustDomain: kleym.sonda.red
   computedSpiffeIDs:
-    - mode: PoolOnly
-      spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/pool/reference-pool
+    - spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/pool/reference-pool
   renderedSelectors:
     - spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/pool/reference-pool
       selectors:

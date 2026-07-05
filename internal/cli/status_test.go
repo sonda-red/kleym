@@ -69,9 +69,8 @@ func TestStatusDefaultTextUsesRunner(t *testing.T) {
 		ClusterSPIFFEID: "v1alpha1",
 	}
 	fakeReport.Components.GAIECRDs = inspection.GAIEStatus{
-		Status:             inspection.StatusResultOK,
-		InferencePool:      "v1,v1alpha2",
-		InferenceObjective: "v1alpha2",
+		Status:        inspection.StatusResultOK,
+		InferencePool: "v1,v1alpha2",
 	}
 	fakeReport.Config.TrustDomain = "example.org"
 	fakeReport.Config.ClusterSPIFFEIDClassName = "kleym"
@@ -110,7 +109,6 @@ func TestStatusDefaultTextUsesRunner(t *testing.T) {
 		"Dependencies",
 		"  GAIE: Available",
 		"    InferencePool: v1,v1alpha2",
-		"    InferenceObjective: v1alpha2",
 		"  SPIRE: Available",
 		"    ClusterSPIFFEID: v1alpha1",
 	} {

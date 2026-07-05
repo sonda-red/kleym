@@ -7,4 +7,3 @@ spec:
   poolRef:
     name: reference-pool
   serviceAccountName: reference-inference
-  mode: PoolOnly
