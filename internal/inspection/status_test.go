@@ -47,7 +47,7 @@ func TestStatusHealthyInstallation(t *testing.T) {
 		!report.Config.ClusterSPIFFEIDClassNameKnown {
 		t.Fatalf("config = %#v, want operator config", report.Config)
 	}
-	if report.Components.GAIECRDs.InferencePool != "v1,v1alpha2" {
+	if report.Components.GAIECRDs.InferencePool != "v1" {
 		t.Fatalf("gaie = %#v, want served versions", report.Components.GAIECRDs)
 	}
 }

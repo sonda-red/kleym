@@ -32,12 +32,13 @@ External SPIFFE/SPIRE references:
 | Field | Required | Notes |
 | --- | --- | --- |
 | `poolRef.name` | Yes | References an `InferencePool` in the same namespace. |
-| `poolRef.group` | No | Constrains pool resolution to a supported GAIE InferencePool group. |
+| `poolRef.group` | No | Constrains pool resolution to `inference.networking.k8s.io`. |
 | `serviceAccountName` | Yes | Kubernetes service account required in every rendered identity selector set. |
 
 Current validation rules enforced by the CRD:
 
 - `poolRef.name` is required.
+- `poolRef.group`, when set, must be `inference.networking.k8s.io`.
 - `serviceAccountName` is required.
 
 ## Status Fields
@@ -75,6 +76,6 @@ spiffe://<trustDomain>/ns/<namespace>/pool/<pool-name>
 
 ## External Objects Resolved
 
-The controller resolves `InferencePool` from supported GAIE GVKs. See [GAIE Compatibility](/reference/gaie-compatibility/) for the
-compatibility matrix, consumed fields, group-constrained reference behavior, and
-startup discovery rules.
+The controller resolves `InferencePool` from the supported GAIE GVK. See [GAIE Compatibility](/reference/gaie-compatibility/) for the
+consumed fields, group-constrained reference behavior, and startup discovery
+rules.

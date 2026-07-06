@@ -20,7 +20,6 @@ import "k8s.io/apimachinery/pkg/runtime/schema"
 var (
 	inferencePoolGVKs = []schema.GroupVersionKind{
 		{Group: "inference.networking.k8s.io", Version: "v1", Kind: "InferencePool"},
-		{Group: "inference.networking.x-k8s.io", Version: "v1alpha2", Kind: "InferencePool"},
 	}
 )
 

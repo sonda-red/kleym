@@ -106,8 +106,8 @@ func deletionTimestampChanged(oldObject, newObject client.Object) bool {
 
 // mapPoolToBindings requeues bindings that directly anchor to a changed
 // InferencePool. The field index keeps the fanout narrow, and the group filter
-// avoids reconciling bindings pinned to the other supported GAIE pool group
-// when both APIs serve pools with the same name.
+// avoids reconciling bindings pinned to a different GAIE pool group if support
+// expands to multiple groups again.
 func (r *InferenceIdentityBindingReconciler) mapPoolToBindings(
 	ctx context.Context,
 	object client.Object,

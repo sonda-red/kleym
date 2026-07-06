@@ -11,7 +11,7 @@ aliases:
 - [`InferencePool` (GAIE API type)](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/): serving pool intent. `kleym-operator` resolves the pool named by `spec.poolRef.name` and derives selector input from `spec.selector`.
 - [GAIE API types index](https://gateway-api-inference-extension.sigs.k8s.io/api-types/): canonical reference for GAIE resource schemas and status fields.
 
-`kleym-operator` supports the documented `InferencePool` GVKs in [GAIE Compatibility](/reference/gaie-compatibility/).
+`kleym-operator` supports the documented `InferencePool` GVK in [GAIE Compatibility](/reference/gaie-compatibility/).
 
 ## Pool Identity
 
