@@ -22,38 +22,27 @@ func TestResolveInferencePoolUsesAvailableGVKs(t *testing.T) {
 
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
-	for _, gvk := range InferencePoolGVKs() {
-		registerUnstructuredGVK(scheme, gvk)
-	}
+	currentPoolGVK := InferencePoolGVKs()[0]
+	registerUnstructuredGVK(scheme, currentPoolGVK)
 
-	preferredPool := testPool("pool-a")
-	preferredPool.SetGroupVersionKind(InferencePoolGVKs()[0])
-	preferredPool.SetNamespace("default")
-	compatiblePool := testPool("pool-a")
-	compatiblePool.SetGroupVersionKind(InferencePoolGVKs()[1])
-	compatiblePool.SetNamespace("default")
-	compatiblePool.Object["spec"] = map[string]any{
-		"selector": map[string]any{
-			"matchLabels": map[string]any{
-				"app": "compatible",
-			},
-		},
-	}
+	poolObject := testPool("pool-a")
+	poolObject.SetGroupVersionKind(currentPoolGVK)
+	poolObject.SetNamespace("default")
 
 	reader := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(preferredPool, compatiblePool).
+		WithObjects(poolObject).
 		Build()
 
-	pool, err := ResolveInferencePool(ctx, reader, []schema.GroupVersionKind{InferencePoolGVKs()[1]}, PoolRef{
+	pool, err := ResolveInferencePool(ctx, reader, []schema.GroupVersionKind{currentPoolGVK}, PoolRef{
 		Namespace: "default",
 		Name:      "pool-a",
 	})
 	if err != nil {
 		t.Fatalf("ResolveInferencePool returned error: %v", err)
 	}
-	if pool.GroupVersionKind() != InferencePoolGVKs()[1] {
-		t.Fatalf("resolved GVK = %v, want %v", pool.GroupVersionKind(), InferencePoolGVKs()[1])
+	if pool.GroupVersionKind() != currentPoolGVK {
+		t.Fatalf("resolved GVK = %v, want %v", pool.GroupVersionKind(), currentPoolGVK)
 	}
 }
 

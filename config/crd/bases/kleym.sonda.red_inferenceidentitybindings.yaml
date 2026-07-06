@@ -59,11 +59,10 @@ spec:
                 properties:
                   group:
                     description: |-
-                      group optionally constrains pool resolution to one GAIE API group.
-                      Omit this when the cluster only serves one supported InferencePool group.
+                      group optionally constrains pool resolution to the supported GAIE API group.
+                      Omit this to use the served supported InferencePool group.
                     enum:
                     - inference.networking.k8s.io
-                    - inference.networking.x-k8s.io
                     type: string
                   name:
                     description: name of the InferencePool resource to bind to.

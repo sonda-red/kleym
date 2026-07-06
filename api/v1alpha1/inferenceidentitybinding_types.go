@@ -33,10 +33,10 @@ type InferencePoolTargetRef struct {
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
-	// group optionally constrains pool resolution to one GAIE API group.
-	// Omit this when the cluster only serves one supported InferencePool group.
+	// group optionally constrains pool resolution to the supported GAIE API group.
+	// Omit this to use the served supported InferencePool group.
 	// +optional
-	// +kubebuilder:validation:Enum=inference.networking.k8s.io;inference.networking.x-k8s.io
+	// +kubebuilder:validation:Enum=inference.networking.k8s.io
 	Group string `json:"group,omitempty"`
 }
 

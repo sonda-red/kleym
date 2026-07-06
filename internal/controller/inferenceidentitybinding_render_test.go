@@ -42,8 +42,8 @@ func TestRenderIdentityPassesValidGAIESelectorIntoIdentityPlan(t *testing.T) {
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig()}
 	binding := testRenderBinding("binding-valid-selector", "pool-valid-selector")
 	pool := testRenderPool("pool-valid-selector", map[string]any{
-		"app":                                "model-server",
-		"inference.networking.x-k8s.io/role": "decode.v1",
+		"app":                              "model-server",
+		"inference.networking.k8s.io/role": "decode.v1",
 	})
 
 	identity, err := reconciler.renderIdentity(binding, pool)
@@ -55,7 +55,7 @@ func TestRenderIdentityPassesValidGAIESelectorIntoIdentityPlan(t *testing.T) {
 		"k8s:ns:default",
 		"k8s:sa:inference-sa",
 		"k8s:pod-label:app:model-server",
-		"k8s:pod-label:inference.networking.x-k8s.io/role:decode.v1",
+		"k8s:pod-label:inference.networking.k8s.io/role:decode.v1",
 	} {
 		if !slices.Contains(identity.Selectors, expectedSelector) {
 			t.Fatalf("expected selector %q, selectors: %v", expectedSelector, identity.Selectors)

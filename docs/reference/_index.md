@@ -12,5 +12,5 @@ Stable API facts for fields, conditions, dependencies, compatibility, and manage
 - [Conditions](/reference/conditions/): current condition types, reasons, and status behavior.
 - [Managed Resources](/reference/resources/): resources written by `kleym-operator`, managed labels, naming, and watch behavior.
 - [Compatibility](/reference/compatibility/): compatibility surfaces, change checklist, and upgrade checks.
-- [GAIE Compatibility](/reference/gaie-compatibility/): supported GAIE GVKs, fields, and discovery behavior.
+- [GAIE Compatibility](/reference/gaie-compatibility/): supported GAIE GVK, fields, and discovery behavior.
 - [Dependencies](/reference/dependencies/): external runtime dependencies and compatibility surfaces.

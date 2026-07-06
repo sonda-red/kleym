@@ -53,13 +53,13 @@ Field details live in [API Reference][api-reference]. Condition details live in 
 
 ## Required Behavior
 
-1. Discover supported GAIE pool GVKs served by the cluster and watch only that subset.
-2. Fail startup when no supported `InferencePool` GVK is available.
+1. Discover the supported GAIE pool GVK served by the cluster and watch it.
+2. Fail startup when the supported `InferencePool` GVK is not available.
 3. Resolve `poolRef` only to documented supported GAIE groups.
 4. Derive pod selection from the referenced pool, then combine it with internal namespace and service-account safety selectors.
 5. Refuse unsafe selectors. If the selector set cannot be proven to stay within the binding namespace and required service account boundary, set `UnsafeSelector` and produce no managed output.
 6. Render the SPIFFE ID and managed `ClusterSPIFFEID` shape deterministically. Rendered output fields are documented in [Managed Resources][managed-resources].
-7. Treat missing required CRDs and infrastructure-not-ready states as transient by retrying reconciliation on a timer.
+7. After startup succeeds, treat missing managed-output CRDs and infrastructure-not-ready states as transient by retrying reconciliation on a timer.
 8. On deletion, delete managed `ClusterSPIFFEID` children first and keep the binding finalizer until a follow-up list confirms no managed children remain.
 
 Selector rationale is expanded in [Selector Safety][selector-safety].

@@ -46,32 +46,20 @@ If reconciliation fails, `Ready=False` and the triggering condition becomes `Tru
 `GVK` means `GroupVersionKind` (`<api-group>/<version>, Kind=<kind>`). In this context:
 
 - `inference.networking.k8s.io/v1, Kind=InferencePool`
-- `inference.networking.x-k8s.io/v1alpha2, Kind=InferencePool`
 
 Check for:
 
 ```sh
 kubectl get crd inferencepools.inference.networking.k8s.io
-kubectl get crd inferencepools.inference.networking.x-k8s.io
 kubectl get crd clusterspiffeids.spire.spiffe.io
 ```
 
-If your cluster uses the alternate GAIE API group version supported by the controller, confirm those CRDs are installed instead.
-
-During startup, `kleym-operator` discovers supported GAIE GVKs and logs a warning for each unavailable one:
-
-```text
-... skipping unavailable GVK ...
-```
-
-These warnings are expected when your cluster serves only part of the
-compatibility matrix.
-Example: cluster has `InferencePool` only in `inference.networking.k8s.io/v1`, so startup logs skip messages for the other supported GAIE GVKs but can still reconcile bindings.
+During startup, `kleym-operator` discovers the supported GAIE GVK and fails
+startup if `inference.networking.k8s.io/v1, Kind=InferencePool` is not served.
 
 You can confirm what is actually served via:
 
 ```sh
-kubectl api-resources --api-group=inference.networking.x-k8s.io
 kubectl api-resources --api-group=inference.networking.k8s.io
 ```
 
@@ -83,5 +71,5 @@ Reference docs:
 - [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager)
 - [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md)
 
-When a CRD is missing, the reconciler keeps retrying automatically on a timer, so it can recover after installation without waiting for unrelated watch events.
-If you install a newly supported GAIE CRD after `kleym-operator` has already started, restart the controller so startup-time GVK discovery can register the new watches.
+After startup succeeds, missing managed-output CRDs or infrastructure-not-ready states keep retrying automatically on a timer, so they can recover after installation without waiting for unrelated watch events.
+If you install the GAIE CRD after `kleym-operator` startup failed, restart the controller so startup-time GVK discovery can register the watch.

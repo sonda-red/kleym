@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,7 +24,7 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
-func TestSetupWithManagerStartsAndReconcilesWithXPoolCRD(t *testing.T) {
+func TestSetupWithManagerStartsAndReconcilesWithCurrentPoolCRD(t *testing.T) {
 	t.Helper()
 
 	testScheme := runtime.NewScheme()
@@ -39,7 +40,6 @@ func TestSetupWithManagerStartsAndReconcilesWithXPoolCRD(t *testing.T) {
 	}
 
 	crdDir := t.TempDir()
-	copyCRDFile(t, filepath.Join("testdata", "crds", "inference.networking.x-k8s.io_inferencepools.yaml"), crdDir)
 	copyCRDFile(t, filepath.Join("testdata", "crds", "inference.networking.k8s.io_inferencepools.yaml"), crdDir)
 	copyCRDFile(t, filepath.Join("testdata", "crds", "spire.spiffe.io_clusterspiffeids.yaml"), crdDir)
 
@@ -75,6 +75,7 @@ func TestSetupWithManagerStartsAndReconcilesWithXPoolCRD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create manager: %v", err)
 	}
+	assertLegacyPoolGroupRejectedByCRD(t, context.Background(), mgr.GetClient())
 
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: mgr.GetClient(),
@@ -84,8 +85,8 @@ func TestSetupWithManagerStartsAndReconcilesWithXPoolCRD(t *testing.T) {
 		t.Fatalf("setup controller with partial CRDs: %v", err)
 	}
 
-	if len(reconciler.availablePoolGVKs) != 2 {
-		t.Fatalf("availablePoolGVKs = %v, want both supported pool GVKs", reconciler.availablePoolGVKs)
+	if len(reconciler.availablePoolGVKs) != 1 {
+		t.Fatalf("availablePoolGVKs = %v, want current GAIE pool GVK", reconciler.availablePoolGVKs)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -105,8 +106,8 @@ func TestSetupWithManagerStartsAndReconcilesWithXPoolCRD(t *testing.T) {
 		}
 	})
 
-	poolName := "pool-x"
-	bindingName := "binding-x"
+	poolName := "pool-current"
+	bindingName := "binding-current"
 
 	pool := &unstructured.Unstructured{
 		Object: map[string]any{
@@ -117,7 +118,7 @@ func TestSetupWithManagerStartsAndReconcilesWithXPoolCRD(t *testing.T) {
 			},
 		},
 	}
-	pool.SetGroupVersionKind(inferencePoolGVKs[1])
+	pool.SetGroupVersionKind(inferencePoolGVKs[0])
 	pool.SetNamespace(testNamespace)
 	pool.SetName(poolName)
 	if err := mgr.GetClient().Create(ctx, pool); err != nil {
@@ -130,7 +131,7 @@ func TestSetupWithManagerStartsAndReconcilesWithXPoolCRD(t *testing.T) {
 			Name:      bindingName,
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName, Group: "inference.networking.x-k8s.io"},
+			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName, Group: "inference.networking.k8s.io"},
 			ServiceAccountName: "inference-sa",
 		},
 	}
@@ -212,6 +213,32 @@ func copyCRDFile(t *testing.T, sourcePath string, destinationDir string) {
 	destinationPath := filepath.Join(destinationDir, filepath.Base(sourcePath))
 	if err := os.WriteFile(destinationPath, content, 0o600); err != nil {
 		t.Fatalf("write CRD %s: %v", destinationPath, err)
+	}
+}
+
+func assertLegacyPoolGroupRejectedByCRD(
+	t *testing.T,
+	ctx context.Context,
+	k8sClient client.Client,
+) {
+	t.Helper()
+
+	binding := &kleymv1alpha1.InferenceIdentityBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: testNamespace,
+			Name:      "legacy-pool-group-rejected",
+		},
+		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+			PoolRef: kleymv1alpha1.InferencePoolTargetRef{
+				Name:  "pool-current",
+				Group: "inference.networking.x-k8s.io",
+			},
+			ServiceAccountName: "inference-sa",
+		},
+	}
+	err := k8sClient.Create(ctx, binding)
+	if !apierrors.IsInvalid(err) {
+		t.Fatalf("create binding with legacy pool group error = %v, want Invalid", err)
 	}
 }
 
