@@ -36,7 +36,6 @@ reasons where possible. See [Conditions](/reference/conditions/).
 | `dependency-missing` | `error` when required | Required inputs or APIs are unavailable. |
 | `unsafe-selector` | `error` | Rendered selectors fail Kleym safety rules. |
 | `render-failure` | `error` | Identity output could not be rendered. |
-| `kleym-collision` | `error` | Kleym detected a deterministic identity collision. |
 | `zero-matched-pods` | `info` | Scale-to-zero can be valid. |
 | `identity-config-undiscovered` | `warning` | Binding status does not include operator config, so inspection used CLI flags, defaults, or both. |
 | `rbac-limited` | `warning` | Inspection continued with reduced visibility. |

@@ -18,8 +18,8 @@ If code and docs disagree, fix the disagreement instead of silently choosing one
 
 ## Core Stabilization Focus
 
-Prioritize API stability, selector safety, collision behavior, managed output,
-finalizer cleanup, and read-only inspection.
+Prioritize API stability, selector safety, managed output, finalizer cleanup,
+and read-only inspection.
 
 ## Check GitHub Context First
 

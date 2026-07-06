@@ -35,10 +35,10 @@ const (
 	metricLabelCondition              = "condition"
 	metricLabelReason                 = "reason"
 	metricReasonInitializing          = "Initializing"
+	metricReasonUnclassifiedFailure   = "UnclassifiedFailure"
 )
 
 var failureOutcomeConditionOrder = []string{
-	conditionTypeConflict,
 	conditionTypeInvalidRef,
 	conditionTypeUnsafeSelector,
 	conditionTypeRenderFailure,
@@ -213,6 +213,13 @@ func deriveBindingOutcomeLabels(
 				reason:    condition.Reason,
 			}, true
 		}
+	}
+
+	if ready != nil && ready.Status == metav1.ConditionFalse {
+		return bindingOutcomeLabels{
+			condition: conditionTypeReady,
+			reason:    metricReasonUnclassifiedFailure,
+		}, true
 	}
 
 	return bindingOutcomeLabels{}, false

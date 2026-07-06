@@ -410,9 +410,9 @@ func TestWriteBindingInspectionReportTextConditionDetails(t *testing.T) {
 				Reason:  "RenderFailed",
 				Message: "failed to render ClusterSPIFFEID because serviceAccountName is invalid",
 			}, {
-				Type:   "Conflict",
+				Type:   "InvalidRef",
 				Status: metav1.ConditionFalse,
-				Reason: "NoIdentityCollision",
+				Reason: "Resolved",
 			}},
 		},
 	}
@@ -426,14 +426,14 @@ func TestWriteBindingInspectionReportTextConditionDetails(t *testing.T) {
 		"Ready=False",
 		"Reason: RenderFailed",
 		"Message: failed to render ClusterSPIFFEID because serviceAccountName is invalid",
-		"Conflict=False",
+		"InvalidRef=False",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("text output missing %q\n%s", want, text)
 		}
 	}
-	if strings.Contains(text, "Reason: NoIdentityCollision") {
-		t.Fatalf("healthy Conflict=False condition should stay compact:\n%s", text)
+	if strings.Contains(text, "Reason: Resolved") {
+		t.Fatalf("healthy InvalidRef=False condition should stay compact:\n%s", text)
 	}
 }
 

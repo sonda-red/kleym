@@ -33,7 +33,6 @@ const (
 	findingDependencyMissing     = "dependency-missing"
 	findingUnsafeSelector        = "unsafe-selector"
 	findingRenderFailure         = "render-failure"
-	findingKleymCollision        = "kleym-collision"
 	findingZeroMatchedPods       = "zero-matched-pods"
 	findingUnsupportedSelector   = "unsupported-selector"
 	findingRBACLimited           = "rbac-limited"
@@ -42,7 +41,6 @@ const (
 	reasonUnsupportedSelector    = "UnsupportedSelector"
 	reasonRBACLimited            = "Forbidden"
 	reasonIdentityConfigMissing  = "IdentityConfigUndiscovered"
-	conditionTypeConflict        = "Conflict"
 	podResourceName              = "pods"
 )
 
@@ -269,7 +267,6 @@ func (i *bindingInspector) InspectBinding(ctx context.Context, namespace string,
 	report.Capabilities.Binding = BindingInspectionCapabilityFull
 	report.Capabilities.PeerBindings = BindingInspectionCapabilityPartial
 	report.BindingRef = bindingInspectionBindingRef(binding)
-	i.addCollisionFinding(binding, &report)
 	identityConfig := i.resolveIdentityConfig(binding, &report)
 
 	rendered, renderedReady := i.inspectRenderedIdentity(ctx, binding, availablePoolGVKs, identityConfig, &report)
@@ -660,29 +657,6 @@ func podSelectorMatchLabels(selector map[string]any) (map[string]string, error) 
 		labels[key] = text
 	}
 	return labels, nil
-}
-
-func (i *bindingInspector) addCollisionFinding(
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-	report *BindingInspectionReport,
-) {
-	condition := meta.FindStatusCondition(binding.Status.Conditions, conditionTypeConflict)
-	if condition == nil || condition.Status != metav1.ConditionTrue {
-		return
-	}
-	report.Findings = append(report.Findings, BindingInspectionFinding{
-		ID:       findingKleymCollision,
-		Severity: BindingInspectionFindingSeverityError,
-		Reason:   condition.Reason,
-		Message:  condition.Message,
-		AffectedRefs: []BindingInspectionTargetRef{{
-			Namespace: binding.Namespace,
-			Name:      binding.Name,
-			Group:     kleymv1alpha1.GroupVersion.Group,
-			Version:   kleymv1alpha1.GroupVersion.Version,
-			Kind:      "InferenceIdentityBinding",
-		}},
-	})
 }
 
 // zeroMatchedPodsFinding records that readable pods did not match the rendered identity selectors.

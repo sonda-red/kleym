@@ -109,7 +109,6 @@ type BindingStatusSummary struct {
 // BindingConditionSummary counts true binding conditions by type.
 type BindingConditionSummary struct {
 	Ready          int `json:"ready"`
-	Conflict       int `json:"conflict"`
 	InvalidRef     int `json:"invalidRef"`
 	UnsafeSelector int `json:"unsafeSelector"`
 	RenderFailure  int `json:"renderFailure"`
@@ -180,7 +179,6 @@ func writeStatusReportText(w io.Writer, report StatusReport) error {
 	appendTextLine(&builder, "  Total: %d", report.Summary.Bindings.Total)
 	appendTextLine(&builder, "  Conditions:")
 	appendTextLine(&builder, "    Ready: %d", report.Summary.Bindings.Conditions.Ready)
-	appendTextLine(&builder, "    Conflict: %d", report.Summary.Bindings.Conditions.Conflict)
 	appendTextLine(&builder, "    InvalidRef: %d", report.Summary.Bindings.Conditions.InvalidRef)
 	appendTextLine(&builder, "    UnsafeSelector: %d", report.Summary.Bindings.Conditions.UnsafeSelector)
 	appendTextLine(&builder, "    RenderFailure: %d", report.Summary.Bindings.Conditions.RenderFailure)
