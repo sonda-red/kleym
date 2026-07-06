@@ -16,7 +16,7 @@ previewing the documentation site locally. CLI usage is documented separately in
 - Docker
 - `kubectl`
 - Access to a Kubernetes cluster
-- Gateway API Inference Extension (GAIE) CRD for [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/), plus [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) when using `PerObjective`
+- Gateway API Inference Extension (GAIE) CRD for [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/)
 - SPIFFE Runtime Environment (SPIRE) Controller Manager with the [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md)
 - Docker for Kind-backed e2e; the e2e targets bootstrap `kind` and Chainsaw under `bin/`
 - Hugo Extended `0.146+` for docs preview/build
@@ -280,8 +280,8 @@ subjects:
 
 The public Kleym metrics are:
 
-- `kleym_identity_binding_outcomes_total{condition,reason,mode}`: counter of terminal reconcile outcomes.
-- `kleym_identity_bindings{condition,reason,mode}`: scrape-time gauge of current binding outcomes aggregated from status.
+- `kleym_identity_binding_outcomes_total{condition,reason}`: counter of terminal reconcile outcomes.
+- `kleym_identity_bindings{condition,reason}`: scrape-time gauge of current binding outcomes aggregated from status.
 
 ## Test
 

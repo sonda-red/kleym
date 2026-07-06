@@ -1,7 +1,7 @@
 ---
 title: Examples
 weight: 40
-description: "Kleym example manifests for basic pool identity and PerObjective identity registration with expected reconciliation output."
+description: "Kleym example manifests for pool identity registration with expected reconciliation output."
 aliases:
   - /operator/examples/
 ---
@@ -17,7 +17,7 @@ reconciles a binding.
 
 These examples assume:
 
-- Gateway API Inference Extension (GAIE) CRDs are installed for [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/), and for [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) when using `PerObjective`
+- Gateway API Inference Extension (GAIE) CRDs are installed for [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/)
 - SPIFFE Runtime Environment (SPIRE) Controller Manager is installed with the [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md)
 - `kleym-operator` is running
 
@@ -29,11 +29,10 @@ For SPIFFE and SPIRE background, see [SPIFFE overview](https://spiffe.io/docs/la
 
 | Example | Use it when | Outcome |
 | --- | --- | --- |
-| [Basic Binding](/examples/basic-binding/) | You need one identity per serving pool. | One managed `ClusterSPIFFEID` in `PoolOnly` mode. |
-| [PerObjective](/examples/per-objective/) | Multiple objectives share a pool but need distinct identities. | One managed `ClusterSPIFFEID` per objective with a container-name selector. |
+| [Basic Binding](/examples/basic-binding/) | You need one identity per serving pool. | One managed `ClusterSPIFFEID` for the referenced pool. |
+| [Historical PerObjective](/examples/per-objective/) | You are checking why older Objective examples no longer apply. | Historical note only; not a current supported example. |
 
 ## Recommended Reading Order
 
 1. Start with [Basic Binding](/examples/basic-binding/) to validate end-to-end wiring.
-2. Move to [PerObjective](/examples/per-objective/) to apply model-level identity boundaries.
-3. Review [Conditions](/reference/conditions/) and [Troubleshooting](/troubleshooting/) if reconciliation does not reach `Ready=True`.
+2. Review [Conditions](/reference/conditions/) and [Troubleshooting](/troubleshooting/) if reconciliation does not reach `Ready=True`.

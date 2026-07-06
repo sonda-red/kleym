@@ -1,7 +1,7 @@
 ---
 title: Selector Safety
 weight: 20
-description: "Selector safety design for proving namespace, service account, pool, and container boundaries before rendering SPIFFE identities."
+description: "Selector safety design for proving namespace, service account, and pool boundaries before rendering SPIFFE identities."
 aliases:
   - /operator/design/selector-safety/
 ---
@@ -18,7 +18,6 @@ The current implementation requires:
 - a namespace selector: `k8s:ns:<binding-namespace>`
 - a service account selector: `k8s:sa:<service-account>`
 - selectors derived from the referenced pool
-- a container-name selector when `mode` is `PerObjective`
 
 If the namespace selector does not match the binding namespace, reconciliation fails.
 
@@ -49,5 +48,4 @@ did not specify. `matchExpressions` are not rendered.
 ## Selector Ownership
 
 Users provide only `serviceAccountName`. Kleym renders the namespace and
-service-account selectors internally, derives pool selectors from `poolRef`,
-and adds `k8s:container-name:<containerName>` for `PerObjective` bindings.
+service-account selectors internally and derives pool selectors from `poolRef`.

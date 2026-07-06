@@ -18,7 +18,7 @@ resources in `spire.spiffe.io`.
 | --- | --- |
 | `spec.spiffeIDTemplate` | Fully rendered SPIFFE ID. |
 | `spec.podSelector` | Validated selector derived from the referenced pool. |
-| `spec.workloadSelectorTemplates` | Rendered namespace and service-account safety selectors, pool-derived selectors, and the optional per-objective container-name selector. |
+| `spec.workloadSelectorTemplates` | Rendered namespace and service-account safety selectors plus pool-derived selectors. |
 | `spec.className` | Rendered only when `kleym-operator` is configured with `--clusterspiffeid-class-name`. When omitted, SPIRE Controller Manager must watch classless resources. |
 | `spec.fallback` | `false` for all managed identities. |
 | `spec.hint` | Originating binding reference in the form `<namespace>/<binding-name>`. |
@@ -41,7 +41,7 @@ Managed `ClusterSPIFFEID` names are deterministic and derived from:
 - the `kleym-operator` controller name
 - binding namespace
 - binding name
-- rendered mode (`pool` or `objective`)
+- rendered pool identity kind
 - a short hash of the SPIFFE ID
 
 That keeps names DNS-safe while allowing the SPIFFE ID to remain the real identity contract.
@@ -52,7 +52,6 @@ That keeps names DNS-safe while allowing the SPIFFE ID to remain the real identi
 | --- | --- |
 | `InferenceIdentityBinding` | Source resource for managed output. |
 | [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) | Required selector source resolved from `spec.poolRef.name`. |
-| [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) | Optional objective subject resolved from `spec.objectiveRef.name` and validated against `spec.poolRef`. |
 | [`ClusterSPIFFEID`](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md) | Managed output resource written by the reconciler. |
 
 ## Read And Watch Behavior
@@ -61,4 +60,3 @@ The controller:
 
 - watches `InferenceIdentityBinding`
 - watches supported `InferencePool` objects and maps them back to bindings whose `spec.poolRef.name` references those pools
-- watches supported `InferenceObjective` objects and maps them back to bindings whose optional `spec.objectiveRef.name` references those objectives

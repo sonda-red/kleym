@@ -1,33 +1,22 @@
 ---
 title: Identity Boundaries
 weight: 15
-description: "Design rationale for Kleym identity boundaries across namespaces, service accounts, inference pools, objectives, and containers."
+description: "Design rationale for Kleym identity boundaries across namespaces, service accounts, and inference pools."
 aliases:
   - /operator/design/identity-boundaries/
 ---
 
 ## Boundaries
 
-| Mode | Boundary |
-| --- | --- |
-| `PoolOnly` | One SPIFFE identity represents the serving pool pods. |
-| `PerObjective` | One SPIFFE identity represents a GAIE `InferenceObjective`, scoped through the referenced pool. |
+One SPIFFE identity represents the serving pool pods selected by the referenced
+`InferencePool`.
 
-The pool defines where inference runs. The objective defines what is served.
+The pool defines where inference runs. Kleym adds namespace and service-account
+selectors so the identity remains tied to the binding namespace and the expected
+workload service account.
 
-## Container Name
+## Removed Objective Boundary
 
-`PerObjective` uses `containerName` to add a container-level selector to the
-pool-level pod selection.
-
-| Field | SPIRE selector | Notes |
-| --- | --- | --- |
-| `containerName` | `k8s:container-name:<value>` | Required for `PerObjective`; forbidden for `PoolOnly`. |
-
-When multiple objectives share one pool, each objective should use a different
-container name. If two `PerObjective` bindings resolve to the same pod set and
-same container-name value, `kleym-operator` refuses both with reason
-`IdentityCollision`.
-
-Multiple `ClusterSPIFFEID` resources can select the same pod set. The controller
-detects deterministic collisions between managed `PerObjective` bindings.
+Older designs described an objective-level boundary backed by GAIE
+`InferenceObjective`, `mode`, and `containerName`. Upstream GAIE removed
+`InferenceObjective`, and Kleym no longer supports that boundary.
