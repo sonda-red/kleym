@@ -30,7 +30,6 @@ For SPIFFE and SPIRE background, see [SPIFFE overview](https://spiffe.io/docs/la
 | Example | Use it when | Outcome |
 | --- | --- | --- |
 | [Basic Binding](/examples/basic-binding/) | You need one identity per serving pool. | One managed `ClusterSPIFFEID` for the referenced pool. |
-| [Historical PerObjective](/examples/per-objective/) | You are checking why older Objective examples no longer apply. | Historical note only; not a current supported example. |
 
 ## Recommended Reading Order
 

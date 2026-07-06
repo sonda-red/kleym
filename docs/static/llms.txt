@@ -36,7 +36,6 @@ Kleym stops at identity registration. It does not deploy inference workloads, ro
 - [API reference](https://kleym.sonda.red/reference/api/) - `InferenceIdentityBinding` API fields and validation rules.
 - [Managed resources](https://kleym.sonda.red/reference/resources/) - Managed `ClusterSPIFFEID` output shape.
 - [Selector safety](https://kleym.sonda.red/design/selector-safety/) - Selector safety rationale and failure behavior.
-- [Collision detection](https://kleym.sonda.red/design/collision-detection/) - Historical PerObjective collision behavior.
 - [CLI usage](https://kleym.sonda.red/cli/usage/) - Read-only CLI status and binding inspection usage.
 
 ## Related Sonda Red Links
