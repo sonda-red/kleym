@@ -66,7 +66,7 @@ Selector rationale is expanded in [Selector Safety][selector-safety].
 
 ## Condition Taxonomy
 
-`InferenceIdentityBinding.status.conditions` is a stable machine-readable contract for the current pool-only operator. It does not describe runtime evidence, SVID issuance, workload attestation, model loading, GPU usage, request authorization, or future `InferenceSVIDConfig` lifecycle state.
+`InferenceIdentityBinding.status.conditions` is a stable machine-readable contract for reference resolution, selector safety, identity rendering, managed-output application, and reconciliation readiness.
 
 Allowed condition types and reasons:
 

@@ -8,8 +8,6 @@ aliases:
 
 For the full condition set, read [Conditions](/reference/conditions/).
 
-Binding conditions report operator reconciliation state only. They do not prove SVID issuance, workload attestation, model loading, GPU use, request authorization, or future runtime-evidence state.
-
 ## Start Here
 
 Inspect the binding status and recent events:

@@ -8,14 +8,14 @@ aliases:
 
 ## Core Condition Contract
 
-`InferenceIdentityBinding` uses only the following current pool-only condition types:
+`InferenceIdentityBinding` uses the following current pool-only condition types:
 
 - `Ready`
 - `InvalidRef`
 - `UnsafeSelector`
 - `RenderFailure`
 
-These conditions describe operator reconciliation state only. They are not runtime evidence, SVID issuance, workload attestation, model loading, GPU usage, or request authorization signals. Future `InferenceSVIDConfig` behavior must define its own condition taxonomy instead of extending these binding reasons.
+These conditions describe reference resolution, selector safety, identity rendering, managed-output application, and reconciliation readiness.
 
 ## Allowed Reasons
 
