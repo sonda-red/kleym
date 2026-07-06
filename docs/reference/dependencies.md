@@ -17,9 +17,6 @@ aliases:
 | SPIRE Controller Manager | SPIRE registration reconciliation. | External controller. |
 | SPIRE Server and SPIRE Agent | SVID issuance and workload attestation. | External identity plane. |
 
-`InferenceObjective` is not a current runtime dependency. `kleym-operator`
-writes `ClusterSPIFFEID` resources and does not write SPIRE entries directly.
-
 ## Compatibility Surfaces
 
 | Surface | Source of truth |

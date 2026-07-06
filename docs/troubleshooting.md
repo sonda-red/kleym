@@ -85,6 +85,3 @@ Reference docs:
 
 When a CRD is missing, the reconciler keeps retrying automatically on a timer, so it can recover after installation without waiting for unrelated watch events.
 If you install a newly supported GAIE CRD after `kleym-operator` has already started, restart the controller so startup-time GVK discovery can register the new watches.
-
-`InferenceObjective` was removed upstream and is not required for current Kleym
-reconciliation.

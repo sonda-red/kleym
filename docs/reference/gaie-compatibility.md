@@ -17,11 +17,6 @@ GVK examples:
 - `inference.networking.k8s.io/v1, Kind=InferencePool`
 - `inference.networking.x-k8s.io/v1alpha2, Kind=InferencePool`
 
-`InferenceObjective` was removed upstream in
-[kubernetes-sigs/gateway-api-inference-extension#2973](https://github.com/kubernetes-sigs/gateway-api-inference-extension/pull/2973)
-and is not a current `kleym-operator` identity input. `InferenceModel` is
-legacy and is also not an input.
-
 ## Selector Compatibility
 
 `kleym-operator` accepts deterministic `InferencePool` selectors from
