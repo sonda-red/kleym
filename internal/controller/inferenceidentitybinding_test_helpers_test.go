@@ -17,7 +17,7 @@ import (
 
 const testNamespace = "default"
 
-func newCollisionTestScheme(t *testing.T) *runtime.Scheme {
+func newControllerTestScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 
 	scheme := runtime.NewScheme()

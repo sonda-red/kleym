@@ -97,7 +97,7 @@ func TestReconcileRecordsSuccessfulTerminalOutcomeAfterStatusPatch(t *testing.T)
 	t.Parallel()
 
 	ctx := context.Background()
-	scheme := newCollisionTestScheme(t)
+	scheme := newControllerTestScheme(t)
 
 	binding := newPoolOnlyBinding("binding-ready-metric", "")
 	k8sClient := fake.NewClientBuilder().
@@ -134,7 +134,7 @@ func TestReconcileRecordsFailureTerminalOutcomeAfterStatusPatch(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	scheme := newCollisionTestScheme(t)
+	scheme := newControllerTestScheme(t)
 
 	binding := newPoolOnlyBinding("binding-failure-metric", "")
 	binding.Spec.PoolRef.Name = "missing-pool"
@@ -171,7 +171,7 @@ func TestReconcileRecordsFailureTerminalOutcomeAfterStatusPatch(t *testing.T) {
 func TestIdentityBindingGaugeCollectorAggregatesOutcomes(t *testing.T) {
 	t.Parallel()
 
-	scheme := newCollisionTestScheme(t)
+	scheme := newControllerTestScheme(t)
 
 	readyA := newPoolOnlyBinding("binding-ready-a", "")
 	readyB := newPoolOnlyBinding("binding-ready-b", "")
