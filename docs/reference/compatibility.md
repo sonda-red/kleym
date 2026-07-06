@@ -29,8 +29,7 @@ to the same release version.
 
 Kleym supports only the documented input and output surface:
 
-- supported GAIE `InferencePool` and `InferenceObjective` GVKs and consumed
-  fields
+- supported GAIE `InferencePool` GVKs and consumed fields
 - Kleym-owned `InferenceIdentityBinding` API fields and status conditions
 - rendered `ClusterSPIFFEID` fields documented in Managed Resources
 

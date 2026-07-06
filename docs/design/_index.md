@@ -1,7 +1,7 @@
 ---
 title: Design
 weight: 70
-description: "Design notes for Kleym reconciliation, identity boundaries, selector safety, collision detection, and downstream handoff patterns."
+description: "Design notes for Kleym reconciliation, identity boundaries, selector safety, and downstream handoff patterns."
 aliases:
   - /operator/design/
 ---
@@ -11,6 +11,5 @@ identity boundaries, and downstream consumption patterns.
 
 - [Reconciliation](/design/reconciliation/): current controller flow.
 - [Selector Safety](/design/selector-safety/): selector validation rationale.
-- [Identity Boundaries](/design/identity-boundaries/): pool and objective identity modes.
-- [Collision Detection](/design/collision-detection/): current per-objective collision logic.
+- [Identity Boundaries](/design/identity-boundaries/): pool identity boundary.
 - [Downstream Patterns](/design/downstream-patterns/): non-normative gateway, proxy, and policy handoff patterns.

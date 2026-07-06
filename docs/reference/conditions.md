@@ -11,10 +11,10 @@ aliases:
 | Type | Meaning when `True` | Common reasons |
 | --- | --- | --- |
 | `Ready` | The binding reconciled successfully. | `Reconciled` |
-| `Conflict` | A per-objective collision blocks reconciliation. | `IdentityCollision` |
-| `InvalidRef` | `poolRef`, `objectiveRef`, or a required CRD could not be resolved or validated. | `TargetObjectiveNotFound`, `TargetPoolNotFound`, `InvalidPoolRef`, `InvalidObjectiveRef`, `InferenceObjectiveCRDMissing`, `InferencePoolCRDMissing` |
+| `Conflict` | Reserved status condition retained for compatibility. Current pool-only reconciliation does not create identity collisions. | `IdentityCollision` on historical Objective-era bindings only |
+| `InvalidRef` | `poolRef` or a required CRD could not be resolved or validated. | `TargetPoolNotFound`, `InvalidPoolRef`, `InferencePoolCRDMissing` |
 | `UnsafeSelector` | The rendered selector set is missing required safety constraints or the pool selector cannot be rendered safely. | `UnsafeSelector`, `InvalidPoolSelector` |
-| `RenderFailure` | Rendering failed after reference resolution succeeded. | `InvalidServiceAccountName`, `MissingObjectiveRef`, `InvalidContainerName`, `UnexpectedContainerName`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing`, `UnsupportedMode` |
+| `RenderFailure` | Rendering failed after reference resolution succeeded. | `InvalidServiceAccountName`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing`, `MissingTrustDomain` |
 
 ## Current Status Behavior
 
@@ -33,24 +33,5 @@ On any failure state:
 - The other non-triggering conditions are set to `False` with resolution or healthy messages
 - `computedSpiffeIDs` and `renderedSelectors` are cleared
 
-On a detected per-objective collision:
-
-- `Conflict=True`
-- `Ready=False`
-- Managed `ClusterSPIFFEID` resources for the colliding bindings are deleted until the collision is resolved
-
-For `Conflict=True` with reason `IdentityCollision`, the controller writes peer
-binding names in the condition message so later reconciliations can refresh
-previously colliding peers without scanning the whole namespace. The parseable
-message format is compatibility-sensitive:
-
-```text
-identity collision with bindings <peer-name>[, <peer-name>...]: PerObjective bindings must not share the same pod selector and container name
-```
-
-If the message cannot be parsed, the controller falls back to scanning all
-`PerObjective` bindings in the namespace and continues reconciliation.
-
-## Collision Scope
-
-`Conflict` is only used for `PerObjective` bindings. `PoolOnly` bindings do not participate in the current collision-detection path.
+`Conflict` remains in status for compatibility with existing reports. In current
+pool-only reconciliation it is normally `False` with reason `Resolved`.

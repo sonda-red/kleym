@@ -1,7 +1,7 @@
 ---
 title: Troubleshooting
 weight: 60
-description: "Troubleshooting guide for Kleym binding conditions, missing dependency CRDs, unsafe selectors, identity collisions, and inspection output."
+description: "Troubleshooting guide for Kleym binding conditions, missing dependency CRDs, unsafe selectors, and inspection output."
 aliases:
   - /operator/troubleshooting/
 ---
@@ -28,39 +28,29 @@ If reconciliation fails, `Ready=False` and the triggering condition becomes `Tru
 
 | Condition | Reason | Typical cause | What to fix |
 | --- | --- | --- | --- |
-| `InvalidRef` | `TargetObjectiveNotFound` | `spec.objectiveRef.name` does not resolve to an `InferenceObjective` in the same namespace. | Check the objective name, namespace, and installation of the objective CRD. |
 | `InvalidRef` | `InvalidPoolRef` | The binding has an invalid or unsupported-group `poolRef`. | Fix `spec.poolRef` so it points to a valid pool in the same namespace and a supported GAIE group. |
-| `InvalidRef` | `InvalidObjectiveRef` | The objective reference is invalid or its `spec.poolRef` does not point at the binding pool. | Fix `spec.objectiveRef` or the objective's `spec.poolRef` so both point at the same pool. |
 | `InvalidRef` | `TargetPoolNotFound` | The binding points to an `InferencePool` that does not exist. | Create the pool or correct `spec.poolRef`. |
-| `InvalidRef` | `InferenceObjectiveCRDMissing` | The GAIE `InferenceObjective` CRD is not installed and the binding needs an objective. | Install the objective CRD or use `PoolOnly` without `objectiveRef`. |
 | `InvalidRef` | `InferencePoolCRDMissing` | The GAIE `InferencePool` CRD is not installed in the cluster. | Install the required GAIE CRDs before reconciling bindings. |
 | `UnsafeSelector` | `InvalidPoolSelector` | The pool selector cannot be normalized into a rendered selector set, or its label keys or values are malformed. | Use a deterministic `matchLabels`-style selector with valid Kubernetes label keys and values. Do not rely on whitespace trimming. |
 | `UnsafeSelector` | `UnsafeSelector` | The rendered selector set is missing namespace or service account safety constraints, or would widen beyond the tenant boundary. | Ensure `serviceAccountName` and the pool-derived selector stay within the intended workload boundary. |
-| `Conflict` | `IdentityCollision` | Two `PerObjective` bindings resolve to the same workload slice, usually the same pool plus the same container name. | Give each objective a distinct `containerName`, change the pool mapping, or use `PoolOnly` if model-level separation is not required. |
+| `Conflict` | `IdentityCollision` | Historical Objective-era collision state. Current pool-only reconciliation should leave `Conflict=False`. | Confirm you are running the current CRD and controller. |
 | `RenderFailure` | `InvalidServiceAccountName` | `spec.serviceAccountName` is empty or not a valid Kubernetes service account name. | Set `serviceAccountName` to the exact workload service account. |
-| `RenderFailure` | `MissingObjectiveRef` | The effective mode is `PerObjective` but no objective subject was provided. | Add `objectiveRef` or switch to `PoolOnly`. |
-| `RenderFailure` | `InvalidContainerName` | The effective mode is `PerObjective` but `spec.containerName` is empty or not a valid Kubernetes container name. | Set `containerName` to the serving container name or switch to `PoolOnly`. |
-| `RenderFailure` | `UnexpectedContainerName` | `mode` is `PoolOnly` but `spec.containerName` is set. | Remove `containerName` or switch to `PerObjective`. |
-| `RenderFailure` | `InvalidSPIFFEID` | The computed SPIFFE ID is not valid. | Check the referenced namespace, pool, and objective names. |
-| `RenderFailure` | `UnsupportedMode` | The binding mode is not one of the supported values. | Use `PoolOnly` or `PerObjective`. |
+| `RenderFailure` | `InvalidSPIFFEID` | The computed SPIFFE ID is not valid. | Check the referenced namespace and pool names. |
+| `RenderFailure` | `MissingTrustDomain` | The operator has no trust domain configured. | Configure `--trust-domain` or `KLEYM_TRUST_DOMAIN` before starting the operator. |
 | `RenderFailure` | `ClusterSPIFFEIDCRDMissing` | SPIRE Controller Manager or its `ClusterSPIFFEID` CRD is missing. | Install SPIRE Controller Manager and confirm the `clusterspiffeids.spire.spiffe.io` CRD exists. |
 
 ## Missing CRDs
 
-`kleym-operator` depends on external CRDs as inputs and outputs. `InferencePool` is required for all bindings; `InferenceObjective` is only required for `PerObjective` or when `objectiveRef` is set.
+`kleym-operator` depends on external CRDs as inputs and outputs. `InferencePool` is required for all bindings.
 
 `GVK` means `GroupVersionKind` (`<api-group>/<version>, Kind=<kind>`). In this context:
 
-- `inference.networking.x-k8s.io/v1alpha2, Kind=InferenceObjective`
-- `inference.networking.k8s.io/v1, Kind=InferenceObjective`
 - `inference.networking.k8s.io/v1, Kind=InferencePool`
 - `inference.networking.x-k8s.io/v1alpha2, Kind=InferencePool`
 
 Check for:
 
 ```sh
-kubectl get crd inferenceobjectives.inference.networking.k8s.io
-kubectl get crd inferenceobjectives.inference.networking.x-k8s.io
 kubectl get crd inferencepools.inference.networking.k8s.io
 kubectl get crd inferencepools.inference.networking.x-k8s.io
 kubectl get crd clusterspiffeids.spire.spiffe.io
@@ -76,7 +66,7 @@ During startup, `kleym-operator` discovers supported GAIE GVKs and logs a warnin
 
 These warnings are expected when your cluster serves only part of the
 compatibility matrix.
-Example: cluster has `InferencePool` only in `inference.networking.k8s.io/v1`, so startup logs skip messages for the other supported GAIE GVKs but can still reconcile `PoolOnly` bindings.
+Example: cluster has `InferencePool` only in `inference.networking.k8s.io/v1`, so startup logs skip messages for the other supported GAIE GVKs but can still reconcile bindings.
 
 You can confirm what is actually served via:
 
@@ -87,7 +77,6 @@ kubectl api-resources --api-group=inference.networking.k8s.io
 
 Reference docs:
 
-- [`InferenceObjective` API type](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/)
 - [`InferencePool` API type](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/)
 - [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/overview/)
 - [SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/)
@@ -96,15 +85,3 @@ Reference docs:
 
 When a CRD is missing, the reconciler keeps retrying automatically on a timer, so it can recover after installation without waiting for unrelated watch events.
 If you install a newly supported GAIE CRD after `kleym-operator` has already started, restart the controller so startup-time GVK discovery can register the new watches.
-
-## Collision Triage
-
-If you hit `IdentityCollision`, compare all `PerObjective` bindings in the namespace that target the same pool and container name.
-
-Most collisions come from one of these situations:
-
-- two bindings point at objectives backed by the same pool and the same serving container
-- a copied manifest changed the objective name but kept the same `containerName`
-- a workload only has one serving container, so `PerObjective` cannot safely separate identities
-
-Read [Collision Detection](/design/collision-detection/) if you need the exact controller rule.

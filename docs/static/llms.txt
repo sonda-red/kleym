@@ -22,21 +22,20 @@ Kleym stops at identity registration. It does not deploy inference workloads, ro
 
 - Kubernetes operators and controller-runtime
 - Gateway API Inference Extension
+- GAIE InferencePool identity source
 - SPIFFE and SPIRE workload identity
 - SPIRE Controller Manager `ClusterSPIFFEID`
 - Deterministic SPIFFE ID rendering
 - Selector safety and tenant boundaries
-- Identity collision detection
 - Read-only Kubernetes inspection CLI
 
 ## Key Resources
 
-- [Concepts](https://kleym.sonda.red/concepts/) - GAIE inputs, identity modes, container-name boundaries, and selector safety.
+- [Concepts](https://kleym.sonda.red/concepts/) - GAIE InferencePool input, pool identity, and selector safety.
 - [Architecture](https://kleym.sonda.red/architecture/) - End-to-end control flow from `InferenceIdentityBinding` to SPIRE registration state.
 - [API reference](https://kleym.sonda.red/reference/api/) - `InferenceIdentityBinding` API fields and validation rules.
 - [Managed resources](https://kleym.sonda.red/reference/resources/) - Managed `ClusterSPIFFEID` output shape.
 - [Selector safety](https://kleym.sonda.red/design/selector-safety/) - Selector safety rationale and failure behavior.
-- [Collision detection](https://kleym.sonda.red/design/collision-detection/) - Identity collision model and conflict handling.
 - [CLI usage](https://kleym.sonda.red/cli/usage/) - Read-only CLI status and binding inspection usage.
 
 ## Related Sonda Red Links
