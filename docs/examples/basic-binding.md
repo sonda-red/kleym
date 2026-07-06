@@ -74,7 +74,6 @@ spec:
 The binding status should report:
 
 - `Ready=True`
-- `Conflict=False`
 - `InvalidRef=False`
 - `UnsafeSelector=False`
 - `RenderFailure=False`

@@ -33,8 +33,8 @@ were attested, or identities were consumed.
 ## Findings
 
 Findings identify issues or notable states, such as missing CRDs, unavailable
-operator replicas, invalid references, deterministic Kleym collisions, missing
-dependencies, unsupported selectors, or RBAC limits. See
+operator replicas, invalid references, missing dependencies, unsupported
+selectors, or RBAC limits. See
 [Findings](/cli/findings/) for the current finding classes.
 
 ## Exit Behavior

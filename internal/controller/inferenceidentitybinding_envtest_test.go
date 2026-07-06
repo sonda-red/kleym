@@ -25,7 +25,6 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 		conditionTypeInvalidRef,
 		conditionTypeUnsafeSelector,
 		conditionTypeRenderFailure,
-		conditionTypeConflict,
 	}
 
 	newName := func(prefix string) string {

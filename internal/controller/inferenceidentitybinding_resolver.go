@@ -33,8 +33,7 @@ func (r *InferenceIdentityBindingReconciler) resolveInferencePool(
 func shouldCleanupManagedClusterSPIFFEIDs(conditionType string) bool {
 	return conditionType == conditionTypeInvalidRef ||
 		conditionType == conditionTypeUnsafeSelector ||
-		conditionType == conditionTypeRenderFailure ||
-		conditionType == conditionTypeConflict
+		conditionType == conditionTypeRenderFailure
 }
 
 func isInfrastructureNotReadyReason(reason string) bool {

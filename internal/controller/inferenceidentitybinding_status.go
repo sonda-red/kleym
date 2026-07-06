@@ -36,11 +36,12 @@ func initializeConditions(
 		message       string
 	}{
 		{conditionTypeReady, "Readiness has not been evaluated yet"},
-		{conditionTypeConflict, "Identity collision has not been evaluated yet"},
 		{conditionTypeInvalidRef, "Reference validity has not been evaluated yet"},
 		{conditionTypeUnsafeSelector, "Selector safety has not been evaluated yet"},
 		{conditionTypeRenderFailure, "Render health has not been evaluated yet"},
 	}
+
+	status.Conditions = removeCondition(status.Conditions, "Conflict")
 
 	for _, entry := range canonical {
 		conditionStatus := metav1.ConditionUnknown
@@ -90,7 +91,6 @@ func applySuccessStatus(
 	}
 
 	setCondition(status, generation, conditionTypeReady, metav1.ConditionTrue, "Reconciled", "Binding reconciled")
-	setCondition(status, generation, conditionTypeConflict, metav1.ConditionFalse, "Resolved", noIdentityCollisionMessage)
 	setCondition(status, generation, conditionTypeInvalidRef, metav1.ConditionFalse, "Resolved", "References are valid")
 	setCondition(status, generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, "Resolved", "Selectors are safe")
 	setCondition(status, generation, conditionTypeRenderFailure, metav1.ConditionFalse, "Resolved", "Rendering is healthy")
@@ -110,38 +110,12 @@ func applyFailureStatus(
 	if stateErr.conditionType != conditionTypeInvalidRef {
 		setCondition(status, generation, conditionTypeInvalidRef, metav1.ConditionFalse, "Resolved", "References are valid")
 	}
-	if stateErr.conditionType != conditionTypeConflict {
-		setCondition(status, generation, conditionTypeConflict, metav1.ConditionFalse, "Resolved", noIdentityCollisionMessage)
-	}
 	if stateErr.conditionType != conditionTypeUnsafeSelector {
 		setCondition(status, generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, "Resolved", "Selectors are safe")
 	}
 	if stateErr.conditionType != conditionTypeRenderFailure {
 		setCondition(status, generation, conditionTypeRenderFailure, metav1.ConditionFalse, "Resolved", "Rendering is healthy")
 	}
-}
-
-func applyCollisionStatus(
-	status *kleymv1alpha1.InferenceIdentityBindingStatus,
-	generation int64,
-	hasCollision bool,
-	message string,
-) {
-	if hasCollision {
-		status.ComputedSpiffeIDs = nil
-		status.RenderedSelectors = nil
-		setCondition(status, generation, conditionTypeReady, metav1.ConditionFalse, "IdentityCollision", message)
-		setCondition(status, generation, conditionTypeConflict, metav1.ConditionTrue, "IdentityCollision", message)
-		setCondition(status, generation, conditionTypeInvalidRef, metav1.ConditionFalse, "Resolved", "References are valid")
-		setCondition(status, generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, "Resolved", "Selectors are safe")
-		setCondition(status, generation, conditionTypeRenderFailure, metav1.ConditionFalse, "Resolved", "Rendering is healthy")
-		return
-	}
-
-	if strings.TrimSpace(message) == "" {
-		message = noIdentityCollisionMessage
-	}
-	setCondition(status, generation, conditionTypeConflict, metav1.ConditionFalse, "Resolved", message)
 }
 
 func (r *InferenceIdentityBindingReconciler) patchStatusFromBase(
@@ -170,4 +144,15 @@ func setCondition(
 		Reason:             reason,
 		Message:            message,
 	})
+}
+
+func removeCondition(conditions []metav1.Condition, conditionType string) []metav1.Condition {
+	filtered := conditions[:0]
+	for _, condition := range conditions {
+		if condition.Type == conditionType {
+			continue
+		}
+		filtered = append(filtered, condition)
+	}
+	return filtered
 }

@@ -391,25 +391,6 @@ func TestInspectBindingDoesNotRequireClusterSPIFFEIDCRD(t *testing.T) {
 	assertNoFinding(t, report.Findings, findingDependencyMissing)
 }
 
-func TestInspectBindingCollisionConditionFinding(t *testing.T) {
-	binding := testInspectionBinding()
-	binding.Status.Conditions = []metav1.Condition{{
-		Type:    conditionTypeConflict,
-		Status:  metav1.ConditionTrue,
-		Reason:  "IdentityCollision",
-		Message: "identity collision with bindings peer-a",
-	}}
-	pool := testInspectionPool("pool-a")
-	inspector := newTestBindingInspector(t, nil, binding, pool)
-
-	report, err := inspector.InspectBinding(context.Background(), "tenant-a", "binding-a")
-	if !errors.Is(err, ErrBindingInspectionErrorFindings) {
-		t.Fatalf("InspectBinding error = %v, want error findings", err)
-	}
-
-	assertFinding(t, report.Findings, findingKleymCollision, BindingInspectionFindingSeverityError, "IdentityCollision")
-}
-
 func newTestBindingInspector(t *testing.T, listErr error, objects ...client.Object) *bindingInspector {
 	return newTestBindingInspectorWithListErrors(t, listErr, nil, objects...)
 }

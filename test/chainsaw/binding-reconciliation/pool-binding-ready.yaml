@@ -18,9 +18,6 @@ status:
     - type: Ready
       status: "True"
       reason: Reconciled
-    - type: Conflict
-      status: "False"
-      reason: Resolved
     - type: InvalidRef
       status: "False"
       reason: Resolved
