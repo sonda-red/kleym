@@ -24,8 +24,8 @@ func TestReconcileLogsStructuredSuccessPath(t *testing.T) {
 	logger, logs := newRecordingLogger()
 	ctx = logf.IntoContext(ctx, logger)
 
-	scheme := newCollisionTestScheme(t)
-	binding := newPoolOnlyBinding("binding-log-success", "objective-a")
+	scheme := newControllerTestScheme(t)
+	binding := newPoolOnlyBinding("binding-log-success", "pool-a")
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
@@ -73,7 +73,7 @@ func TestReconcileLogsFailureStatus(t *testing.T) {
 	logger, logs := newRecordingLogger()
 	ctx = logf.IntoContext(ctx, logger)
 
-	scheme := newCollisionTestScheme(t)
+	scheme := newControllerTestScheme(t)
 	binding := newPoolOnlyBinding("binding-log-failure", "")
 	binding.Spec.PoolRef.Name = "missing-pool"
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
@@ -112,8 +112,8 @@ func TestReconcileClusterSPIFFEIDsLogsApplyDecisions(t *testing.T) {
 	logger, logs := newRecordingLogger()
 	ctx = logf.IntoContext(ctx, logger)
 
-	scheme := newCollisionTestScheme(t)
-	binding := newPoolOnlyBinding("binding-log-apply", "objective-a")
+	scheme := newControllerTestScheme(t)
+	binding := newPoolOnlyBinding("binding-log-apply", "pool-a")
 	identity := renderedIdentity{
 		SpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a",
 		Selectors: []string{

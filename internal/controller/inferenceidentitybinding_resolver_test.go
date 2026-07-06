@@ -17,7 +17,7 @@ func TestReconcileSetsInvalidRefWhenPoolCannotBeResolved(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	scheme := newCollisionTestScheme(t)
+	scheme := newControllerTestScheme(t)
 
 	binding := newPoolOnlyBinding("binding-missing-pool", "")
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
@@ -44,7 +44,7 @@ func TestReconcilePoolOnlyDoesNotRequireObjective(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	scheme := newCollisionTestScheme(t)
+	scheme := newControllerTestScheme(t)
 
 	binding := newPoolOnlyBinding("binding-pool-only", "")
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
@@ -71,7 +71,7 @@ func TestReconcileUsesOperatorConfigForRenderedOutput(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	scheme := newCollisionTestScheme(t)
+	scheme := newControllerTestScheme(t)
 
 	binding := newPoolOnlyBinding("binding-operator-config", "")
 	reconciler := &InferenceIdentityBindingReconciler{Config: OperatorConfig{
