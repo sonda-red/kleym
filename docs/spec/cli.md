@@ -59,7 +59,7 @@ Field meanings: `status` is the aggregate result (`OK`, `WARNING`, or `ERROR`); 
 }
 ```
 
-Field meanings: `identityConfig` records render config and sources; `bindingRef` records binding identity, refs, generation, mode, and conditions; `resolvedInput` records resolved pool/objective inputs; `renderedIdentity` records SPIFFE ID and selectors; `renderedClusterSPIFFEID` records deterministic managed output; `matchedPods` records readable matching pods or containers; `findings` records inspection issues.
+Field meanings: `identityConfig` records render config and sources; `bindingRef` records binding identity, refs, generation, and conditions; `resolvedInput` records resolved pool input; `renderedIdentity` records SPIFFE ID and selectors; `renderedClusterSPIFFEID` records deterministic managed output; `matchedPods` records readable matching pods or containers; `findings` records inspection issues.
 
 Text output must use direct labels: `Identity`, `ClusterSPIFFEID`, `Conditions`, `Matched pods`, `Findings`, and `Exit code`. It must not use `eligible`, `bound`, `issued`, or `attested` for pod or identity state.
 
@@ -73,19 +73,19 @@ Status text output must group the report under `Kleym`, `Bindings`, and `Depende
 4. Record visible trust domain and `ClusterSPIFFEID` class from binding status, with operator Deployment args as fallback when bindings are not available.
 5. Count bindings as `OK` when `Ready=True`, `WARNING` when readiness is missing or unknown, and `ERROR` when `Ready=False`.
 6. Count true `Ready`, `Conflict`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure` binding conditions.
-7. Report collision visibility through the `Conflict` condition count. The CLI must not recompute peer collisions.
+7. Report `Conflict` condition visibility from binding status. The CLI must not recompute peer conflicts.
 8. Emit findings and exit according to finding severity.
 
 Status does not compare live managed `ClusterSPIFFEID` output, prove SVID issuance, prove workload attestation, prove identity consumption, or perform request-time authorization checks.
 
 ## Inspect Binding Behavior
 
-1. Resolve the binding, `poolRef`, and required or present `objectiveRef`.
+1. Resolve the binding and `poolRef`.
 2. Choose identity config by precedence: explicit flag, binding status, then CLI default.
 3. Record config values and sources. If binding status lacks operator config, add a warning finding.
 4. Render identity and deterministic `ClusterSPIFFEID` output with shared Kleym logic.
 5. Read pods when permitted and report pods or containers matching rendered Kubernetes-observable selectors.
-6. Preserve current binding conditions. Collision state comes from the inspected binding's `Conflict` condition, not peer re-analysis.
+6. Preserve current binding conditions. Conflict state comes from the inspected binding's `Conflict` condition, not peer re-analysis.
 7. Emit the report and exit according to finding severity.
 
 Matched pods are not proof of SVID issuance, workload attestation, identity consumption, or request-time authorization.

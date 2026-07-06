@@ -6,8 +6,4 @@ metadata:
 spec:
   poolRef:
     name: reference-pool
-  objectiveRef:
-    name: reference-objective
   serviceAccountName: reference-inference
-  mode: PerObjective
-  containerName: model-server

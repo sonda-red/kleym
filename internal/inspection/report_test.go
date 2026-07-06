@@ -89,13 +89,8 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 			Namespace:  "tenant-a",
 			Name:       "binding-a",
 			Generation: 7,
-			Mode:       "PerObjective",
 			PoolRef: &BindingInspectionTargetRef{
 				Name:  "pool-a",
-				Group: "inference.networking.k8s.io",
-			},
-			ObjectiveRef: &BindingInspectionTargetRef{
-				Name:  "objective-a",
 				Group: "inference.networking.k8s.io",
 			},
 			Conditions: []metav1.Condition{{
@@ -113,29 +108,19 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 				Version:   "v1",
 				Kind:      "InferencePool",
 			},
-			ObjectiveRef: &BindingInspectionTargetRef{
-				Namespace: "tenant-a",
-				Name:      "objective-a",
-				Group:     "inference.networking.k8s.io",
-				Version:   "v1",
-				Kind:      "InferenceObjective",
-			},
 			ServedGVKs: []BindingInspectionGVK{
 				{Group: "inference.networking.k8s.io", Version: "v1", Kind: "InferencePool"},
-				{Group: "inference.networking.k8s.io", Version: "v1", Kind: "InferenceObjective"},
 			},
 			PoolSelector: map[string]any{
 				"matchLabels": map[string]any{"app": "pool-a"},
 			},
-			ContainerName: "model-server",
 			SelectorProvenance: &BindingInspectionSelectorProvenance{
 				PoolDerivedSelectors: []string{"k8s:pod-label:app:pool-a"},
-				ContainerSelector:    "k8s:container-name:model-server",
 				SafetySelectors:      []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 			},
 		},
 		RenderedIdentity: BindingInspectionRenderedIdentity{
-			SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+			SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
 			PodSelector: map[string]any{
 				"matchLabels": map[string]any{"app": "pool-a"},
 			},
@@ -143,17 +128,15 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 				"k8s:ns:tenant-a",
 				"k8s:sa:model-sa",
 				"k8s:pod-label:app:pool-a",
-				"k8s:container-name:model-server",
 			},
 			SelectorProvenance: &BindingInspectionSelectorProvenance{
 				PoolDerivedSelectors: []string{"k8s:pod-label:app:pool-a"},
-				ContainerSelector:    "k8s:container-name:model-server",
 				SafetySelectors:      []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 			},
 		},
 		RenderedClusterSPIFFEID: BindingInspectionRenderedClusterSPIFFEID{
 			Name:     "tenant-a-binding-a-1234abcd",
-			SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+			SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
 			PodSelector: map[string]any{
 				"matchLabels": map[string]any{"app": "pool-a"},
 			},
@@ -161,7 +144,6 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 				"k8s:ns:tenant-a",
 				"k8s:sa:model-sa",
 				"k8s:pod-label:app:pool-a",
-				"k8s:container-name:model-server",
 			},
 			Hint:      "tenant-a/binding-a",
 			ClassName: "kleym",
@@ -193,9 +175,9 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 		t.Fatalf("unmarshal report: %v", err)
 	}
 
-	assertObjectKeys(t, got["bindingRef"], "conditions", "generation", "mode", "name", "namespace", "objectiveRef", "poolRef")
+	assertObjectKeys(t, got["bindingRef"], "conditions", "generation", "name", "namespace", "poolRef")
 	assertObjectKeys(t, got["identityConfig"], "clusterSPIFFEIDClassName", "clusterSPIFFEIDClassNameSource", "trustDomain", "trustDomainSource")
-	assertObjectKeys(t, got["resolvedInput"], "containerName", "objectiveRef", "poolRef", "poolSelector", "selectorProvenance", "servedGVKs")
+	assertObjectKeys(t, got["resolvedInput"], "poolRef", "poolSelector", "selectorProvenance", "servedGVKs")
 	assertObjectKeys(t, got["renderedIdentity"], "podSelector", "selectorProvenance", "spiffeID", "workloadSelectors")
 	assertObjectKeys(t, got["renderedClusterSPIFFEID"], "className", "fallback", "hint", "name", "podSelector", "spiffeID", "workloadSelectors")
 	matchedPods := got["matchedPods"].([]any)
@@ -204,7 +186,7 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 	}
 
 	resolved := got["resolvedInput"].(map[string]any)
-	assertObjectKeys(t, resolved["selectorProvenance"], "containerSelector", "poolDerivedSelectors", "safetySelectors")
+	assertObjectKeys(t, resolved["selectorProvenance"], "poolDerivedSelectors", "safetySelectors")
 }
 
 func TestBindingInspectionFindingJSONFields(t *testing.T) {
@@ -298,7 +280,6 @@ func TestWriteBindingInspectionReportTextRepresentativeReport(t *testing.T) {
 			Namespace:  "tenant-a",
 			Name:       "binding-a",
 			Generation: 7,
-			Mode:       "PerObjective",
 			PoolRef: &BindingInspectionTargetRef{
 				Namespace: "tenant-a",
 				Name:      "pool-a",
@@ -306,22 +287,15 @@ func TestWriteBindingInspectionReportTextRepresentativeReport(t *testing.T) {
 				Version:   "v1",
 				Kind:      "InferencePool",
 			},
-			ObjectiveRef: &BindingInspectionTargetRef{
-				Namespace: "tenant-a",
-				Name:      "objective-a",
-				Group:     "inference.networking.k8s.io",
-				Version:   "v1",
-				Kind:      "InferenceObjective",
-			},
 		},
 		RenderedIdentity: BindingInspectionRenderedIdentity{
-			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
 			PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
 			WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 		},
 		RenderedClusterSPIFFEID: BindingInspectionRenderedClusterSPIFFEID{
 			Name:              "tenant-a-binding-a-1234abcd",
-			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
 			PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
 			WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 			Hint:              "tenant-a/binding-a",
@@ -347,11 +321,9 @@ func TestWriteBindingInspectionReportTextRepresentativeReport(t *testing.T) {
 	text := out.String()
 	for _, want := range []string{
 		"Binding: tenant-a/binding-a",
-		"Mode: PerObjective",
 		"Source: InferencePool tenant-a/pool-a",
-		"Objective: InferenceObjective tenant-a/objective-a",
 		"Identity:",
-		"SPIFFE ID: spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+		"SPIFFE ID: spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
 		"namespace: tenant-a",
 		"serviceAccount: model-sa",
 		"ClusterSPIFFEID:",
@@ -376,16 +348,15 @@ func TestWriteBindingInspectionReportTextHealthy(t *testing.T) {
 		BindingRef: BindingInspectionBindingRef{
 			Namespace: "tenant-a",
 			Name:      "binding-a",
-			Mode:      "PerObjective",
 		},
 		RenderedIdentity: BindingInspectionRenderedIdentity{
-			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
 			PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
 			WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 		},
 		RenderedClusterSPIFFEID: BindingInspectionRenderedClusterSPIFFEID{
 			Name:              "tenant-a-binding-a-1234abcd",
-			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/objective/objective-a",
+			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
 			PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
 			WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 			Hint:              "tenant-a/binding-a",
@@ -437,7 +408,7 @@ func TestWriteBindingInspectionReportTextConditionDetails(t *testing.T) {
 				Type:    "Ready",
 				Status:  metav1.ConditionFalse,
 				Reason:  "RenderFailed",
-				Message: "failed to render ClusterSPIFFEID because objectiveRef is missing",
+				Message: "failed to render ClusterSPIFFEID because serviceAccountName is invalid",
 			}, {
 				Type:   "Conflict",
 				Status: metav1.ConditionFalse,
@@ -454,7 +425,7 @@ func TestWriteBindingInspectionReportTextConditionDetails(t *testing.T) {
 	for _, want := range []string{
 		"Ready=False",
 		"Reason: RenderFailed",
-		"Message: failed to render ClusterSPIFFEID because objectiveRef is missing",
+		"Message: failed to render ClusterSPIFFEID because serviceAccountName is invalid",
 		"Conflict=False",
 	} {
 		if !strings.Contains(text, want) {

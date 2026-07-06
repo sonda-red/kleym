@@ -21,52 +21,22 @@ import (
 )
 
 // -------------------------------------------------------------------------
-// Enums & Constants
-// -------------------------------------------------------------------------
-
-// InferenceIdentityBindingMode selects identity granularity.
-// +kubebuilder:validation:Enum=PoolOnly;PerObjective
-type InferenceIdentityBindingMode string
-
-const (
-	// InferenceIdentityBindingModePoolOnly indicates that a single identity is used for all workloads in the pool.
-	InferenceIdentityBindingModePoolOnly InferenceIdentityBindingMode = "PoolOnly"
-	// InferenceIdentityBindingModePerObjective indicates that a unique identity is generated for each InferenceObjective.
-	InferenceIdentityBindingModePerObjective InferenceIdentityBindingMode = "PerObjective"
-)
-
-// -------------------------------------------------------------------------
 // Spec helpers
 // -------------------------------------------------------------------------
 
 // InferencePoolTargetRef anchors a binding to the serving pool that supplies
-// selector provenance. GAIE objectives are optional at request time, but pool
-// selection is the stable workload boundary; see docs/spec/operator.md.
+// selector provenance. Pool selection is the stable workload boundary; see
+// docs/spec/operator.md.
 type InferencePoolTargetRef struct {
 	// name of the InferencePool resource to bind to.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
-	// group optionally constrains pool resolution to one GAIE API group.
-	// Omit this when the cluster only serves one supported InferencePool group.
+	// group optionally constrains pool resolution to the supported GAIE API group.
+	// Omit this to use the served supported InferencePool group.
 	// +optional
-	// +kubebuilder:validation:Enum=inference.networking.k8s.io;inference.networking.x-k8s.io
-	Group string `json:"group,omitempty"`
-}
-
-// InferenceObjectiveTargetRef is an optional reference to an InferenceObjective
-// in the same namespace. It exists for PerObjective identity subjects while
-// keeping PoolOnly identity independent of GAIE's alpha objective API.
-type InferenceObjectiveTargetRef struct {
-	// name of the InferenceObjective resource to bind to.
-	// +required
-	// +kubebuilder:validation:MinLength=1
-	Name string `json:"name"`
-
-	// group optionally constrains objective resolution to one GAIE API group.
-	// +optional
-	// +kubebuilder:validation:Enum=inference.networking.k8s.io;inference.networking.x-k8s.io
+	// +kubebuilder:validation:Enum=inference.networking.k8s.io
 	Group string `json:"group,omitempty"`
 }
 
@@ -75,49 +45,25 @@ type InferenceObjectiveTargetRef struct {
 // -------------------------------------------------------------------------
 
 // InferenceIdentityBindingSpec defines the desired state of InferenceIdentityBinding.
-// +kubebuilder:validation:XValidation:rule="!has(self.mode) || self.mode != 'PoolOnly' || !has(self.containerName)",message="containerName must be empty when mode is PoolOnly"
-// +kubebuilder:validation:XValidation:rule="has(self.containerName) || (has(self.mode) && self.mode == 'PoolOnly')",message="containerName is required when mode is PerObjective (including default mode)"
-// +kubebuilder:validation:XValidation:rule="has(self.objectiveRef) || (has(self.mode) && self.mode == 'PoolOnly')",message="objectiveRef is required when mode is PerObjective (including default mode)"
 type InferenceIdentityBindingSpec struct {
 
 	// poolRef specifies the required InferencePool workload anchor in the same namespace.
 	// +required
 	PoolRef InferencePoolTargetRef `json:"poolRef"`
 
-	// objectiveRef optionally specifies an InferenceObjective in the same namespace.
-	// It is required for PerObjective mode and, when present, must point at poolRef.
-	// +optional
-	ObjectiveRef *InferenceObjectiveTargetRef `json:"objectiveRef,omitempty"`
-
 	// serviceAccountName is the Kubernetes service account required in every rendered identity selector set.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	ServiceAccountName string `json:"serviceAccountName"`
-
-	// mode selects the identity granularity for this binding.
-	// +kubebuilder:default=PerObjective
-	// +optional
-	Mode InferenceIdentityBindingMode `json:"mode,omitempty"`
-
-	// containerName specifies the serving container when generating identities in PerObjective mode.
-	// Required when mode is PerObjective; must be empty when mode is PoolOnly.
-	// +optional
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=63
-	ContainerName string `json:"containerName,omitempty"`
 }
 
 // -------------------------------------------------------------------------
 // Status helpers
 // -------------------------------------------------------------------------
 
-// ComputedSpiffeIDStatus holds a single computed SPIFFE ID and the mode that produced it.
+// ComputedSpiffeIDStatus holds a single computed SPIFFE ID.
 type ComputedSpiffeIDStatus struct {
-	// mode indicates the identity-generation mode (PoolOnly or PerObjective).
-	// +optional
-	Mode InferenceIdentityBindingMode `json:"mode,omitempty"`
-
 	// spiffeID is the computed SPIFFE ID for this binding.
 	// +required
 	SpiffeID string `json:"spiffeID"`
@@ -179,9 +125,7 @@ type InferenceIdentityBindingStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="MODE",type=string,JSONPath=`.spec.mode`
 // +kubebuilder:printcolumn:name="POOL",type=string,JSONPath=`.spec.poolRef.name`
-// +kubebuilder:printcolumn:name="OBJECTIVE",type=string,JSONPath=`.spec.objectiveRef.name`
 // +kubebuilder:printcolumn:name="READY",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
 // +kubebuilder:printcolumn:name="REASON",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`
 // +kubebuilder:printcolumn:name="SPIFFE ID",type=string,JSONPath=`.status.computedSpiffeIDs[0].spiffeID`

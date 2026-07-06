@@ -61,8 +61,8 @@ kleym status -o json
 | Field | Meaning |
 | --- | --- |
 | `identityConfig` | Trust domain and `ClusterSPIFFEID` class name used to render output, plus per-field source (`flag`, `bindingStatus`, or `default`). |
-| `bindingRef` | Binding identity, generation, mode, refs, and current conditions. |
-| `resolvedInput` | Resolved GAIE inputs, served GVKs, selector provenance, and container name. |
+| `bindingRef` | Binding identity, generation, refs, and current conditions. |
+| `resolvedInput` | Resolved GAIE pool input, served GVKs, and selector provenance. |
 | `renderedIdentity` | SPIFFE ID and selectors rendered from the binding and resolved inputs. |
 | `renderedClusterSPIFFEID` | Deterministic managed `ClusterSPIFFEID` name and rendered spec fields. |
 | `matchedPods` | Readable pods or containers that match rendered Kubernetes-observable selectors. |

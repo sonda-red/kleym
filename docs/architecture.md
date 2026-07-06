@@ -21,33 +21,26 @@ This flow uses Gateway API Inference Extension (GAIE) objects as upstream inputs
                    Ensure finalizer
                          │
     InferencePool ───────▶ Resolve poolRef → Pool
-    InferenceObjective ──▶ Resolve objectiveRef when present
                          │
                   Derive selectors from pool
-                  Add containerName selector (PerObjective)
                   Validate safety selectors
                   Render SPIFFE ID
                          │
-                    Collision?
-                    ╱        ╲
-                 yes          no
-                  │            │
-          Set Conflict     Reconcile
-          Clean up         ClusterSPIFFEID
-          ClusterSPIFFEIDs      │
-                  │        ClusterSPIFFEID
-                  │             │
-                  │        SPIRE Controller Manager
-                  │             │
-                  │        SPIRE registration entries
-                  │            │
-                  ╰──── Patch status ────╯
-                        emit events
+                    Reconcile
+                    ClusterSPIFFEID
+                         │
+                    ClusterSPIFFEID
+                         │
+                    SPIRE Controller Manager
+                         │
+                    SPIRE registration entries
+                         │
+                    Patch status
+                    emit events
 ```
 
 ## External Contracts
 
-- [`InferenceObjective` API](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/): objective-level inference intent and `poolRef`.
 - [`InferencePool` API](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/): serving pool selector source used by `kleym-operator`.
 - [Gateway API Inference Extension (GAIE) API types](https://gateway-api-inference-extension.sigs.k8s.io/api-types/): canonical schema reference for GAIE resources.
 - [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/overview/): identity model and SPIFFE ID/SVID concepts.
@@ -58,6 +51,6 @@ This flow uses Gateway API Inference Extension (GAIE) objects as upstream inputs
 ## See Also
 
 - Read [Inference Workload Identity for Kubernetes](/concepts/inference-workload-identity/) for the neutral category definition.
-- Read [Concepts](/concepts/) for the mode and selector model.
+- Read [Concepts](/concepts/) for the pool identity and selector model.
 - Read [Managed Resources](/reference/resources/) for the concrete output object shape.
 - Read [Reconciliation](/design/reconciliation/) for the controller flow in more detail.

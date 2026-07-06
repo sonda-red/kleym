@@ -81,7 +81,6 @@ func applySuccessStatus(
 
 	for _, identity := range identities {
 		status.ComputedSpiffeIDs = append(status.ComputedSpiffeIDs, kleymv1alpha1.ComputedSpiffeIDStatus{
-			Mode:     identity.Mode,
 			SpiffeID: identity.SpiffeID,
 		})
 		status.RenderedSelectors = append(status.RenderedSelectors, kleymv1alpha1.RenderedSelectorStatus{
@@ -145,11 +144,6 @@ func applyCollisionStatus(
 	setCondition(status, generation, conditionTypeConflict, metav1.ConditionFalse, "Resolved", message)
 }
 
-func conditionIsTrue(conditions []metav1.Condition, conditionType string) bool {
-	condition := meta.FindStatusCondition(conditions, conditionType)
-	return condition != nil && condition.Status == metav1.ConditionTrue
-}
-
 func (r *InferenceIdentityBindingReconciler) patchStatusFromBase(
 	ctx context.Context,
 	base *kleymv1alpha1.InferenceIdentityBinding,
@@ -176,18 +170,4 @@ func setCondition(
 		Reason:             reason,
 		Message:            message,
 	})
-}
-
-func (r *InferenceIdentityBindingReconciler) patchStatus(
-	ctx context.Context,
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-	mutate func(status *kleymv1alpha1.InferenceIdentityBindingStatus),
-) error {
-	base := binding.DeepCopy()
-	mutate(&binding.Status)
-	if reflect.DeepEqual(base.Status, binding.Status) {
-		return nil
-	}
-
-	return r.Status().Patch(ctx, binding, client.MergeFrom(base))
 }

@@ -1,19 +1,18 @@
 apiVersion: spire.spiffe.io/v1alpha1
 kind: ClusterSPIFFEID
 metadata:
-  name: kleym-kleym-reference-inference-binding-objective-3b2d9110
+  name: kleym-kleym-reference-inference-binding-pool-e2d8bd8d
   labels:
     kleym.sonda.red/managed-by: kleym
     kleym.sonda.red/binding-name: binding
     kleym.sonda.red/binding-namespace: kleym-reference-inference
 spec:
-  spiffeIDTemplate: spiffe://kleym.sonda.red/ns/kleym-reference-inference/objective/reference-objective
+  spiffeIDTemplate: spiffe://kleym.sonda.red/ns/kleym-reference-inference/pool/reference-pool
   podSelector:
     matchLabels:
       app.kubernetes.io/name: reference-model-server
       app.kubernetes.io/part-of: kleym-reference-inference
   workloadSelectorTemplates:
-    - k8s:container-name:model-server
     - k8s:ns:kleym-reference-inference
     - k8s:pod-label:app.kubernetes.io/name:reference-model-server
     - k8s:pod-label:app.kubernetes.io/part-of:kleym-reference-inference

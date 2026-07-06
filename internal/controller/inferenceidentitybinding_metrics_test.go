@@ -36,7 +36,7 @@ func TestDeriveBindingOutcomeLabelsReady(t *testing.T) {
 	binding := newPoolOnlyBinding("binding-ready", "")
 	initializeConditions(&binding.Status, 1)
 	applySuccessStatus(&binding.Status, binding.Generation, []renderedIdentity{{
-		Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
+		SpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a",
 	}})
 
 	labels, ok := deriveBindingOutcomeLabels(binding, false)
@@ -49,20 +49,17 @@ func TestDeriveBindingOutcomeLabelsReady(t *testing.T) {
 	if labels.reason != "Reconciled" {
 		t.Fatalf("reason = %q, want %q", labels.reason, "Reconciled")
 	}
-	if labels.mode != string(kleymv1alpha1.InferenceIdentityBindingModePoolOnly) {
-		t.Fatalf("mode = %q, want %q", labels.mode, kleymv1alpha1.InferenceIdentityBindingModePoolOnly)
-	}
 }
 
 func TestDeriveBindingOutcomeLabelsFailure(t *testing.T) {
 	t.Parallel()
 
-	binding := newPerObjectiveBinding("binding-failure", "objective-a")
+	binding := newPoolOnlyBinding("binding-failure", "")
 	initializeConditions(&binding.Status, 1)
 	applyFailureStatus(&binding.Status, binding.Generation, newStateError(
 		conditionTypeRenderFailure,
-		"MissingObjectiveRef",
-		"objectiveRef is required when mode is PerObjective",
+		"InvalidServiceAccountName",
+		"serviceAccountName is invalid",
 	))
 
 	labels, ok := deriveBindingOutcomeLabels(binding, false)
@@ -72,18 +69,15 @@ func TestDeriveBindingOutcomeLabelsFailure(t *testing.T) {
 	if labels.condition != conditionTypeRenderFailure {
 		t.Fatalf("condition = %q, want %q", labels.condition, conditionTypeRenderFailure)
 	}
-	if labels.reason != "MissingObjectiveRef" {
-		t.Fatalf("reason = %q, want %q", labels.reason, "MissingObjectiveRef")
-	}
-	if labels.mode != string(kleymv1alpha1.InferenceIdentityBindingModePerObjective) {
-		t.Fatalf("mode = %q, want %q", labels.mode, kleymv1alpha1.InferenceIdentityBindingModePerObjective)
+	if labels.reason != "InvalidServiceAccountName" {
+		t.Fatalf("reason = %q, want %q", labels.reason, "InvalidServiceAccountName")
 	}
 }
 
 func TestDeriveBindingOutcomeLabelsCollision(t *testing.T) {
 	t.Parallel()
 
-	binding := newPerObjectiveBinding("binding-collision", "objective-a")
+	binding := newPoolOnlyBinding("binding-collision", "")
 	initializeConditions(&binding.Status, 1)
 	applyCollisionStatus(&binding.Status, binding.Generation, true, "identity collision with bindings default/peer")
 
@@ -97,16 +91,13 @@ func TestDeriveBindingOutcomeLabelsCollision(t *testing.T) {
 	if labels.reason != "IdentityCollision" {
 		t.Fatalf("reason = %q, want %q", labels.reason, "IdentityCollision")
 	}
-	if labels.mode != string(kleymv1alpha1.InferenceIdentityBindingModePerObjective) {
-		t.Fatalf("mode = %q, want %q", labels.mode, kleymv1alpha1.InferenceIdentityBindingModePerObjective)
-	}
 }
 
 func TestReconcileRecordsSuccessfulTerminalOutcomeAfterStatusPatch(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	scheme := newCollisionTestScheme(t)
+	scheme := newControllerTestScheme(t)
 
 	binding := newPoolOnlyBinding("binding-ready-metric", "")
 	k8sClient := fake.NewClientBuilder().
@@ -134,7 +125,7 @@ func TestReconcileRecordsSuccessfulTerminalOutcomeAfterStatusPatch(t *testing.T)
 		t.Fatalf("recorded outcomes = %d, want 1", len(recorder.outcomes))
 	}
 	outcome := recorder.outcomes[0]
-	if outcome.condition != conditionTypeReady || outcome.reason != "Reconciled" || outcome.mode != string(kleymv1alpha1.InferenceIdentityBindingModePoolOnly) {
+	if outcome.condition != conditionTypeReady || outcome.reason != "Reconciled" {
 		t.Fatalf("unexpected outcome: %+v", outcome)
 	}
 }
@@ -143,13 +134,14 @@ func TestReconcileRecordsFailureTerminalOutcomeAfterStatusPatch(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	scheme := newCollisionTestScheme(t)
+	scheme := newControllerTestScheme(t)
 
-	binding := newPerObjectiveBinding("binding-failure-metric", "objective-a")
+	binding := newPoolOnlyBinding("binding-failure-metric", "")
+	binding.Spec.PoolRef.Name = "missing-pool"
 	k8sClient := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
-		WithObjects(newTestObjective("objective-a"), binding).
+		WithObjects(binding).
 		Build()
 	recorder := &persistedBindingOutcomeRecorder{
 		client: k8sClient,
@@ -171,7 +163,7 @@ func TestReconcileRecordsFailureTerminalOutcomeAfterStatusPatch(t *testing.T) {
 		t.Fatalf("recorded outcomes = %d, want 1", len(recorder.outcomes))
 	}
 	outcome := recorder.outcomes[0]
-	if outcome.condition != conditionTypeInvalidRef || outcome.reason != "TargetPoolNotFound" || outcome.mode != string(kleymv1alpha1.InferenceIdentityBindingModePerObjective) {
+	if outcome.condition != conditionTypeInvalidRef || outcome.reason != "TargetPoolNotFound" {
 		t.Fatalf("unexpected outcome: %+v", outcome)
 	}
 }
@@ -179,11 +171,11 @@ func TestReconcileRecordsFailureTerminalOutcomeAfterStatusPatch(t *testing.T) {
 func TestIdentityBindingGaugeCollectorAggregatesOutcomes(t *testing.T) {
 	t.Parallel()
 
-	scheme := newCollisionTestScheme(t)
+	scheme := newControllerTestScheme(t)
 
 	readyA := newPoolOnlyBinding("binding-ready-a", "")
 	readyB := newPoolOnlyBinding("binding-ready-b", "")
-	collision := newPerObjectiveBinding("binding-collision", "objective-a")
+	collision := newPoolOnlyBinding("binding-collision", "")
 	initializing := newPoolOnlyBinding("binding-initializing", "")
 
 	initializeConditions(&readyA.Status, 1)
@@ -191,8 +183,8 @@ func TestIdentityBindingGaugeCollectorAggregatesOutcomes(t *testing.T) {
 	initializeConditions(&collision.Status, 1)
 	initializeConditions(&initializing.Status, 1)
 
-	applySuccessStatus(&readyA.Status, readyA.Generation, []renderedIdentity{{Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly}})
-	applySuccessStatus(&readyB.Status, readyB.Generation, []renderedIdentity{{Mode: kleymv1alpha1.InferenceIdentityBindingModePoolOnly}})
+	applySuccessStatus(&readyA.Status, readyA.Generation, []renderedIdentity{{SpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a"}})
+	applySuccessStatus(&readyB.Status, readyB.Generation, []renderedIdentity{{SpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a"}})
 	applyCollisionStatus(&collision.Status, collision.Generation, true, "identity collision with bindings default/peer")
 
 	k8sClient := fake.NewClientBuilder().
@@ -223,17 +215,14 @@ func TestIdentityBindingGaugeCollectorAggregatesOutcomes(t *testing.T) {
 	assertMetricValue(t, values, bindingOutcomeLabels{
 		condition: conditionTypeReady,
 		reason:    "Reconciled",
-		mode:      string(kleymv1alpha1.InferenceIdentityBindingModePoolOnly),
 	}, 2)
 	assertMetricValue(t, values, bindingOutcomeLabels{
 		condition: conditionTypeConflict,
 		reason:    "IdentityCollision",
-		mode:      string(kleymv1alpha1.InferenceIdentityBindingModePerObjective),
 	}, 1)
 	assertMetricValue(t, values, bindingOutcomeLabels{
 		condition: conditionTypeReady,
 		reason:    metricReasonInitializing,
-		mode:      string(kleymv1alpha1.InferenceIdentityBindingModePoolOnly),
 	}, 1)
 }
 
@@ -272,8 +261,6 @@ func gatherMetricLabels(t *testing.T, families []*dto.MetricFamily, metricName s
 					labels.condition = pair.GetValue()
 				case metricLabelReason:
 					labels.reason = pair.GetValue()
-				case metricLabelMode:
-					labels.mode = pair.GetValue()
 				}
 			}
 			values[labels] = metric.GetGauge().GetValue()

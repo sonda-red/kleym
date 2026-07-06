@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,7 +24,7 @@ import (
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
-func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) {
+func TestSetupWithManagerStartsAndReconcilesWithCurrentPoolCRD(t *testing.T) {
 	t.Helper()
 
 	testScheme := runtime.NewScheme()
@@ -34,16 +35,11 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 		t.Fatalf("add kleym scheme: %v", err)
 	}
 	registerEnvtestUnstructuredGVK(testScheme, clusterSPIFFEIDGVK)
-	for _, gvk := range inferenceObjectiveGVKs {
-		registerEnvtestUnstructuredGVK(testScheme, gvk)
-	}
 	for _, gvk := range inferencePoolGVKs {
 		registerEnvtestUnstructuredGVK(testScheme, gvk)
 	}
 
 	crdDir := t.TempDir()
-	copyCRDFile(t, filepath.Join("testdata", "crds", "inference.networking.x-k8s.io_inferenceobjectives.yaml"), crdDir)
-	copyCRDFile(t, filepath.Join("testdata", "crds", "inference.networking.x-k8s.io_inferencepools.yaml"), crdDir)
 	copyCRDFile(t, filepath.Join("testdata", "crds", "inference.networking.k8s.io_inferencepools.yaml"), crdDir)
 	copyCRDFile(t, filepath.Join("testdata", "crds", "spire.spiffe.io_clusterspiffeids.yaml"), crdDir)
 
@@ -79,6 +75,7 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 	if err != nil {
 		t.Fatalf("create manager: %v", err)
 	}
+	assertLegacyPoolGroupRejectedByCRD(t, context.Background(), mgr.GetClient())
 
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: mgr.GetClient(),
@@ -88,8 +85,8 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 		t.Fatalf("setup controller with partial CRDs: %v", err)
 	}
 
-	if len(reconciler.availableObjectiveGVKs) != 1 || reconciler.availableObjectiveGVKs[0] != inferenceObjectiveGVKs[0] {
-		t.Fatalf("availableObjectiveGVKs = %v, want [%v]", reconciler.availableObjectiveGVKs, inferenceObjectiveGVKs[0])
+	if len(reconciler.availablePoolGVKs) != 1 {
+		t.Fatalf("availablePoolGVKs = %v, want current GAIE pool GVK", reconciler.availablePoolGVKs)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -109,9 +106,8 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 		}
 	})
 
-	poolName := "pool-x"
-	objectiveName := "objective-x"
-	bindingName := "binding-x"
+	poolName := "pool-current"
+	bindingName := "binding-current"
 
 	pool := &unstructured.Unstructured{
 		Object: map[string]any{
@@ -122,28 +118,11 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 			},
 		},
 	}
-	pool.SetGroupVersionKind(inferencePoolGVKs[1])
+	pool.SetGroupVersionKind(inferencePoolGVKs[0])
 	pool.SetNamespace(testNamespace)
 	pool.SetName(poolName)
 	if err := mgr.GetClient().Create(ctx, pool); err != nil {
 		t.Fatalf("create pool: %v", err)
-	}
-
-	objective := &unstructured.Unstructured{
-		Object: map[string]any{
-			"spec": map[string]any{
-				"poolRef": map[string]any{
-					"name":  poolName,
-					"group": "inference.networking.x-k8s.io",
-				},
-			},
-		},
-	}
-	objective.SetGroupVersionKind(inferenceObjectiveGVKs[0])
-	objective.SetNamespace(testNamespace)
-	objective.SetName(objectiveName)
-	if err := mgr.GetClient().Create(ctx, objective); err != nil {
-		t.Fatalf("create objective: %v", err)
 	}
 
 	binding := &kleymv1alpha1.InferenceIdentityBinding{
@@ -152,9 +131,8 @@ func TestSetupWithManagerStartsAndReconcilesWithXObjectiveOnlyCRD(t *testing.T) 
 			Name:      bindingName,
 		},
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
-			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName, Group: "inference.networking.x-k8s.io"},
+			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName, Group: "inference.networking.k8s.io"},
 			ServiceAccountName: "inference-sa",
-			Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 		},
 	}
 	if err := mgr.GetClient().Create(ctx, binding); err != nil {
@@ -175,9 +153,6 @@ func TestSetupWithManagerFailsWithoutAnySupportedGAIEGVKs(t *testing.T) {
 		t.Fatalf("add kleym scheme: %v", err)
 	}
 	registerEnvtestUnstructuredGVK(testScheme, clusterSPIFFEIDGVK)
-	for _, gvk := range inferenceObjectiveGVKs {
-		registerEnvtestUnstructuredGVK(testScheme, gvk)
-	}
 	for _, gvk := range inferencePoolGVKs {
 		registerEnvtestUnstructuredGVK(testScheme, gvk)
 	}
@@ -238,6 +213,32 @@ func copyCRDFile(t *testing.T, sourcePath string, destinationDir string) {
 	destinationPath := filepath.Join(destinationDir, filepath.Base(sourcePath))
 	if err := os.WriteFile(destinationPath, content, 0o600); err != nil {
 		t.Fatalf("write CRD %s: %v", destinationPath, err)
+	}
+}
+
+func assertLegacyPoolGroupRejectedByCRD(
+	t *testing.T,
+	ctx context.Context,
+	k8sClient client.Client,
+) {
+	t.Helper()
+
+	binding := &kleymv1alpha1.InferenceIdentityBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: testNamespace,
+			Name:      "legacy-pool-group-rejected",
+		},
+		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+			PoolRef: kleymv1alpha1.InferencePoolTargetRef{
+				Name:  "pool-current",
+				Group: "inference.networking.x-k8s.io",
+			},
+			ServiceAccountName: "inference-sa",
+		},
+	}
+	err := k8sClient.Create(ctx, binding)
+	if !apierrors.IsInvalid(err) {
+		t.Fatalf("create binding with legacy pool group error = %v, want Invalid", err)
 	}
 }
 

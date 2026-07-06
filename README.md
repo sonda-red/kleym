@@ -26,20 +26,20 @@
   </a>
 </p>
 
-Kleym connects [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/) resources to SPIFFE workload identity for Kubernetes.
+Kleym connects Gateway API Inference Extension (GAIE) [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) resources to SPIFFE workload identity for Kubernetes.
 
-The in-cluster `kleym-operator` watches inference intent from resources such as [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) and [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/), then compiles that intent into deterministic SPIFFE identities and materializes them as SPIRE Controller Manager `ClusterSPIFFEID` resources. The companion `kleym` CLI is a read-only inspection tool for the rendered identity state.
+The in-cluster `kleym-operator` watches `InferencePool` workload intent, then compiles that intent into deterministic SPIFFE identities and materializes them as SPIRE Controller Manager `ClusterSPIFFEID` resources. The companion `kleym` CLI is a read-only inspection tool for the rendered identity state.
 
 ## Where kleym fits
 
-- The [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/) describes inference workloads and request objectives in Kubernetes.
+- The [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/) describes inference workloads in Kubernetes.
 - `kleym-operator` turns that intent into workload identity registrations with tenant-safe selectors.
 - SPIRE Controller Manager applies those registrations so SPIRE can issue identities to the matching workloads.
 
 ## Why kleym
 
 - Derives stable SPIFFE identities from Gateway API Inference Extension resources instead of ad hoc labels.
-- Keeps selector rendering tenant-safe by intersecting namespace, service account, pool-derived selectors, and optional container discrimination.
+- Keeps selector rendering tenant-safe by intersecting namespace, service account, and pool-derived selectors.
 - Delegates identity issuance and rotation to SPIRE Controller Manager instead of writing SPIRE entries directly.
 
 ## Scope boundary
@@ -48,8 +48,8 @@ Kleym stops at identity registration. `kleym-operator` does not deploy inference
 
 ## How it works
 
-- `InferenceIdentityBinding` declares identity intent for one `InferencePool` and, when needed, one `InferenceObjective`.
-- `kleym-operator` resolves the pool directly and validates any objective subject against that pool.
+- `InferenceIdentityBinding` declares identity intent for one `InferencePool`.
+- `kleym-operator` resolves the pool directly.
 - The controller renders deterministic selectors and SPIFFE IDs from those inputs.
 - Managed `ClusterSPIFFEID` resources are reconciled for SPIRE Controller Manager.
 
@@ -60,7 +60,7 @@ Prerequisites:
 - Go `1.26+`
 - Docker
 - `kubectl`
-- Access to a Kubernetes cluster with the Gateway API Inference Extension [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) CRD, plus [`InferenceObjective`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/) when using `PerObjective`
+- Access to a Kubernetes cluster with the Gateway API Inference Extension [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) CRD
 - SPIRE Controller Manager with the `ClusterSPIFFEID` CRD
 - Docker for Kind-backed e2e; the e2e targets bootstrap `kind` and Chainsaw under `bin/`
 
@@ -123,7 +123,6 @@ flowchart TD
     B["InferenceIdentityBinding"]
 
     subgraph GAIE["Gateway API Inference Extension Inputs"]
-        O["InferenceObjective"]
         P["InferencePool"]
     end
 
@@ -131,10 +130,8 @@ flowchart TD
         D1{"Deleted?"}
         D1Y["Clean up ClusterSPIFFEIDs\nRemove finalizer"]
         F["Ensure finalizer"]
-        RESOLVE["Resolve poolRef → Pool\nOptionally resolve objectiveRef"]
-        RENDER["Derive selectors from pool\nAdd containerName selector (PerObjective)\nValidate safety selectors\nRender SPIFFE ID"]
-        COL{"Collision?"}
-        COLY["Set Conflict status\nClean up ClusterSPIFFEIDs"]
+        RESOLVE["Resolve poolRef → Pool"]
+        RENDER["Derive selectors from pool\nValidate safety selectors\nRender SPIFFE ID"]
         APPLY["Reconcile ClusterSPIFFEID"]
         STATUS["Patch status + emit events"]
     end
@@ -148,10 +145,8 @@ flowchart TD
     B --> D1
     D1 -->|yes| D1Y
     D1 -->|no| F --> RESOLVE
-    O & P --> RESOLVE
-    RESOLVE --> RENDER --> COL
-    COL -->|yes| COLY --> STATUS
-    COL -->|no| APPLY --> STATUS
+    P --> RESOLVE
+    RESOLVE --> RENDER --> APPLY --> STATUS
     APPLY --> CS --> SCM --> SR
     STATUS --> B
 
@@ -164,11 +159,10 @@ flowchart TD
     classDef spire fill:#eff6ff,stroke:#1d4ed8,color:#1e3a8a,stroke-width:1.2px
 
     class B binding
-    class O,P gaie
-    class D1,COL gate
+    class P gaie
+    class D1 gate
     class D1Y,F,RESOLVE,RENDER,APPLY controller
     class STATUS status
-    class COLY warning
     class CS,SCM,SR spire
 ```
 
@@ -179,12 +173,12 @@ Docs live under [`docs/`](docs/), with the published site at <https://kleym.sond
 | Topic | What it covers |
 | --- | --- |
 | [`docs/install.md`](docs/install.md) | Local run, deployment, GitOps install, metrics, and validation commands |
-| [`docs/concepts.md`](docs/concepts.md) | GAIE inputs, identity modes, container discrimination, and selector safety |
+| [`docs/concepts.md`](docs/concepts.md) | GAIE pool input, pool identity, and selector safety |
 | [`docs/architecture.md`](docs/architecture.md) | End-to-end controller flow |
 | [`docs/demo.md`](docs/demo.md) | Reference binding-to-`ClusterSPIFFEID` walkthrough |
 | [`docs/examples/`](docs/examples/) | Concrete manifests and expected outcomes |
 | [`docs/reference/`](docs/reference/) | API fields, conditions, managed resources, compatibility, dependencies, and GAIE compatibility |
-| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Binding conditions, missing CRDs, and collision triage |
+| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Binding conditions, missing CRDs, and selector triage |
 | [`docs/design/`](docs/design/) | Controller design notes and downstream handoff patterns |
 | [`docs/cli/`](docs/cli/) | CLI usage, results, inspection report, findings, and exit codes |
 | [`docs/spec/operator.md`](docs/spec/operator.md) | Authoritative operator product, API, and reconciliation behavior |

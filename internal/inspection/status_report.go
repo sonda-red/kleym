@@ -80,10 +80,9 @@ type SPIRECRDStatus struct {
 
 // GAIEStatus records Gateway API Inference Extension CRD availability.
 type GAIEStatus struct {
-	Status             StatusResult `json:"status"`
-	Message            string       `json:"message,omitempty"`
-	InferencePool      string       `json:"inferencePool,omitempty"`
-	InferenceObjective string       `json:"inferenceObjective,omitempty"`
+	Status        StatusResult `json:"status"`
+	Message       string       `json:"message,omitempty"`
+	InferencePool string       `json:"inferencePool,omitempty"`
 }
 
 // StatusConfig records visible operator identity configuration.
@@ -190,7 +189,6 @@ func writeStatusReportText(w io.Writer, report StatusReport) error {
 	appendTextLine(&builder, "Dependencies")
 	appendTextLine(&builder, "  GAIE: %s", availabilityStatus(report.Components.GAIECRDs.Status))
 	appendTextLine(&builder, "    InferencePool: %s", textString(report.Components.GAIECRDs.InferencePool))
-	appendTextLine(&builder, "    InferenceObjective: %s", textString(report.Components.GAIECRDs.InferenceObjective))
 	appendTextLine(&builder, "  SPIRE: %s", availabilityStatus(report.Components.SPIRECRDs.Status))
 	appendTextLine(&builder, "    ClusterSPIFFEID: %s", textString(report.Components.SPIRECRDs.ClusterSPIFFEID))
 

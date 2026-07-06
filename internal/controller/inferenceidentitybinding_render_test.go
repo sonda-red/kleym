@@ -19,7 +19,7 @@ func TestRenderIdentityMapsInvalidPoolSelectorToUnsafeSelector(t *testing.T) {
 		"app": []any{"model-server"},
 	})
 
-	_, err := reconciler.renderIdentity(binding, nil, pool)
+	_, err := reconciler.renderIdentity(binding, pool)
 	if err == nil {
 		t.Fatalf("expected invalid pool selector error, got nil")
 	}
@@ -42,11 +42,11 @@ func TestRenderIdentityPassesValidGAIESelectorIntoIdentityPlan(t *testing.T) {
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig()}
 	binding := testRenderBinding("binding-valid-selector", "pool-valid-selector")
 	pool := testRenderPool("pool-valid-selector", map[string]any{
-		"app":                                "model-server",
-		"inference.networking.x-k8s.io/role": "decode.v1",
+		"app":                              "model-server",
+		"inference.networking.k8s.io/role": "decode.v1",
 	})
 
-	identity, err := reconciler.renderIdentity(binding, nil, pool)
+	identity, err := reconciler.renderIdentity(binding, pool)
 	if err != nil {
 		t.Fatalf("renderIdentity returned error: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestRenderIdentityPassesValidGAIESelectorIntoIdentityPlan(t *testing.T) {
 		"k8s:ns:default",
 		"k8s:sa:inference-sa",
 		"k8s:pod-label:app:model-server",
-		"k8s:pod-label:inference.networking.x-k8s.io/role:decode.v1",
+		"k8s:pod-label:inference.networking.k8s.io/role:decode.v1",
 	} {
 		if !slices.Contains(identity.Selectors, expectedSelector) {
 			t.Fatalf("expected selector %q, selectors: %v", expectedSelector, identity.Selectors)
@@ -75,7 +75,6 @@ func testRenderBinding(name, poolName string) *kleymv1alpha1.InferenceIdentityBi
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
 			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName},
 			ServiceAccountName: "inference-sa",
-			Mode:               kleymv1alpha1.InferenceIdentityBindingModePoolOnly,
 		},
 	}
 }

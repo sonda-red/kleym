@@ -35,28 +35,10 @@ import (
 // InferenceIdentityBinding objects. Field indexes allow efficient lookups
 // (like a database index) without scanning every object in the namespace.
 //
-// Indexes registered:
-//  1. objectiveRef.name — used by mapObjectiveToBindings to find bindings
-//     whose optional objective subject changed.
-//  2. poolRef.name — used by mapPoolToBindings to requeue bindings directly
-//     anchored to a changed InferencePool.
-//  3. effectiveMode — used by listCollisionCandidateBindings to find all
-//     PerObjective bindings when peer names are unavailable.
-//  4. containerName — used by listCollisionCandidateBindings to find bindings
-//     with the same container boundary for collision detection.
+// The poolRef.name index lets mapPoolToBindings requeue only bindings anchored
+// to a changed InferencePool.
 func (r *InferenceIdentityBindingReconciler) setupFieldIndexes(mgr ctrl.Manager) error {
 	indexer := mgr.GetFieldIndexer()
-
-	if err := indexer.IndexField(
-		context.Background(),
-		&kleymv1alpha1.InferenceIdentityBinding{},
-		fieldIndexObjectiveRefName,
-		func(rawObj client.Object) []string {
-			return bindingObjectiveRefNameIndexValue(rawObj)
-		},
-	); err != nil {
-		return fmt.Errorf("failed to index InferenceIdentityBinding objectiveRef.name: %w", err)
-	}
 
 	if err := indexer.IndexField(
 		context.Background(),
@@ -69,47 +51,7 @@ func (r *InferenceIdentityBindingReconciler) setupFieldIndexes(mgr ctrl.Manager)
 		return fmt.Errorf("failed to index InferenceIdentityBinding poolRef.name: %w", err)
 	}
 
-	if err := indexer.IndexField(
-		context.Background(),
-		&kleymv1alpha1.InferenceIdentityBinding{},
-		fieldIndexEffectiveMode,
-		func(rawObj client.Object) []string {
-			return bindingEffectiveModeIndexValue(rawObj)
-		},
-	); err != nil {
-		return fmt.Errorf("failed to index InferenceIdentityBinding effective mode: %w", err)
-	}
-
-	if err := indexer.IndexField(
-		context.Background(),
-		&kleymv1alpha1.InferenceIdentityBinding{},
-		fieldIndexContainerName,
-		func(rawObj client.Object) []string {
-			return bindingContainerNameIndexValue(rawObj)
-		},
-	); err != nil {
-		return fmt.Errorf("failed to index InferenceIdentityBinding containerName: %w", err)
-	}
-
 	return nil
-}
-
-func bindingObjectiveRefNameIndexValue(rawObj client.Object) []string {
-	binding, ok := rawObj.(*kleymv1alpha1.InferenceIdentityBinding)
-	if !ok {
-		return nil
-	}
-
-	if binding.Spec.ObjectiveRef == nil {
-		return nil
-	}
-
-	objectiveName := strings.TrimSpace(binding.Spec.ObjectiveRef.Name)
-	if objectiveName == "" {
-		return nil
-	}
-
-	return []string{objectiveName}
 }
 
 func bindingPoolRefNameIndexValue(rawObj client.Object) []string {
@@ -124,29 +66,6 @@ func bindingPoolRefNameIndexValue(rawObj client.Object) []string {
 	}
 
 	return []string{poolName}
-}
-
-func bindingEffectiveModeIndexValue(rawObj client.Object) []string {
-	binding, ok := rawObj.(*kleymv1alpha1.InferenceIdentityBinding)
-	if !ok {
-		return nil
-	}
-
-	return []string{string(effectiveMode(binding.Spec.Mode))}
-}
-
-func bindingContainerNameIndexValue(rawObj client.Object) []string {
-	binding, ok := rawObj.(*kleymv1alpha1.InferenceIdentityBinding)
-	if !ok {
-		return nil
-	}
-
-	containerName := binding.Spec.ContainerName
-	if containerName == "" {
-		return nil
-	}
-
-	return []string{containerName}
 }
 
 // reconcileWatchPredicate filters watch events to reduce unnecessary reconciliations.
@@ -185,22 +104,10 @@ func deletionTimestampChanged(oldObject, newObject client.Object) bool {
 	return oldDeleting != newDeleting
 }
 
-func (r *InferenceIdentityBindingReconciler) mapObjectiveToBindings(
-	ctx context.Context,
-	object client.Object,
-) []reconcile.Request {
-	bindings, err := r.listBindingsReferencingObjective(ctx, object.GetNamespace(), object.GetName())
-	if err != nil {
-		return nil
-	}
-
-	return requestsForBindings(bindings)
-}
-
 // mapPoolToBindings requeues bindings that directly anchor to a changed
 // InferencePool. The field index keeps the fanout narrow, and the group filter
-// avoids reconciling bindings pinned to the other supported GAIE pool group
-// when both APIs serve pools with the same name.
+// avoids reconciling bindings pinned to a different GAIE pool group if support
+// expands to multiple groups again.
 func (r *InferenceIdentityBindingReconciler) mapPoolToBindings(
 	ctx context.Context,
 	object client.Object,
@@ -221,14 +128,6 @@ func (r *InferenceIdentityBindingReconciler) mapPoolToBindings(
 		filtered = append(filtered, binding)
 	}
 	return requestsForBindings(filtered)
-}
-
-func (r *InferenceIdentityBindingReconciler) listBindingsReferencingObjective(
-	ctx context.Context,
-	namespace string,
-	objectiveName string,
-) ([]*kleymv1alpha1.InferenceIdentityBinding, error) {
-	return r.listBindingsByField(ctx, namespace, fieldIndexObjectiveRefName, objectiveName)
 }
 
 func (r *InferenceIdentityBindingReconciler) listBindingsReferencingPool(

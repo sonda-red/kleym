@@ -15,14 +15,8 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.mode
-      name: MODE
-      type: string
     - jsonPath: .spec.poolRef.name
       name: POOL
-      type: string
-    - jsonPath: .spec.objectiveRef.name
-      name: OBJECTIVE
       type: string
     - jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: READY
@@ -59,50 +53,16 @@ spec:
           spec:
             description: spec defines the desired state of InferenceIdentityBinding.
             properties:
-              containerName:
-                description: |-
-                  containerName specifies the serving container when generating identities in PerObjective mode.
-                  Required when mode is PerObjective; must be empty when mode is PoolOnly.
-                maxLength: 63
-                minLength: 1
-                type: string
-              mode:
-                default: PerObjective
-                description: mode selects the identity granularity for this binding.
-                enum:
-                - PoolOnly
-                - PerObjective
-                type: string
-              objectiveRef:
-                description: |-
-                  objectiveRef optionally specifies an InferenceObjective in the same namespace.
-                  It is required for PerObjective mode and, when present, must point at poolRef.
-                properties:
-                  group:
-                    description: group optionally constrains objective resolution
-                      to one GAIE API group.
-                    enum:
-                    - inference.networking.k8s.io
-                    - inference.networking.x-k8s.io
-                    type: string
-                  name:
-                    description: name of the InferenceObjective resource to bind to.
-                    minLength: 1
-                    type: string
-                required:
-                - name
-                type: object
               poolRef:
                 description: poolRef specifies the required InferencePool workload
                   anchor in the same namespace.
                 properties:
                   group:
                     description: |-
-                      group optionally constrains pool resolution to one GAIE API group.
-                      Omit this when the cluster only serves one supported InferencePool group.
+                      group optionally constrains pool resolution to the supported GAIE API group.
+                      Omit this to use the served supported InferencePool group.
                     enum:
                     - inference.networking.k8s.io
-                    - inference.networking.x-k8s.io
                     type: string
                   name:
                     description: name of the InferencePool resource to bind to.
@@ -121,15 +81,6 @@ spec:
             - poolRef
             - serviceAccountName
             type: object
-            x-kubernetes-validations:
-            - message: containerName must be empty when mode is PoolOnly
-              rule: '!has(self.mode) || self.mode != ''PoolOnly'' || !has(self.containerName)'
-            - message: containerName is required when mode is PerObjective (including
-                default mode)
-              rule: has(self.containerName) || (has(self.mode) && self.mode == 'PoolOnly')
-            - message: objectiveRef is required when mode is PerObjective (including
-                default mode)
-              rule: has(self.objectiveRef) || (has(self.mode) && self.mode == 'PoolOnly')
           status:
             description: status defines the observed state of InferenceIdentityBinding.
             properties:
@@ -143,15 +94,8 @@ spec:
                   the binding references.
                 items:
                   description: ComputedSpiffeIDStatus holds a single computed SPIFFE
-                    ID and the mode that produced it.
+                    ID.
                   properties:
-                    mode:
-                      description: mode indicates the identity-generation mode (PoolOnly
-                        or PerObjective).
-                      enum:
-                      - PoolOnly
-                      - PerObjective
-                      type: string
                     spiffeID:
                       description: spiffeID is the computed SPIFFE ID for this binding.
                       type: string

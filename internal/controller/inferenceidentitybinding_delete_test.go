@@ -21,9 +21,9 @@ func TestReconcileDeleteWaitsForManagedClusterSPIFFEIDsToDisappear(t *testing.T)
 	t.Parallel()
 
 	ctx := context.Background()
-	scheme := newCollisionTestScheme(t)
+	scheme := newControllerTestScheme(t)
 
-	binding := newPerObjectiveBinding("binding-delete", "objective-a")
+	binding := newPoolOnlyBinding("binding-delete", "")
 	controllerutil.AddFinalizer(binding, inferenceIdentityBindingFinalizer)
 	binding.SetDeletionTimestamp(&metav1.Time{Time: metav1.Now().Time})
 
@@ -111,9 +111,9 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	scheme := newCollisionTestScheme(t)
+	scheme := newControllerTestScheme(t)
 
-	binding := newPerObjectiveBinding("binding-drift", "objective-a")
+	binding := newPoolOnlyBinding("binding-drift", "")
 
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
@@ -121,7 +121,6 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
 			WithObjects(
 				newTestPool(),
-				newTestObjective("objective-a"),
 				binding,
 			).
 			Build(),
@@ -155,7 +154,7 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 	labels["drifted"] = "true"
 	drifted.SetLabels(labels)
 	drifted.Object["spec"] = map[string]any{
-		"spiffeIDTemplate":          "spiffe://drifted.example/ns/default/obj/objective-a",
+		"spiffeIDTemplate":          "spiffe://drifted.example/ns/default/pool/pool-a",
 		"podSelector":               map[string]any{"matchLabels": map[string]any{"app": "drifted"}},
 		"workloadSelectorTemplates": []any{"k8s:ns:default", "k8s:sa:drifted"},
 	}
@@ -201,7 +200,7 @@ func newManagedClusterSPIFFEIDForBinding(
 	managed.SetName(name)
 	managed.SetLabels(spirecm.ManagedClusterSPIFFEIDLabels(binding))
 	managed.Object["spec"] = map[string]any{
-		"spiffeIDTemplate": "spiffe://example.test/ns/default/obj/example",
+		"spiffeIDTemplate": "spiffe://example.test/ns/default/pool/example",
 	}
 	return managed
 }

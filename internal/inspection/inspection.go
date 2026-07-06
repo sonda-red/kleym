@@ -219,7 +219,7 @@ func newBindingInspectionScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	_ = corev1.AddToScheme(scheme)
 	_ = kleymv1alpha1.AddToScheme(scheme)
-	for _, gvk := range append(gaie.InferenceObjectiveGVKs(), gaie.InferencePoolGVKs()...) {
+	for _, gvk := range gaie.InferencePoolGVKs() {
 		registerInspectionUnstructuredGVK(scheme, gvk)
 	}
 	registerInspectionUnstructuredGVK(scheme, spirecm.ClusterSPIFFEIDGVK())
@@ -238,11 +238,11 @@ func (i *bindingInspector) InspectBinding(ctx context.Context, namespace string,
 	report.BindingRef = BindingInspectionBindingRef{Namespace: namespace, Name: name}
 	report.Capabilities.Pods = BindingInspectionCapabilitySkipped
 
-	availableObjectiveGVKs, availablePoolGVKs, err := i.discoverGAIEGVKs()
+	availablePoolGVKs, err := i.discoverGAIEGVKs()
 	if err != nil {
 		return report, fmt.Errorf("discover served GAIE resources: %w", err)
 	}
-	report.Resolved.ServedGVKs = bindingInspectionGVKs(append(availablePoolGVKs, availableObjectiveGVKs...))
+	report.Resolved.ServedGVKs = bindingInspectionGVKs(availablePoolGVKs)
 
 	binding := &kleymv1alpha1.InferenceIdentityBinding{}
 	if err := i.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, binding); err != nil {
@@ -272,7 +272,7 @@ func (i *bindingInspector) InspectBinding(ctx context.Context, namespace string,
 	i.addCollisionFinding(binding, &report)
 	identityConfig := i.resolveIdentityConfig(binding, &report)
 
-	rendered, renderedReady := i.inspectRenderedIdentity(ctx, binding, availableObjectiveGVKs, availablePoolGVKs, identityConfig, &report)
+	rendered, renderedReady := i.inspectRenderedIdentity(ctx, binding, availablePoolGVKs, identityConfig, &report)
 	i.inspectMatchedPods(ctx, binding, rendered, renderedReady, &report)
 
 	report = normalizeBindingInspectionReport(report)
@@ -282,16 +282,12 @@ func (i *bindingInspector) InspectBinding(ctx context.Context, namespace string,
 	return report, nil
 }
 
-func (i *bindingInspector) discoverGAIEGVKs() ([]schema.GroupVersionKind, []schema.GroupVersionKind, error) {
-	availableObjectiveGVKs, err := filterAvailableInspectionGVKs(i.mapper, gaie.InferenceObjectiveGVKs())
-	if err != nil {
-		return nil, nil, err
-	}
+func (i *bindingInspector) discoverGAIEGVKs() ([]schema.GroupVersionKind, error) {
 	availablePoolGVKs, err := filterAvailableInspectionGVKs(i.mapper, gaie.InferencePoolGVKs())
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return availableObjectiveGVKs, availablePoolGVKs, nil
+	return availablePoolGVKs, nil
 }
 
 func filterAvailableInspectionGVKs(
@@ -314,12 +310,10 @@ func filterAvailableInspectionGVKs(
 func (i *bindingInspector) inspectRenderedIdentity(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
-	availableObjectiveGVKs []schema.GroupVersionKind,
 	availablePoolGVKs []schema.GroupVersionKind,
 	identityConfig resolvedIdentityConfig,
 	report *BindingInspectionReport,
 ) (identity.RenderedIdentity, bool) {
-	mode := identity.EffectiveMode(binding.Spec.Mode)
 	poolRef, err := gaie.BindingPoolRef(binding)
 	if err != nil {
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
@@ -336,42 +330,6 @@ func (i *bindingInspector) inspectRenderedIdentity(
 	}
 	report.Resolved.PoolRef = poolRefToReportRef(poolRef, pool.GroupVersionKind())
 
-	var objective *unstructured.Unstructured
-	objectiveRef, hasObjectiveRef, err := gaie.BindingObjectiveRef(binding)
-	if err != nil {
-		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
-		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), findingInvalidRef)
-		return identity.RenderedIdentity{}, false
-	}
-	if mode == kleymv1alpha1.InferenceIdentityBindingModePerObjective && !hasObjectiveRef {
-		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
-		i.addFindingForError(report, &identity.StateError{
-			ConditionType: identity.ConditionTypeRenderFailure,
-			Reason:        "MissingObjectiveRef",
-			Message:       "objectiveRef is required when mode is PerObjective",
-		}, bindingInspectionBindingTargetRef(binding), "")
-		return identity.RenderedIdentity{}, false
-	}
-	if hasObjectiveRef {
-		report.Resolved.ObjectiveRef = objectiveRefToReportRef(objectiveRef, schema.GroupVersionKind{Kind: "InferenceObjective"})
-		objective, err = gaie.ResolveInferenceObjective(ctx, i.client, availableObjectiveGVKs, objectiveRef)
-		if err != nil {
-			report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
-			i.addFindingForError(report, err, *report.Resolved.ObjectiveRef, "")
-			return identity.RenderedIdentity{}, false
-		}
-		report.Resolved.ObjectiveRef = objectiveRefToReportRef(objectiveRef, objective.GroupVersionKind())
-		if err := gaie.ValidateObjectiveTargetsPool(objective, pool, binding.Namespace); err != nil {
-			report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
-			i.addFindingForError(report, &gaie.StateError{
-				ConditionType: gaie.ConditionTypeInvalidRef,
-				Reason:        "InvalidObjectiveRef",
-				Message:       err.Error(),
-			}, *report.Resolved.ObjectiveRef, "")
-			return identity.RenderedIdentity{}, false
-		}
-	}
-
 	poolSelector, poolDerivedSelectors, err := gaie.DeriveSelectorsFromPool(pool)
 	if err != nil {
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
@@ -383,14 +341,9 @@ func (i *bindingInspector) inspectRenderedIdentity(
 		return identity.RenderedIdentity{}, false
 	}
 
-	objectiveName := ""
-	if objective != nil {
-		objectiveName = objective.GetName()
-	}
 	rendered, err := identity.PlanIdentity(identity.PlanInput{
 		Binding:              binding,
 		TrustDomain:          identityConfig.trustDomain,
-		ObjectiveName:        objectiveName,
 		PoolName:             pool.GetName(),
 		PodSelector:          poolSelector,
 		PoolDerivedSelectors: poolDerivedSelectors,
@@ -401,11 +354,10 @@ func (i *bindingInspector) inspectRenderedIdentity(
 		return identity.RenderedIdentity{}, false
 	}
 
-	provenance := selectorProvenance(binding, rendered, poolDerivedSelectors)
+	provenance := selectorProvenance(rendered, poolDerivedSelectors)
 	report.Resolved.PoolSelector = poolSelector
-	report.Resolved.ContainerName = binding.Spec.ContainerName
 	report.Resolved.SelectorProvenance = &provenance
-	clusterSPIFFEIDName := spirecm.BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, rendered.Mode, rendered.SpiffeID)
+	clusterSPIFFEIDName := spirecm.BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, rendered.SpiffeID)
 	clusterSPIFFEIDHint := spirecm.BuildClusterSPIFFEIDHint(binding)
 	clusterSPIFFEIDFallback := boolPtr(spirecm.RenderFallback())
 	report.RenderedIdentity = BindingInspectionRenderedIdentity{
@@ -814,7 +766,6 @@ func bindingInspectionBindingRef(binding *kleymv1alpha1.InferenceIdentityBinding
 		Namespace:  binding.Namespace,
 		Name:       binding.Name,
 		Generation: binding.Generation,
-		Mode:       string(identity.EffectiveMode(binding.Spec.Mode)),
 		PoolRef: &BindingInspectionTargetRef{
 			Namespace: binding.Namespace,
 			Name:      binding.Spec.PoolRef.Name,
@@ -822,14 +773,6 @@ func bindingInspectionBindingRef(binding *kleymv1alpha1.InferenceIdentityBinding
 			Kind:      "InferencePool",
 		},
 		Conditions: append([]metav1.Condition(nil), binding.Status.Conditions...),
-	}
-	if binding.Spec.ObjectiveRef != nil {
-		ref.ObjectiveRef = &BindingInspectionTargetRef{
-			Namespace: binding.Namespace,
-			Name:      binding.Spec.ObjectiveRef.Name,
-			Group:     binding.Spec.ObjectiveRef.Group,
-			Kind:      "InferenceObjective",
-		}
 	}
 	return ref
 }
@@ -854,16 +797,6 @@ func poolRefToReportRef(ref gaie.PoolRef, gvk schema.GroupVersionKind) *BindingI
 	}
 }
 
-func objectiveRefToReportRef(ref gaie.ObjectiveRef, gvk schema.GroupVersionKind) *BindingInspectionTargetRef {
-	return &BindingInspectionTargetRef{
-		Namespace: ref.Namespace,
-		Name:      ref.Name,
-		Group:     firstNonEmpty(gvk.Group, ref.Group),
-		Version:   gvk.Version,
-		Kind:      firstNonEmpty(gvk.Kind, "InferenceObjective"),
-	}
-}
-
 func bindingInspectionGVKs(gvks []schema.GroupVersionKind) []BindingInspectionGVK {
 	result := make([]BindingInspectionGVK, 0, len(gvks))
 	for _, gvk := range gvks {
@@ -877,23 +810,12 @@ func bindingInspectionGVKs(gvks []schema.GroupVersionKind) []BindingInspectionGV
 }
 
 func selectorProvenance(
-	binding *kleymv1alpha1.InferenceIdentityBinding,
 	rendered identity.RenderedIdentity,
 	poolDerivedSelectors []string,
 ) BindingInspectionSelectorProvenance {
-	containerSelector := ""
-	if binding.Spec.ContainerName != "" {
-		if selector, err := identity.SelectorForContainerName(binding.Spec.ContainerName); err == nil {
-			containerSelector = selector
-		}
-	}
-
 	poolDerived := setFromStrings(poolDerivedSelectors)
 	safetySelectors := make([]string, 0, 2)
 	for _, selector := range rendered.Selectors {
-		if selector == containerSelector {
-			continue
-		}
 		if _, found := poolDerived[selector]; found {
 			continue
 		}
@@ -906,7 +828,6 @@ func selectorProvenance(
 
 	return BindingInspectionSelectorProvenance{
 		PoolDerivedSelectors: append([]string(nil), poolDerivedSelectors...),
-		ContainerSelector:    containerSelector,
 		SafetySelectors:      safetySelectors,
 	}
 }

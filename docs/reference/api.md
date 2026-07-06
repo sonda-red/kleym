@@ -1,7 +1,7 @@
 ---
 title: API
 weight: 10
-description: "InferenceIdentityBinding API reference covering poolRef, objectiveRef, identity modes, service accounts, container names, and status fields."
+description: "InferenceIdentityBinding API reference covering poolRef, service accounts, and status fields."
 aliases:
   - /operator/reference/api/
 ---
@@ -13,11 +13,10 @@ aliases:
 - Kind: `InferenceIdentityBinding`
 - Scope: namespaced
 
-`InferenceIdentityBinding` expresses identity intent for a single `InferencePool` and, in `PerObjective` mode, an `InferenceObjective` subject. It drives reconciliation of managed `ClusterSPIFFEID` resources.
+`InferenceIdentityBinding` expresses identity intent for a single `InferencePool`. It drives reconciliation of managed `ClusterSPIFFEID` resources.
 
 External Gateway API Inference Extension (GAIE) schema references:
 
-- [`InferenceObjective` (GAIE API)](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferenceobjective/)
 - [`InferencePool` (GAIE API)](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/)
 - [GAIE API types index](https://gateway-api-inference-extension.sigs.k8s.io/api-types/)
 
@@ -33,18 +32,13 @@ External SPIFFE/SPIRE references:
 | Field | Required | Notes |
 | --- | --- | --- |
 | `poolRef.name` | Yes | References an `InferencePool` in the same namespace. |
-| `poolRef.group` | No | Constrains pool resolution to a supported GAIE InferencePool group. |
-| `objectiveRef.name` | Conditionally | Required in `PerObjective`; references an `InferenceObjective` in the same namespace. |
-| `objectiveRef.group` | No | Constrains objective resolution to a supported GAIE InferenceObjective group. |
+| `poolRef.group` | No | Constrains pool resolution to `inference.networking.k8s.io`. |
 | `serviceAccountName` | Yes | Kubernetes service account required in every rendered identity selector set. |
-| `mode` | No | `PoolOnly` or `PerObjective`. Defaults to `PerObjective`. |
-| `containerName` | Conditionally | Required in `PerObjective`; forbidden in `PoolOnly`. |
 
 Current validation rules enforced by the CRD:
 
-- `containerName` must be empty when `mode` is `PoolOnly`.
-- `containerName` is required when `mode` is `PerObjective`, including the defaulted case.
-- `objectiveRef` is required when `mode` is `PerObjective`, including the defaulted case.
+- `poolRef.name` is required.
+- `poolRef.group`, when set, must be `inference.networking.k8s.io`.
 - `serviceAccountName` is required.
 
 ## Status Fields
@@ -54,7 +48,7 @@ Current validation rules enforced by the CRD:
 | `conditions` | Latest controller observations. |
 | `trustDomain` | Operator trust domain used for the latest status update. |
 | `clusterSPIFFEIDClassName` | Optional operator `ClusterSPIFFEID` class name used for the latest status update. Empty means classless output. |
-| `computedSpiffeIDs` | Computed SPIFFE IDs with the mode that produced them. |
+| `computedSpiffeIDs` | Computed SPIFFE IDs produced from the pool binding. |
 | `renderedSelectors` | Final selector set used for each rendered identity. |
 
 ## Kubectl Columns
@@ -64,9 +58,7 @@ columns for compact binding overviews:
 
 | Column | Source |
 | --- | --- |
-| `MODE` | `spec.mode` |
 | `POOL` | `spec.poolRef.name` |
-| `OBJECTIVE` | `spec.objectiveRef.name` |
 | `READY` | `status.conditions[Ready].status` |
 | `REASON` | `status.conditions[Ready].reason` |
 | `SPIFFE ID` | `status.computedSpiffeIDs[0].spiffeID` |
@@ -76,16 +68,14 @@ until the operator has reconciled the binding and written status.
 
 ## Current Defaults
 
-The controller always renders deterministic SPIFFE IDs under its configured trust domain:
+The controller always renders deterministic pool SPIFFE IDs under its configured trust domain:
 
-- `PoolOnly`: `spiffe://<trustDomain>/ns/<namespace>/pool/<pool-name>`
-- `PerObjective`: `spiffe://<trustDomain>/ns/<namespace>/objective/<objective-name>`
-
-When `mode` is omitted, the controller behaves as `PerObjective`.
+```text
+spiffe://<trustDomain>/ns/<namespace>/pool/<pool-name>
+```
 
 ## External Objects Resolved
 
-The controller resolves `InferencePool` and, when needed, `InferenceObjective`
-from supported GAIE GVKs. See [GAIE Compatibility](/reference/gaie-compatibility/) for the
-compatibility matrix, consumed fields, group-constrained reference behavior, and
-startup discovery rules.
+The controller resolves `InferencePool` from the supported GAIE GVK. See [GAIE Compatibility](/reference/gaie-compatibility/) for the
+consumed fields, group-constrained reference behavior, and startup discovery
+rules.

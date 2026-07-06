@@ -18,33 +18,14 @@ package gaie
 import "k8s.io/apimachinery/pkg/runtime/schema"
 
 var (
-	inferenceObjectiveGVKs = []schema.GroupVersionKind{
-		{Group: "inference.networking.x-k8s.io", Version: "v1alpha2", Kind: "InferenceObjective"},
-		{Group: "inference.networking.k8s.io", Version: "v1", Kind: "InferenceObjective"},
-	}
 	inferencePoolGVKs = []schema.GroupVersionKind{
 		{Group: "inference.networking.k8s.io", Version: "v1", Kind: "InferencePool"},
-		{Group: "inference.networking.x-k8s.io", Version: "v1alpha2", Kind: "InferencePool"},
 	}
 )
-
-// InferenceObjectiveGVKs returns the GAIE objective GVKs supported by kleym.
-func InferenceObjectiveGVKs() []schema.GroupVersionKind {
-	return append([]schema.GroupVersionKind(nil), inferenceObjectiveGVKs...)
-}
 
 // InferencePoolGVKs returns the GAIE pool GVKs supported by kleym.
 func InferencePoolGVKs() []schema.GroupVersionKind {
 	return append([]schema.GroupVersionKind(nil), inferencePoolGVKs...)
-}
-
-// ResolveObjectiveGVKs falls back to all supported objective GVKs for tests and non-setup callers.
-// Controller setup should pass discovered GVKs after narrowing against served resources.
-func ResolveObjectiveGVKs(available []schema.GroupVersionKind) []schema.GroupVersionKind {
-	if len(available) > 0 {
-		return append([]schema.GroupVersionKind(nil), available...)
-	}
-	return InferenceObjectiveGVKs()
 }
 
 // ResolvePoolGVKs falls back to all supported pool GVKs for tests and non-setup callers.
@@ -54,25 +35,6 @@ func ResolvePoolGVKs(available []schema.GroupVersionKind) []schema.GroupVersionK
 		return append([]schema.GroupVersionKind(nil), available...)
 	}
 	return InferencePoolGVKs()
-}
-
-// CandidateObjectiveGVKs narrows objective lookup to a requested GAIE group.
-func CandidateObjectiveGVKs(candidates []schema.GroupVersionKind, group string) []schema.GroupVersionKind {
-	if group == "" {
-		return append([]schema.GroupVersionKind(nil), candidates...)
-	}
-
-	filtered := make([]schema.GroupVersionKind, 0, len(candidates))
-	for _, gvk := range candidates {
-		if gvk.Group == group {
-			filtered = append(filtered, gvk)
-		}
-	}
-	if len(filtered) > 0 {
-		return filtered
-	}
-
-	return supportedObjectiveGVKsForGroup(group)
 }
 
 // CandidatePoolGVKs narrows pool lookup to a requested GAIE group.
@@ -94,24 +56,9 @@ func CandidatePoolGVKs(candidates []schema.GroupVersionKind, group string) []sch
 	return supportedPoolGVKsForGroup(group)
 }
 
-// IsSupportedInferenceObjectiveGroup checks objectiveRef groups against documented GAIE support.
-func IsSupportedInferenceObjectiveGroup(group string) bool {
-	return len(supportedObjectiveGVKsForGroup(group)) > 0
-}
-
 // IsSupportedInferencePoolGroup checks poolRef groups against documented GAIE support.
 func IsSupportedInferencePoolGroup(group string) bool {
 	return len(supportedPoolGVKsForGroup(group)) > 0
-}
-
-func supportedObjectiveGVKsForGroup(group string) []schema.GroupVersionKind {
-	supported := make([]schema.GroupVersionKind, 0, len(inferenceObjectiveGVKs))
-	for _, gvk := range inferenceObjectiveGVKs {
-		if gvk.Group == group {
-			supported = append(supported, gvk)
-		}
-	}
-	return supported
 }
 
 func supportedPoolGVKsForGroup(group string) []schema.GroupVersionKind {

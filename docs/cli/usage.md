@@ -93,7 +93,7 @@ Full inspection may need read access to:
 - Kleym operator Deployments for `kleym status`
 - `InferenceIdentityBinding` resources for `kleym status`
 - `InferenceIdentityBinding` in the binding namespace
-- supported GAIE `InferencePool` and `InferenceObjective` resources
+- supported GAIE `InferencePool` resources
 - pods in the binding namespace when matched pod reporting is enabled
 
 ## Boundary

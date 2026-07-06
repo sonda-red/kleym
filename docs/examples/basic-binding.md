@@ -6,7 +6,7 @@ aliases:
   - /operator/examples/basic-binding/
 ---
 
-This example shows the simplest `PoolOnly` flow.
+This example shows the current pool identity flow.
 
 `kleym-operator` currently consumes only a small slice of the referenced Gateway API Inference Extension (GAIE) objects:
 
@@ -37,7 +37,6 @@ spec:
   poolRef:
     name: pool-a
   serviceAccountName: inference-sa
-  mode: PoolOnly
 ```
 
 ## Expected Outcome

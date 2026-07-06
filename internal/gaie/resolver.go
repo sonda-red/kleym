@@ -29,40 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// ResolveInferenceObjective reads an objective from the first matching supported GAIE GVK.
-func ResolveInferenceObjective(
-	ctx context.Context,
-	reader client.Reader,
-	availableObjectiveGVKs []schema.GroupVersionKind,
-	objectiveRef ObjectiveRef,
-) (*unstructured.Unstructured, error) {
-	objectiveCandidates := CandidateObjectiveGVKs(ResolveObjectiveGVKs(availableObjectiveGVKs), objectiveRef.Group)
-	objective, crdMissing, err := resolveByCandidates(
-		ctx,
-		reader,
-		types.NamespacedName{Namespace: objectiveRef.Namespace, Name: objectiveRef.Name},
-		objectiveCandidates,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if objective != nil {
-		return objective, nil
-	}
-	if crdMissing {
-		return nil, newStateError(
-			ConditionTypeInvalidRef,
-			"InferenceObjectiveCRDMissing",
-			"InferenceObjective CRD is not installed",
-		)
-	}
-	return nil, newStateError(
-		ConditionTypeInvalidRef,
-		"TargetObjectiveNotFound",
-		fmt.Sprintf("objectiveRef %q was not found", objectiveRef.Name),
-	)
-}
-
 // ResolveInferencePool reads a pool from the first matching supported GAIE GVK.
 func ResolveInferencePool(
 	ctx context.Context,
@@ -123,96 +89,6 @@ func resolveByCandidates(
 	}
 
 	return nil, crdMissing, nil
-}
-
-// ExtractPoolRef reads an objective's poolRef using GAIE-compatible unstructured fields.
-func ExtractPoolRef(objective *unstructured.Unstructured, defaultNamespace string) (PoolRef, error) {
-	poolRefMap, found, err := unstructured.NestedMap(objective.Object, "spec", "poolRef")
-	if err != nil {
-		return PoolRef{}, fmt.Errorf("failed to decode objective spec.poolRef: %w", err)
-	}
-	if !found {
-		return PoolRef{}, fmt.Errorf("objective spec.poolRef is required")
-	}
-
-	name, ok := poolRefMap["name"].(string)
-	if !ok || strings.TrimSpace(name) == "" {
-		return PoolRef{}, fmt.Errorf("objective spec.poolRef.name is required")
-	}
-
-	group := ""
-	if rawGroup, exists := poolRefMap["group"]; exists {
-		groupValue, groupOK := rawGroup.(string)
-		if !groupOK {
-			return PoolRef{}, fmt.Errorf("objective spec.poolRef.group must be a string")
-		}
-		group = strings.TrimSpace(groupValue)
-		if group != "" && !IsSupportedInferencePoolGroup(group) {
-			return PoolRef{}, fmt.Errorf("objective spec.poolRef.group %q is not a supported GAIE InferencePool group", group)
-		}
-	}
-
-	namespace := defaultNamespace
-	if rawNamespace, exists := poolRefMap["namespace"]; exists {
-		namespaceValue, namespaceOK := rawNamespace.(string)
-		if !namespaceOK {
-			return PoolRef{}, fmt.Errorf("objective spec.poolRef.namespace must be a string")
-		}
-		if namespaceValue != "" && namespaceValue != defaultNamespace {
-			return PoolRef{}, fmt.Errorf("cross-namespace poolRef is not allowed")
-		}
-		if namespaceValue != "" {
-			namespace = namespaceValue
-		}
-	}
-
-	if rawKind, exists := poolRefMap["kind"]; exists {
-		kindValue, kindOK := rawKind.(string)
-		if !kindOK {
-			return PoolRef{}, fmt.Errorf("objective spec.poolRef.kind must be a string")
-		}
-		if kindValue != "" && kindValue != "InferencePool" {
-			return PoolRef{}, fmt.Errorf("objective spec.poolRef.kind must be InferencePool")
-		}
-	}
-
-	return PoolRef{
-		Name:      strings.TrimSpace(name),
-		Group:     group,
-		Namespace: namespace,
-	}, nil
-}
-
-// ValidateObjectiveTargetsPool preserves the pool-first selector provenance contract.
-func ValidateObjectiveTargetsPool(
-	objective *unstructured.Unstructured,
-	pool *unstructured.Unstructured,
-	defaultNamespace string,
-) error {
-	objectivePoolRef, err := ExtractPoolRef(objective, defaultNamespace)
-	if err != nil {
-		return err
-	}
-
-	if objectivePoolRef.Name != pool.GetName() || objectivePoolRef.Namespace != pool.GetNamespace() {
-		return fmt.Errorf(
-			"objectiveRef %q points at poolRef %q, want %q",
-			objective.GetName(),
-			namespacedKey(objectivePoolRef.Namespace, objectivePoolRef.Name),
-			namespacedKey(pool.GetNamespace(), pool.GetName()),
-		)
-	}
-
-	if objectivePoolRef.Group != "" && objectivePoolRef.Group != pool.GroupVersionKind().Group {
-		return fmt.Errorf(
-			"objectiveRef %q points at poolRef group %q, want %q",
-			objective.GetName(),
-			objectivePoolRef.Group,
-			pool.GroupVersionKind().Group,
-		)
-	}
-
-	return nil
 }
 
 // DeriveSelectorsFromPool extracts deterministic pod-level selectors from an InferencePool.
@@ -283,8 +159,4 @@ func DeriveSelectorsFromPool(pool *unstructured.Unstructured) (map[string]any, [
 	}
 
 	return selectorMap, derivedSelectors, nil
-}
-
-func namespacedKey(namespace, name string) string {
-	return types.NamespacedName{Namespace: namespace, Name: name}.String()
 }
