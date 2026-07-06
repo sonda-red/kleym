@@ -45,7 +45,7 @@ When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be c
 1. `poolRef` references one [`InferencePool`][gaie-inferencepool]. The pool is the required workload anchor and selector provenance source.
 2. `serviceAccountName` is required. Kleym renders safety selectors internally as `k8s:ns:<binding namespace>` and `k8s:sa:<serviceAccountName>`.
 3. SPIFFE IDs are always deterministic under the configured trust domain: `spiffe://<trustDomain>/ns/<namespace>/pool/<pool-name>`.
-4. Status records `trustDomain`, `clusterSPIFFEIDClassName`, `computedSpiffeIDs`, `renderedSelectors`, and conditions. Conditions include `Ready`, `Conflict`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure`.
+4. Status records `trustDomain`, `clusterSPIFFEIDClassName`, `computedSpiffeIDs`, `renderedSelectors`, and conditions. Conditions include `Ready`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure`.
 5. `trustDomain` and `clusterSPIFFEIDClassName` record the operator config values used for the latest status update. They are observation data for read-only inspection compatibility; they do not make trust domain or class name per-binding spec intent.
 6. The CRD exposes printer columns for `POOL`, `READY`, `REASON`, and `SPIFFE ID` so `kubectl get inferenceidentitybindings.kleym.sonda.red -A` is the primary binding list view.
 

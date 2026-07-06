@@ -363,9 +363,6 @@ func addBindingConditionCounts(
 	if conditionIsTrue(binding, conditionTypeReady) {
 		summary.Ready++
 	}
-	if conditionIsTrue(binding, conditionTypeConflict) {
-		summary.Conflict++
-	}
 	if conditionIsTrue(binding, conditionTypeInvalidRef) {
 		summary.InvalidRef++
 	}

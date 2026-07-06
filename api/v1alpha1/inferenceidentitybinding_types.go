@@ -92,7 +92,6 @@ type InferenceIdentityBindingStatus struct {
 	//
 	// Known condition types:
 	//   - "Ready"
-	//   - "Conflict"
 	//   - "InvalidRef"
 	//   - "UnsafeSelector"
 	//   - "RenderFailure"

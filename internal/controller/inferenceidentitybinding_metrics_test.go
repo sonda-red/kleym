@@ -20,6 +20,8 @@ import (
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -74,22 +76,27 @@ func TestDeriveBindingOutcomeLabelsFailure(t *testing.T) {
 	}
 }
 
-func TestDeriveBindingOutcomeLabelsCollision(t *testing.T) {
+func TestDeriveBindingOutcomeLabelsLegacyReadyFalseFallback(t *testing.T) {
 	t.Parallel()
 
-	binding := newPoolOnlyBinding("binding-collision", "")
-	initializeConditions(&binding.Status, 1)
-	applyCollisionStatus(&binding.Status, binding.Generation, true, "identity collision with bindings default/peer")
+	binding := newPoolOnlyBinding("binding-legacy-failure", "")
+	binding.Status.Conditions = []metav1.Condition{{
+		Type:               conditionTypeReady,
+		Status:             metav1.ConditionFalse,
+		ObservedGeneration: binding.Generation,
+		Reason:             "LegacyRemovedReason",
+		Message:            "stale obsolete condition reason from older controller",
+	}}
 
-	labels, ok := deriveBindingOutcomeLabels(binding, false)
+	labels, ok := deriveBindingOutcomeLabels(binding, true)
 	if !ok {
-		t.Fatal("expected outcome labels")
+		t.Fatal("expected fallback outcome labels")
 	}
-	if labels.condition != conditionTypeConflict {
-		t.Fatalf("condition = %q, want %q", labels.condition, conditionTypeConflict)
+	if labels.condition != conditionTypeReady {
+		t.Fatalf("condition = %q, want %q", labels.condition, conditionTypeReady)
 	}
-	if labels.reason != "IdentityCollision" {
-		t.Fatalf("reason = %q, want %q", labels.reason, "IdentityCollision")
+	if labels.reason != metricReasonUnclassifiedFailure {
+		t.Fatalf("reason = %q, want %q", labels.reason, metricReasonUnclassifiedFailure)
 	}
 }
 
@@ -127,6 +134,46 @@ func TestReconcileRecordsSuccessfulTerminalOutcomeAfterStatusPatch(t *testing.T)
 	outcome := recorder.outcomes[0]
 	if outcome.condition != conditionTypeReady || outcome.reason != "Reconciled" {
 		t.Fatalf("unexpected outcome: %+v", outcome)
+	}
+}
+
+func TestReconcileRemovesStaleConflictCondition(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scheme := newControllerTestScheme(t)
+
+	binding := newPoolOnlyBinding("binding-stale-conflict", "")
+	binding.Status.Conditions = []metav1.Condition{{
+		Type:               "Conflict",
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: binding.Generation,
+		Reason:             "Obsolete",
+		Message:            "stale obsolete condition from older controller",
+	}}
+	k8sClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+		WithObjects(newTestPool(), binding).
+		Build()
+
+	reconciler := &InferenceIdentityBindingReconciler{
+		Config: testOperatorConfig(),
+		Client: k8sClient,
+		Scheme: scheme,
+	}
+	key := types.NamespacedName{Namespace: testNamespace, Name: binding.Name}
+
+	if _, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: key}); err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+
+	fetched := &kleymv1alpha1.InferenceIdentityBinding{}
+	if err := k8sClient.Get(ctx, key, fetched); err != nil {
+		t.Fatalf("Get returned error: %v", err)
+	}
+	if condition := meta.FindStatusCondition(fetched.Status.Conditions, "Conflict"); condition != nil {
+		t.Fatalf("stale Conflict condition persisted: %#v", condition)
 	}
 }
 
@@ -175,21 +222,21 @@ func TestIdentityBindingGaugeCollectorAggregatesOutcomes(t *testing.T) {
 
 	readyA := newPoolOnlyBinding("binding-ready-a", "")
 	readyB := newPoolOnlyBinding("binding-ready-b", "")
-	collision := newPoolOnlyBinding("binding-collision", "")
+	unsafe := newPoolOnlyBinding("binding-unsafe", "")
 	initializing := newPoolOnlyBinding("binding-initializing", "")
 
 	initializeConditions(&readyA.Status, 1)
 	initializeConditions(&readyB.Status, 1)
-	initializeConditions(&collision.Status, 1)
+	initializeConditions(&unsafe.Status, 1)
 	initializeConditions(&initializing.Status, 1)
 
 	applySuccessStatus(&readyA.Status, readyA.Generation, []renderedIdentity{{SpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a"}})
 	applySuccessStatus(&readyB.Status, readyB.Generation, []renderedIdentity{{SpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a"}})
-	applyCollisionStatus(&collision.Status, collision.Generation, true, "identity collision with bindings default/peer")
+	applyFailureStatus(&unsafe.Status, unsafe.Generation, newStateError(conditionTypeUnsafeSelector, "UnsafeSelector", "selectors are unsafe"))
 
 	k8sClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(readyA, readyB, collision, initializing).
+		WithObjects(readyA, readyB, unsafe, initializing).
 		Build()
 
 	collector := newIdentityBindingGaugeCollector()
@@ -217,8 +264,8 @@ func TestIdentityBindingGaugeCollectorAggregatesOutcomes(t *testing.T) {
 		reason:    "Reconciled",
 	}, 2)
 	assertMetricValue(t, values, bindingOutcomeLabels{
-		condition: conditionTypeConflict,
-		reason:    "IdentityCollision",
+		condition: conditionTypeUnsafeSelector,
+		reason:    "UnsafeSelector",
 	}, 1)
 	assertMetricValue(t, values, bindingOutcomeLabels{
 		condition: conditionTypeReady,

@@ -43,12 +43,9 @@ const (
 	inferenceIdentityBindingFinalizer = "kleym.sonda.red/inferenceidentitybinding-finalizer"
 
 	conditionTypeReady          = "Ready"
-	conditionTypeConflict       = "Conflict"
 	conditionTypeInvalidRef     = "InvalidRef"
 	conditionTypeUnsafeSelector = "UnsafeSelector"
 	conditionTypeRenderFailure  = "RenderFailure"
-
-	noIdentityCollisionMessage = "No identity collision detected"
 
 	fieldIndexPoolRefName          = "spec.poolRef.name"
 	infraNotReadyRequeueAfter      = 30 * time.Second

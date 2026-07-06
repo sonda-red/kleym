@@ -97,7 +97,6 @@ Expected observation:
 
 ```text
 Ready=True Reconciled
-Conflict=False Resolved
 InvalidRef=False Resolved
 UnsafeSelector=False Resolved
 RenderFailure=False Resolved

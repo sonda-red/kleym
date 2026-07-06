@@ -395,7 +395,7 @@ func textConditionNeedsDetail(condition metav1.Condition) bool {
 	switch condition.Type {
 	case "Ready", "Resolved", "Rendered":
 		return condition.Status != metav1.ConditionTrue
-	case "Conflict", "InvalidRef", "UnsafeSelector", "RenderFailure":
+	case "InvalidRef", "UnsafeSelector", "RenderFailure":
 		return condition.Status == metav1.ConditionTrue
 	default:
 		return condition.Status != metav1.ConditionTrue

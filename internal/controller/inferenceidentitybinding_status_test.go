@@ -21,6 +21,13 @@ func TestInitializeConditionsEnsuresCanonicalSetForCurrentGeneration(t *testing.
 				Reason:             "Reconciled",
 				Message:            "Binding reconciled",
 			},
+			{
+				Type:               "Conflict",
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: 2,
+				Reason:             "Obsolete",
+				Message:            "stale obsolete condition from older controller",
+			},
 		},
 	}
 
@@ -28,7 +35,6 @@ func TestInitializeConditionsEnsuresCanonicalSetForCurrentGeneration(t *testing.
 
 	canonicalConditionTypes := []string{
 		conditionTypeReady,
-		conditionTypeConflict,
 		conditionTypeInvalidRef,
 		conditionTypeUnsafeSelector,
 		conditionTypeRenderFailure,
@@ -58,14 +64,8 @@ func TestInitializeConditionsEnsuresCanonicalSetForCurrentGeneration(t *testing.
 		t.Fatalf("ready message = %q, want %q", ready.Message, "Binding reconciled")
 	}
 
-	conflict := meta.FindStatusCondition(status.Conditions, conditionTypeConflict)
-	if conflict == nil {
-		t.Fatalf("expected condition %q to be present", conditionTypeConflict)
-	}
-	if conflict.Status != metav1.ConditionUnknown {
-		t.Fatalf("conflict status = %q, want %q", conflict.Status, metav1.ConditionUnknown)
-	}
-	if conflict.Reason != "Initializing" {
-		t.Fatalf("conflict reason = %q, want %q", conflict.Reason, "Initializing")
+	conflict := meta.FindStatusCondition(status.Conditions, "Conflict")
+	if conflict != nil {
+		t.Fatalf("stale Conflict condition was not removed: %#v", conflict)
 	}
 }

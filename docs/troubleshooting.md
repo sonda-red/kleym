@@ -33,7 +33,6 @@ If reconciliation fails, `Ready=False` and the triggering condition becomes `Tru
 | `InvalidRef` | `InferencePoolCRDMissing` | The GAIE `InferencePool` CRD is not installed in the cluster. | Install the required GAIE CRDs before reconciling bindings. |
 | `UnsafeSelector` | `InvalidPoolSelector` | The pool selector cannot be normalized into a rendered selector set, or its label keys or values are malformed. | Use a deterministic `matchLabels`-style selector with valid Kubernetes label keys and values. Do not rely on whitespace trimming. |
 | `UnsafeSelector` | `UnsafeSelector` | The rendered selector set is missing namespace or service account safety constraints, or would widen beyond the tenant boundary. | Ensure `serviceAccountName` and the pool-derived selector stay within the intended workload boundary. |
-| `Conflict` | `IdentityCollision` | Historical Objective-era collision state. Current pool-only reconciliation should leave `Conflict=False`. | Confirm you are running the current CRD and controller. |
 | `RenderFailure` | `InvalidServiceAccountName` | `spec.serviceAccountName` is empty or not a valid Kubernetes service account name. | Set `serviceAccountName` to the exact workload service account. |
 | `RenderFailure` | `InvalidSPIFFEID` | The computed SPIFFE ID is not valid. | Check the referenced namespace and pool names. |
 | `RenderFailure` | `MissingTrustDomain` | The operator has no trust domain configured. | Configure `--trust-domain` or `KLEYM_TRUST_DOMAIN` before starting the operator. |
