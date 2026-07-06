@@ -25,6 +25,11 @@ import (
 const (
 	// ConditionTypeInvalidRef matches the controller status condition for invalid input references.
 	ConditionTypeInvalidRef = "InvalidRef"
+
+	// ReasonInferencePoolCRDMissing reports that the GAIE InferencePool CRD is unavailable.
+	ReasonInferencePoolCRDMissing = "InferencePoolCRDMissing"
+	// ReasonTargetPoolNotFound reports that the referenced InferencePool object does not exist.
+	ReasonTargetPoolNotFound = "TargetPoolNotFound"
 )
 
 // StateError carries condition metadata for shared GAIE computation errors.

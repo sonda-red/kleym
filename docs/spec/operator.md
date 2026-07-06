@@ -45,7 +45,7 @@ When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be c
 1. `poolRef` references one [`InferencePool`][gaie-inferencepool]. The pool is the required workload anchor and selector provenance source.
 2. `serviceAccountName` is required. Kleym renders safety selectors internally as `k8s:ns:<binding namespace>` and `k8s:sa:<serviceAccountName>`.
 3. SPIFFE IDs are always deterministic under the configured trust domain: `spiffe://<trustDomain>/ns/<namespace>/pool/<pool-name>`.
-4. Status records `trustDomain`, `clusterSPIFFEIDClassName`, `computedSpiffeIDs`, `renderedSelectors`, and conditions. Conditions include `Ready`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure`.
+4. Status records `trustDomain`, `clusterSPIFFEIDClassName`, `computedSpiffeIDs`, `renderedSelectors`, and conditions. The current pool-only condition taxonomy is limited to `Ready`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure`.
 5. `trustDomain` and `clusterSPIFFEIDClassName` record the operator config values used for the latest status update. They are observation data for read-only inspection compatibility; they do not make trust domain or class name per-binding spec intent.
 6. The CRD exposes printer columns for `POOL`, `READY`, `REASON`, and `SPIFFE ID` so `kubectl get inferenceidentitybindings.kleym.sonda.red -A` is the primary binding list view.
 
@@ -63,6 +63,32 @@ Field details live in [API Reference][api-reference]. Condition details live in 
 8. On deletion, delete managed `ClusterSPIFFEID` children first and keep the binding finalizer until a follow-up list confirms no managed children remain.
 
 Selector rationale is expanded in [Selector Safety][selector-safety].
+
+## Condition Taxonomy
+
+`InferenceIdentityBinding.status.conditions` is a stable machine-readable contract for the current pool-only operator. It does not describe runtime evidence, SVID issuance, workload attestation, model loading, GPU usage, request authorization, or future `InferenceSVIDConfig` lifecycle state.
+
+Allowed condition types and reasons:
+
+| Condition | Status | Allowed reasons |
+| --- | --- | --- |
+| `Ready` | `True` | `Reconciled` |
+| `Ready` | `False` | The same primary failure reason used by the active failure condition. |
+| `Ready` | `Unknown` | `Initializing` |
+| `InvalidRef` | `True` | `InvalidPoolRef`, `TargetPoolNotFound`, `InferencePoolCRDMissing` |
+| `UnsafeSelector` | `True` | `InvalidPoolSelector`, `UnsafeSelector` |
+| `RenderFailure` | `True` | `MissingTrustDomain`, `InvalidServiceAccountName`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing` |
+| `InvalidRef`, `UnsafeSelector`, `RenderFailure` | `False` | `Resolved` |
+| `InvalidRef`, `UnsafeSelector`, `RenderFailure` | `Unknown` | `Initializing` |
+
+On success, `Ready=True` uses `Reconciled`, every failure condition is `False` with `Resolved`, and rendered identity status is populated.
+
+On failure, `Ready=False` uses the same reason and message as the one active failure condition. Exactly one of `InvalidRef`, `UnsafeSelector`, or `RenderFailure` is `True`, and `computedSpiffeIDs` plus `renderedSelectors` are cleared.
+
+Dependency-unavailable states use the same taxonomy:
+
+- Missing GAIE `InferencePool` CRD during pool discovery or pool resolution is `InvalidRef=True` with reason `InferencePoolCRDMissing`. Startup discovery fails when no supported GAIE pool GVK is served.
+- Missing SPIRE Controller Manager `ClusterSPIFFEID` CRD during reconcile is `RenderFailure=True` with reason `ClusterSPIFFEIDCRDMissing` and the reconcile retries on a timer.
 
 ## Safety Invariants
 

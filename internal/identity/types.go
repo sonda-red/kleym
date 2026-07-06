@@ -30,6 +30,17 @@ const (
 	ConditionTypeUnsafeSelector = "UnsafeSelector"
 	// ConditionTypeRenderFailure matches the controller status condition for render failures.
 	ConditionTypeRenderFailure = "RenderFailure"
+
+	// ReasonMissingTrustDomain reports missing operator identity configuration.
+	ReasonMissingTrustDomain = "MissingTrustDomain"
+	// ReasonInvalidServiceAccountName reports an invalid binding service account boundary.
+	ReasonInvalidServiceAccountName = "InvalidServiceAccountName"
+	// ReasonUnsafeSelector reports a rendered selector set that violates safety invariants.
+	ReasonUnsafeSelector = "UnsafeSelector"
+	// ReasonInvalidSPIFFEID reports a computed SPIFFE ID that fails validation.
+	ReasonInvalidSPIFFEID = "InvalidSPIFFEID"
+	// ReasonInvalidPoolSelector reports a GAIE pool selector that cannot be rendered safely.
+	ReasonInvalidPoolSelector = "InvalidPoolSelector"
 )
 
 // StateError carries condition metadata for shared identity computation errors.

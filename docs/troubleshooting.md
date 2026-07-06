@@ -1,12 +1,14 @@
 ---
 title: Troubleshooting
 weight: 60
-description: "Troubleshooting guide for Kleym binding conditions, missing dependency CRDs, unsafe selectors, and inspection output."
+description: "Troubleshooting guide for Kleym binding condition reasons, missing dependency CRDs, unsafe selectors, and inspection output."
 aliases:
   - /operator/troubleshooting/
 ---
 
 For the full condition set, read [Conditions](/reference/conditions/).
+
+Binding conditions report operator reconciliation state only. They do not prove SVID issuance, workload attestation, model loading, GPU use, request authorization, or future runtime-evidence state.
 
 ## Start Here
 
@@ -23,6 +25,7 @@ In normal operation:
 - all failure conditions are `False` with reason `Resolved`
 
 If reconciliation fails, `Ready=False` and the triggering condition becomes `True`.
+`Ready=False` carries the same reason and message as the single active failure condition.
 
 ## Condition And Reason Map
 
@@ -72,3 +75,5 @@ Reference docs:
 
 After startup succeeds, missing managed-output CRDs or infrastructure-not-ready states keep retrying automatically on a timer, so they can recover after installation without waiting for unrelated watch events.
 If you install the GAIE CRD after `kleym-operator` startup failed, restart the controller so startup-time GVK discovery can register the watch.
+
+If the `ClusterSPIFFEID` CRD is missing during reconcile, the binding reports `RenderFailure=True` with reason `ClusterSPIFFEIDCRDMissing` and retries automatically. If the `InferencePool` CRD is missing during pool resolution, the binding reports `InvalidRef=True` with reason `InferencePoolCRDMissing`; if it was missing during startup, restart the operator after installing the CRD.

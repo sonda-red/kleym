@@ -45,7 +45,7 @@ func initializeConditions(
 
 	for _, entry := range canonical {
 		conditionStatus := metav1.ConditionUnknown
-		reason := "Initializing"
+		reason := conditionReasonInitializing
 		message := entry.message
 
 		existing := meta.FindStatusCondition(status.Conditions, entry.conditionType)
@@ -90,10 +90,10 @@ func applySuccessStatus(
 		})
 	}
 
-	setCondition(status, generation, conditionTypeReady, metav1.ConditionTrue, "Reconciled", "Binding reconciled")
-	setCondition(status, generation, conditionTypeInvalidRef, metav1.ConditionFalse, "Resolved", "References are valid")
-	setCondition(status, generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, "Resolved", "Selectors are safe")
-	setCondition(status, generation, conditionTypeRenderFailure, metav1.ConditionFalse, "Resolved", "Rendering is healthy")
+	setCondition(status, generation, conditionTypeReady, metav1.ConditionTrue, conditionReasonReconciled, "Binding reconciled")
+	setCondition(status, generation, conditionTypeInvalidRef, metav1.ConditionFalse, conditionReasonResolved, "References are valid")
+	setCondition(status, generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, conditionReasonResolved, "Selectors are safe")
+	setCondition(status, generation, conditionTypeRenderFailure, metav1.ConditionFalse, conditionReasonResolved, "Rendering is healthy")
 }
 
 func applyFailureStatus(
@@ -108,13 +108,13 @@ func applyFailureStatus(
 	setCondition(status, generation, stateErr.conditionType, metav1.ConditionTrue, stateErr.reason, stateErr.message)
 
 	if stateErr.conditionType != conditionTypeInvalidRef {
-		setCondition(status, generation, conditionTypeInvalidRef, metav1.ConditionFalse, "Resolved", "References are valid")
+		setCondition(status, generation, conditionTypeInvalidRef, metav1.ConditionFalse, conditionReasonResolved, "References are valid")
 	}
 	if stateErr.conditionType != conditionTypeUnsafeSelector {
-		setCondition(status, generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, "Resolved", "Selectors are safe")
+		setCondition(status, generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, conditionReasonResolved, "Selectors are safe")
 	}
 	if stateErr.conditionType != conditionTypeRenderFailure {
-		setCondition(status, generation, conditionTypeRenderFailure, metav1.ConditionFalse, "Resolved", "Rendering is healthy")
+		setCondition(status, generation, conditionTypeRenderFailure, metav1.ConditionFalse, conditionReasonResolved, "Rendering is healthy")
 	}
 }
 

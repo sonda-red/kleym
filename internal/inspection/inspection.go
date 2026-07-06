@@ -332,7 +332,7 @@ func (i *bindingInspector) inspectRenderedIdentity(
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
 		i.addFindingForError(report, &identity.StateError{
 			ConditionType: identity.ConditionTypeUnsafeSelector,
-			Reason:        "InvalidPoolSelector",
+			Reason:        identity.ReasonInvalidPoolSelector,
 			Message:       err.Error(),
 		}, *report.Resolved.PoolRef, "")
 		return identity.RenderedIdentity{}, false
