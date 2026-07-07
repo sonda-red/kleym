@@ -1,10 +1,18 @@
 ---
 title: Concepts
 weight: 10
-description: "Kleym concepts for Gateway API Inference Extension InferencePool inputs, pool identity, and selector safety."
+description: "Kleym concepts for inference workload identity, Gateway API Inference Extension InferencePool inputs, pool identity, and selector safety."
 aliases:
   - /operator/concepts/
 ---
+
+## Inference Workload Identity
+
+Kleym uses inference workload identity to mean identity registration derived from a Kubernetes inference serving boundary, not from a pod alone. In the current contract, that serving boundary is a Gateway API Inference Extension (GAIE) `InferencePool` referenced by an `InferenceIdentityBinding`.
+
+The binding namespace and required service account constrain which workloads may match. Selectors from the referenced pool provide workload provenance. `kleym-operator` combines those facts to render one deterministic pool SPIFFE ID and reconcile a managed SPIRE Controller Manager `ClusterSPIFFEID`.
+
+This stops at identity registration. Kleym does not deploy inference workloads, route traffic, configure gateways, evaluate request policy, issue credentials, or prove runtime SVID use. The authoritative behavior is defined in the [Operator Spec](/spec/operator/).
 
 ## GAIE Resources
 
