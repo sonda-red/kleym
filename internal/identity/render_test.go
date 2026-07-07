@@ -86,6 +86,50 @@ func TestPlanIdentityRejectsMissingTrustDomain(t *testing.T) {
 	}
 }
 
+func TestPlanIdentityRejectsUnsafeSelector(t *testing.T) {
+	t.Parallel()
+
+	input := testPlanInput(testBinding(), "pool-a")
+	input.PoolDerivedSelectors = append(input.PoolDerivedSelectors, "k8s:ns:other")
+
+	_, err := PlanIdentity(input)
+	if err == nil {
+		t.Fatalf("expected unsafe selector error, got nil")
+	}
+	var stateErr *StateError
+	if !errors.As(err, &stateErr) {
+		t.Fatalf("expected StateError, got %T", err)
+	}
+	if stateErr.ConditionType != ConditionTypeUnsafeSelector || stateErr.Reason != "UnsafeSelector" {
+		t.Fatalf("condition/reason = %q/%q, want %q/UnsafeSelector", stateErr.ConditionType, stateErr.Reason, ConditionTypeUnsafeSelector)
+	}
+}
+
+func TestConditionTaxonomyReasonStrings(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		got  string
+		want string
+	}{
+		"missing-trust-domain":         {got: ReasonMissingTrustDomain, want: "MissingTrustDomain"},
+		"invalid-service-account-name": {got: ReasonInvalidServiceAccountName, want: "InvalidServiceAccountName"},
+		"unsafe-selector":              {got: ReasonUnsafeSelector, want: "UnsafeSelector"},
+		"invalid-spiffe-id":            {got: ReasonInvalidSPIFFEID, want: "InvalidSPIFFEID"},
+		"invalid-pool-selector":        {got: ReasonInvalidPoolSelector, want: "InvalidPoolSelector"},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			if tc.got != tc.want {
+				t.Fatalf("reason = %q, want %q", tc.got, tc.want)
+			}
+		})
+	}
+}
+
 func testBinding() *kleymv1alpha1.InferenceIdentityBinding {
 	return &kleymv1alpha1.InferenceIdentityBinding{
 		ObjectMeta: metav1.ObjectMeta{

@@ -60,12 +60,22 @@ func TestReconcileConditionTaxonomyFailures(t *testing.T) {
 
 	cases := map[string]struct {
 		binding       *kleymv1alpha1.InferenceIdentityBinding
+		config        *OperatorConfig
 		objects       []client.Object
 		wrapClient    func(client.Client) client.Client
 		wantResult    ctrl.Result
 		wantCondition string
 		wantReason    string
 	}{
+		"invalid-pool-ref": {
+			binding: func() *kleymv1alpha1.InferenceIdentityBinding {
+				binding := newPoolOnlyBinding("binding-invalid-pool-ref-taxonomy", "")
+				binding.Spec.PoolRef.Name = " "
+				return binding
+			}(),
+			wantCondition: conditionTypeInvalidRef,
+			wantReason:    conditionReasonInvalidPoolRef,
+		},
 		"missing-pool": {
 			binding:       newPoolOnlyBinding("binding-missing-pool-taxonomy", ""),
 			wantCondition: conditionTypeInvalidRef,
@@ -84,6 +94,13 @@ func TestReconcileConditionTaxonomyFailures(t *testing.T) {
 			objects:       []client.Object{newTestPool()},
 			wantCondition: conditionTypeRenderFailure,
 			wantReason:    identity.ReasonInvalidServiceAccountName,
+		},
+		"missing-trust-domain": {
+			binding:       newPoolOnlyBinding("binding-missing-trust-domain-taxonomy", ""),
+			config:        &OperatorConfig{},
+			objects:       []client.Object{newTestPool()},
+			wantCondition: conditionTypeRenderFailure,
+			wantReason:    identity.ReasonMissingTrustDomain,
 		},
 		"missing-inferencepool-crd": {
 			binding: newPoolOnlyBinding("binding-missing-pool-crd-taxonomy", ""),
@@ -130,8 +147,12 @@ func TestReconcileConditionTaxonomyFailures(t *testing.T) {
 			if tc.wrapClient != nil {
 				k8sClient = tc.wrapClient(baseClient)
 			}
+			config := testOperatorConfig()
+			if tc.config != nil {
+				config = *tc.config
+			}
 			reconciler := &InferenceIdentityBindingReconciler{
-				Config: testOperatorConfig(),
+				Config: config,
 				Client: k8sClient,
 				Scheme: scheme,
 			}
@@ -153,6 +174,38 @@ func TestReconcileConditionTaxonomyFailures(t *testing.T) {
 			}
 			if len(current.Status.RenderedSelectors) != 0 {
 				t.Fatalf("renderedSelectors = %d, want cleared on failure", len(current.Status.RenderedSelectors))
+			}
+		})
+	}
+}
+
+func TestConditionTaxonomyAllowedReasonStrings(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		got  string
+		want string
+	}{
+		"ready-reconciled":             {got: conditionReasonReconciled, want: "Reconciled"},
+		"inactive-resolved":            {got: conditionReasonResolved, want: "Resolved"},
+		"unevaluated-initializing":     {got: conditionReasonInitializing, want: "Initializing"},
+		"invalid-pool-ref":             {got: conditionReasonInvalidPoolRef, want: "InvalidPoolRef"},
+		"target-pool-not-found":        {got: gaie.ReasonTargetPoolNotFound, want: "TargetPoolNotFound"},
+		"inferencepool-crd-missing":    {got: gaie.ReasonInferencePoolCRDMissing, want: "InferencePoolCRDMissing"},
+		"invalid-pool-selector":        {got: identity.ReasonInvalidPoolSelector, want: "InvalidPoolSelector"},
+		"unsafe-selector":              {got: identity.ReasonUnsafeSelector, want: "UnsafeSelector"},
+		"missing-trust-domain":         {got: identity.ReasonMissingTrustDomain, want: "MissingTrustDomain"},
+		"invalid-service-account-name": {got: identity.ReasonInvalidServiceAccountName, want: "InvalidServiceAccountName"},
+		"invalid-spiffe-id":            {got: identity.ReasonInvalidSPIFFEID, want: "InvalidSPIFFEID"},
+		"clusterspiffeid-crd-missing":  {got: conditionReasonClusterSPIFFEIDCRDMissing, want: "ClusterSPIFFEIDCRDMissing"},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			if tc.got != tc.want {
+				t.Fatalf("reason = %q, want %q", tc.got, tc.want)
 			}
 		})
 	}
@@ -182,6 +235,9 @@ func assertPrimaryFailureCondition(
 	primary := assertConditionStatusOnBinding(t, binding, conditionType, metav1.ConditionTrue, reason)
 	if primary.Message == "" {
 		t.Fatalf("primary condition message is empty for reason %q", reason)
+	}
+	if ready.Message != primary.Message {
+		t.Fatalf("Ready message = %q, want primary failure message %q", ready.Message, primary.Message)
 	}
 
 	for _, candidate := range []string{conditionTypeInvalidRef, conditionTypeUnsafeSelector, conditionTypeRenderFailure} {

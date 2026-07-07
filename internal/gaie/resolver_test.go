@@ -98,6 +98,28 @@ func TestResolveInferencePoolPropagatesUnexpectedReaderError(t *testing.T) {
 	}
 }
 
+func TestConditionTaxonomyReasonStrings(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		got  string
+		want string
+	}{
+		"inferencepool-crd-missing": {got: ReasonInferencePoolCRDMissing, want: "InferencePoolCRDMissing"},
+		"target-pool-not-found":     {got: ReasonTargetPoolNotFound, want: "TargetPoolNotFound"},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			if tc.got != tc.want {
+				t.Fatalf("reason = %q, want %q", tc.got, tc.want)
+			}
+		})
+	}
+}
+
 func TestDeriveSelectorsFromPoolKeepsFlatStringMapCompatibility(t *testing.T) {
 	t.Parallel()
 
