@@ -1,6 +1,6 @@
 # Agent Notes
 
-Keep this file minimal. It exists to point agents at the right sources of truth and mandatory repo-local workflows.
+Keep this file minimal. It exists to point agents at durable repository sources of truth and repo-local workflows.
 
 ## Read Order
 
@@ -8,14 +8,13 @@ Keep this file minimal. It exists to point agents at the right sources of truth 
 2. `docs/spec/operator.md` for operator product, API, and reconciliation behavior; `docs/spec/cli.md` for CLI behavior.
 3. `docs/contributing.md` for repository workflow, layout, and validation expectations.
 
-## Mandatory Skills
+## Task-Specific Guidance
 
-- Use `$kleym-ticket-planning` when creating, triaging, or planning GitHub issues or implementation tickets.
-- Use `$kleym-controller-change` before changing API types, generated manifests, `internal/controller/`, or reconciliation behavior.
-- Use `$kleym-cli-change` before changing CLI command behavior, output, inspection logic, or exit-code handling.
-- Use `$kleym-test-writing` before adding, moving, deleting, or reshaping tests.
-- Use `$kleym-pr-hygiene` before opening or updating a pull request, including PR titles or descriptions.
-- Use `$kleym-verification-handoff` before final handoff for any repository change.
+- For issue planning or triage, read the issue body, directly relevant discussion, and the stable docs before proposing scope.
+- For API, generated manifest, `internal/controller/`, or reconciliation changes, read `docs/spec/operator.md`; update generated artifacts, specs, and tests when behavior changes.
+- For CLI command behavior, output, inspection logic, or exit-code changes, read `docs/spec/cli.md`; preserve read-only inspection and scriptable output.
+- For test changes, follow the existing test layout and prefer contract coverage over implementation-shape assertions.
+- For PR handoff, keep the scope narrow, use the repository PR template when creating or updating a PR, and report verification honestly.
 
 ## GitHub Context
 
@@ -31,7 +30,7 @@ Keep the search tight. Read the directly relevant discussion and any immediately
 
 - Do not do ticket work on `main` or another long-lived shared branch.
 - Before substantive edits, ensure you are on a dedicated branch for the work. If not, create or switch to one first.
-- Leave commits, pushes, and PR creation to the human unless explicitly asked.
+- Do not commit, push, or create/update a PR unless the human explicitly asks for it or the current task requires a PR handoff.
 - If asked to open or update a PR, include an automatic closure keyword in the PR body when the issue number is known, for example `Fixes #123` or `Closes #123`.
 - If branch creation or requested PR creation is not possible in the current environment, say so explicitly in your handoff. Do not imply the issue will auto-close unless the PR body is actually set up.
 

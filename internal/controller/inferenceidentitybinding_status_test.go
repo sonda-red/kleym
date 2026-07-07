@@ -69,3 +69,32 @@ func TestInitializeConditionsEnsuresCanonicalSetForCurrentGeneration(t *testing.
 		t.Fatalf("stale Conflict condition was not removed: %#v", conflict)
 	}
 }
+
+func TestInitializeConditionsSetsUnevaluatedConditionsToInitializing(t *testing.T) {
+	t.Parallel()
+
+	status := kleymv1alpha1.InferenceIdentityBindingStatus{}
+
+	initializeConditions(&status, 3)
+
+	for _, conditionType := range []string{
+		conditionTypeReady,
+		conditionTypeInvalidRef,
+		conditionTypeUnsafeSelector,
+		conditionTypeRenderFailure,
+	} {
+		condition := meta.FindStatusCondition(status.Conditions, conditionType)
+		if condition == nil {
+			t.Fatalf("expected condition %q to be present", conditionType)
+		}
+		if condition.Status != metav1.ConditionUnknown {
+			t.Fatalf("condition %q status = %q, want %q", conditionType, condition.Status, metav1.ConditionUnknown)
+		}
+		if condition.Reason != conditionReasonInitializing {
+			t.Fatalf("condition %q reason = %q, want %q", conditionType, condition.Reason, conditionReasonInitializing)
+		}
+		if condition.ObservedGeneration != 3 {
+			t.Fatalf("condition %q observedGeneration = %d, want 3", conditionType, condition.ObservedGeneration)
+		}
+	}
+}
