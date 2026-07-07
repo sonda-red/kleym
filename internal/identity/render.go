@@ -29,7 +29,7 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 	if strings.TrimSpace(input.TrustDomain) == "" {
 		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
-			"MissingTrustDomain",
+			ReasonMissingTrustDomain,
 			"trustDomain must be configured before Kleym can render SPIFFE IDs",
 		)
 	}
@@ -44,7 +44,7 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 	if err != nil {
 		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
-			"InvalidServiceAccountName",
+			ReasonInvalidServiceAccountName,
 			err.Error(),
 		)
 	}
@@ -54,7 +54,7 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 	if err := validateRenderedSafetySelectors(binding.Namespace, selectors); err != nil {
 		return Plan{}, newStateError(
 			ConditionTypeUnsafeSelector,
-			"UnsafeSelector",
+			ReasonUnsafeSelector,
 			err.Error(),
 		)
 	}
@@ -63,7 +63,7 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 	if !strings.HasPrefix(spiffeID, "spiffe://") {
 		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
-			"InvalidSPIFFEID",
+			ReasonInvalidSPIFFEID,
 			fmt.Sprintf("computed SPIFFE ID %q must start with spiffe://", spiffeID),
 		)
 	}

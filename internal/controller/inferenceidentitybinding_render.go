@@ -33,7 +33,7 @@ func (r *InferenceIdentityBindingReconciler) renderIdentity(
 	if err != nil {
 		return identity.RenderedIdentity{}, &identity.StateError{
 			ConditionType: identity.ConditionTypeUnsafeSelector,
-			Reason:        "InvalidPoolSelector",
+			Reason:        identity.ReasonInvalidPoolSelector,
 			Message:       err.Error(),
 		}
 	}

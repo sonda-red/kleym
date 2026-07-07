@@ -1,32 +1,52 @@
 ---
 title: Conditions
 weight: 20
-description: "Kleym condition reference for Ready, InvalidRef, UnsafeSelector, RenderFailure, and related status reasons."
+description: "Stable Kleym condition taxonomy and allowed reasons for the pool-only InferenceIdentityBinding operator contract."
 aliases:
   - /operator/reference/conditions/
 ---
 
-## Condition Types
+## Core Condition Contract
 
-| Type | Meaning when `True` | Common reasons |
+`InferenceIdentityBinding` uses the following current pool-only condition types:
+
+- `Ready`
+- `InvalidRef`
+- `UnsafeSelector`
+- `RenderFailure`
+
+These conditions describe reference resolution, selector safety, identity rendering, managed-output application, and reconciliation readiness.
+
+## Allowed Reasons
+
+| Type | Meaning when `True` | Allowed `True` reasons |
 | --- | --- | --- |
 | `Ready` | The binding reconciled successfully. | `Reconciled` |
-| `InvalidRef` | `poolRef` or a required CRD could not be resolved or validated. | `TargetPoolNotFound`, `InvalidPoolRef`, `InferencePoolCRDMissing` |
-| `UnsafeSelector` | The rendered selector set is missing required safety constraints or the pool selector cannot be rendered safely. | `UnsafeSelector`, `InvalidPoolSelector` |
-| `RenderFailure` | Rendering failed after reference resolution succeeded. | `InvalidServiceAccountName`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing`, `MissingTrustDomain` |
+| `InvalidRef` | `poolRef` or the required GAIE pool CRD could not be resolved or validated. | `InvalidPoolRef`, `TargetPoolNotFound`, `InferencePoolCRDMissing` |
+| `UnsafeSelector` | The rendered selector set is missing required safety constraints or the pool selector cannot be rendered safely. | `InvalidPoolSelector`, `UnsafeSelector` |
+| `RenderFailure` | Rendering or managed-output application failed after reference resolution succeeded. | `MissingTrustDomain`, `InvalidServiceAccountName`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing` |
 
-## Current Status Behavior
+`Ready=False` uses the same reason and message as the single active failure condition. Failure conditions use `Resolved` when `False`; all conditions may use `Initializing` while a generation has not been evaluated.
+
+## Status Behavior
 
 On successful reconciliation:
 
 - `Ready=True` with reason `Reconciled`
-- `InvalidRef=False`
-- `UnsafeSelector=False`
-- `RenderFailure=False`
+- `InvalidRef=False` with reason `Resolved`
+- `UnsafeSelector=False` with reason `Resolved`
+- `RenderFailure=False` with reason `Resolved`
 
 On any failure state:
 
-- `Ready=False`
-- The triggering condition is set to `True`
+- `Ready=False` with the primary failure reason and message
+- Exactly one of `InvalidRef`, `UnsafeSelector`, or `RenderFailure` is set to `True` with the same reason and message
 - The other non-triggering conditions are set to `False` with resolution or healthy messages
 - `computedSpiffeIDs` and `renderedSelectors` are cleared
+
+Dependency-unavailable states are classified as follows:
+
+- Missing GAIE `InferencePool` CRD: `InvalidRef=True`, reason `InferencePoolCRDMissing`
+- Missing SPIRE Controller Manager `ClusterSPIFFEID` CRD during reconcile: `RenderFailure=True`, reason `ClusterSPIFFEIDCRDMissing`
+
+`ClusterSPIFFEIDCRDMissing` retries automatically on the controller's infrastructure retry timer. `InferencePoolCRDMissing` can appear during resolution, but the operator also fails startup if no supported GAIE pool GVK is served during controller setup.

@@ -47,6 +47,12 @@ const (
 	conditionTypeUnsafeSelector = "UnsafeSelector"
 	conditionTypeRenderFailure  = "RenderFailure"
 
+	conditionReasonReconciled                = "Reconciled"
+	conditionReasonResolved                  = "Resolved"
+	conditionReasonInitializing              = "Initializing"
+	conditionReasonInvalidPoolRef            = "InvalidPoolRef"
+	conditionReasonClusterSPIFFEIDCRDMissing = "ClusterSPIFFEIDCRDMissing"
+
 	fieldIndexPoolRefName          = "spec.poolRef.name"
 	infraNotReadyRequeueAfter      = 30 * time.Second
 	deleteVerificationRequeueAfter = 2 * time.Second
@@ -203,7 +209,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 	// Phase 5: Apply — reconcile ClusterSPIFFEID resources.
 	if err := r.reconcileClusterSPIFFEIDs(ctx, binding, desiredState.identities); err != nil {
 		if meta.IsNoMatchError(err) {
-			stateErr := newStateError(conditionTypeRenderFailure, "ClusterSPIFFEIDCRDMissing", "ClusterSPIFFEID CRD is not installed")
+			stateErr := newClusterSPIFFEIDCRDMissingStateError()
 			if err := r.applyStateError(ctx, binding, stateErr); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -235,7 +241,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 	logger.Info(
 		"applied success status",
 		logKeyCondition, conditionTypeReady,
-		logKeyReason, "Reconciled",
+		logKeyReason, conditionReasonReconciled,
 	)
 
 	primaryIdentity := desiredState.identities[0]
@@ -244,7 +250,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 		primaryIdentity,
 		r.Config.ClusterSPIFFEIDClassName,
 	).GetName()
-	r.recordEventf(binding, corev1.EventTypeNormal, "Reconciled", "reconciled ClusterSPIFFEID %q", primaryClusterSPIFFEIDName)
+	r.recordEventf(binding, corev1.EventTypeNormal, conditionReasonReconciled, "reconciled ClusterSPIFFEID %q", primaryClusterSPIFFEIDName)
 	logger.Info(
 		"reconciled successfully",
 		logKeyClusterSPIFFEID, primaryClusterSPIFFEIDName,
@@ -376,7 +382,7 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 
 	poolRef, err := gaie.BindingPoolRef(binding)
 	if err != nil {
-		return desiredBindingState{}, newStateError(conditionTypeInvalidRef, "InvalidPoolRef", err.Error())
+		return desiredBindingState{}, newStateError(conditionTypeInvalidRef, conditionReasonInvalidPoolRef, err.Error())
 	}
 	logger.Info(
 		"resolved binding poolRef",

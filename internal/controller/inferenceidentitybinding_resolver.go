@@ -37,6 +37,16 @@ func shouldCleanupManagedClusterSPIFFEIDs(conditionType string) bool {
 }
 
 func isInfrastructureNotReadyReason(reason string) bool {
-	return reason == "InferencePoolCRDMissing" ||
-		reason == "ClusterSPIFFEIDCRDMissing"
+	return reason == gaie.ReasonInferencePoolCRDMissing ||
+		reason == conditionReasonClusterSPIFFEIDCRDMissing
+}
+
+// newClusterSPIFFEIDCRDMissingStateError keeps the managed-output dependency
+// failure mapped to the RenderFailure taxonomy from docs/spec/operator.md.
+func newClusterSPIFFEIDCRDMissingStateError() *reconcileStateError {
+	return newStateError(
+		conditionTypeRenderFailure,
+		conditionReasonClusterSPIFFEIDCRDMissing,
+		"ClusterSPIFFEID CRD is not installed",
+	)
 }

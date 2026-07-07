@@ -52,13 +52,13 @@ func ResolveInferencePool(
 	if crdMissing {
 		return nil, newStateError(
 			ConditionTypeInvalidRef,
-			"InferencePoolCRDMissing",
+			ReasonInferencePoolCRDMissing,
 			"InferencePool CRD is not installed",
 		)
 	}
 	return nil, newStateError(
 		ConditionTypeInvalidRef,
-		"TargetPoolNotFound",
+		ReasonTargetPoolNotFound,
 		fmt.Sprintf("poolRef %q was not found", poolRef.Name),
 	)
 }
