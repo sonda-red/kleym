@@ -195,6 +195,78 @@ func TestDeriveSelectorsFromPoolRejectsInvalidMatchLabels(t *testing.T) {
 	}
 }
 
+func TestDeriveSelectorsFromPoolRejectsUnsupportedSelectorShapes(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		selector any
+		wantErr  string
+	}{
+		"empty-selector": {
+			selector: map[string]any{},
+			wantErr:  "pool spec.selector must be set",
+		},
+		"empty-match-labels": {
+			selector: map[string]any{"matchLabels": map[string]any{}},
+			wantErr:  "pool spec.selector.matchLabels must not be empty",
+		},
+		"match-expressions": {
+			selector: map[string]any{
+				"matchLabels":      map[string]any{"app": "model-server"},
+				"matchExpressions": []any{},
+			},
+			wantErr: "pool spec.selector.matchExpressions are not supported",
+		},
+		"match-expressions-without-match-labels": {
+			selector: map[string]any{"matchExpressions": []any{}},
+			wantErr:  "pool spec.selector.matchExpressions are not supported",
+		},
+		"match-labels-with-flat-selector-field": {
+			selector: map[string]any{
+				"matchLabels": map[string]any{"app": "model-server"},
+				"app":         "other-server",
+			},
+			wantErr: "pool spec.selector.app is not supported",
+		},
+		"match-labels-with-unknown-object-field": {
+			selector: map[string]any{
+				"matchLabels": map[string]any{"app": "model-server"},
+				"matchFields": []any{},
+			},
+			wantErr: "pool spec.selector.matchFields is not supported",
+		},
+		"flat-non-string-value": {
+			selector: map[string]any{"app": float64(1)},
+			wantErr:  "pool selector must use matchLabels for deterministic rendering",
+		},
+		"non-map-match-labels": {
+			selector: map[string]any{"matchLabels": []any{"app=model-server"}},
+			wantErr:  "pool spec.selector.matchLabels must be an object",
+		},
+		"non-decodable-selector": {
+			selector: []any{"app=model-server"},
+			wantErr:  "failed to decode pool spec.selector",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			pool := testPool("pool-unsupported-selector")
+			pool.Object["spec"] = map[string]any{"selector": tc.selector}
+
+			_, _, err := DeriveSelectorsFromPool(pool)
+			if err == nil {
+				t.Fatalf("expected unsupported selector error, got nil")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("error = %q, want to contain %q", err.Error(), tc.wantErr)
+			}
+		})
+	}
+}
+
 func registerUnstructuredGVK(scheme *runtime.Scheme, gvk schema.GroupVersionKind) {
 	scheme.AddKnownTypeWithName(gvk, &unstructured.Unstructured{})
 	scheme.AddKnownTypeWithName(gvk.GroupVersion().WithKind(gvk.Kind+"List"), &unstructured.UnstructuredList{})

@@ -2,6 +2,7 @@ package identity
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -63,6 +64,35 @@ func TestPlanIdentityUsesPoolSPIFFEID(t *testing.T) {
 		if !containsString(identity.Selectors, expectedSelector) {
 			t.Fatalf("expected selector %q, selectors: %v", expectedSelector, identity.Selectors)
 		}
+	}
+}
+
+func TestPlanIdentityCanonicalizesRenderedSelectors(t *testing.T) {
+	t.Parallel()
+
+	input := testPlanInput(testBinding(), "pool-a")
+	input.PoolDerivedSelectors = []string{
+		"k8s:pod-label:z:last",
+		"k8s:pod-label:app:model-server",
+		"k8s:pod-label:app:model-server",
+		"k8s:sa:inference-sa",
+		"k8s:pod-label:team:ml",
+	}
+
+	identity, err := PlanIdentity(input)
+	if err != nil {
+		t.Fatalf("PlanIdentity returned error: %v", err)
+	}
+
+	wantSelectors := []string{
+		"k8s:ns:default",
+		"k8s:pod-label:app:model-server",
+		"k8s:pod-label:team:ml",
+		"k8s:pod-label:z:last",
+		"k8s:sa:inference-sa",
+	}
+	if !slices.Equal(identity.Selectors, wantSelectors) {
+		t.Fatalf("selectors = %v, want %v", identity.Selectors, wantSelectors)
 	}
 }
 

@@ -101,8 +101,17 @@ func DeriveSelectorsFromPool(pool *unstructured.Unstructured) (map[string]any, [
 		return nil, nil, fmt.Errorf("pool spec.selector must be set")
 	}
 
+	if _, hasExpressions := selectorMap["matchExpressions"]; hasExpressions {
+		return nil, nil, fmt.Errorf("pool spec.selector.matchExpressions are not supported")
+	}
+
 	var matchLabels map[string]any
 	if rawMatchLabels, hasMatchLabels := selectorMap["matchLabels"]; hasMatchLabels {
+		for key := range selectorMap {
+			if key != "matchLabels" {
+				return nil, nil, fmt.Errorf("pool spec.selector.%s is not supported", key)
+			}
+		}
 		typedMatchLabels, ok := rawMatchLabels.(map[string]any)
 		if !ok {
 			return nil, nil, fmt.Errorf("pool spec.selector.matchLabels must be an object")
@@ -121,16 +130,6 @@ func DeriveSelectorsFromPool(pool *unstructured.Unstructured) (map[string]any, [
 		}
 		matchLabels = selectorMap
 		selectorMap = map[string]any{"matchLabels": matchLabels}
-	}
-
-	if rawExpressions, hasExpressions := selectorMap["matchExpressions"]; hasExpressions {
-		expressions, ok := rawExpressions.([]any)
-		if !ok {
-			return nil, nil, fmt.Errorf("pool spec.selector.matchExpressions must be an array")
-		}
-		if len(expressions) > 0 {
-			return nil, nil, fmt.Errorf("pool spec.selector.matchExpressions are not supported")
-		}
 	}
 
 	if len(matchLabels) == 0 {
