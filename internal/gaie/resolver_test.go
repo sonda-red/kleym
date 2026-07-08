@@ -217,6 +217,24 @@ func TestDeriveSelectorsFromPoolRejectsUnsupportedSelectorShapes(t *testing.T) {
 			},
 			wantErr: "pool spec.selector.matchExpressions are not supported",
 		},
+		"match-expressions-without-match-labels": {
+			selector: map[string]any{"matchExpressions": []any{}},
+			wantErr:  "pool spec.selector.matchExpressions are not supported",
+		},
+		"match-labels-with-flat-selector-field": {
+			selector: map[string]any{
+				"matchLabels": map[string]any{"app": "model-server"},
+				"app":         "other-server",
+			},
+			wantErr: "pool spec.selector.app is not supported",
+		},
+		"match-labels-with-unknown-object-field": {
+			selector: map[string]any{
+				"matchLabels": map[string]any{"app": "model-server"},
+				"matchFields": []any{},
+			},
+			wantErr: "pool spec.selector.matchFields is not supported",
+		},
 		"flat-non-string-value": {
 			selector: map[string]any{"app": float64(1)},
 			wantErr:  "pool selector must use matchLabels for deterministic rendering",
