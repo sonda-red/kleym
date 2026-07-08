@@ -81,6 +81,26 @@ type RenderedSelectorStatus struct {
 	Selectors []string `json:"selectors,omitempty"`
 }
 
+// RenderedClusterSPIFFEIDStatus describes the core managed ClusterSPIFFEID output.
+type RenderedClusterSPIFFEIDStatus struct {
+	// name is the deterministic managed ClusterSPIFFEID name rendered for this binding.
+	// +required
+	Name string `json:"name"`
+
+	// spiffeID is the rendered SPIFFE ID written to the managed ClusterSPIFFEID.
+	// +required
+	SpiffeID string `json:"spiffeID"`
+
+	// selectorFingerprint is the deterministic sha256 fingerprint of the canonical selector set.
+	// +required
+	SelectorFingerprint string `json:"selectorFingerprint"`
+
+	// observedGeneration is the observed metadata.generation of the managed ClusterSPIFFEID.
+	// It is omitted when Kubernetes has not reported a persisted generation for the managed resource.
+	// +optional
+	ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
+}
+
 // -------------------------------------------------------------------------
 // Status
 // -------------------------------------------------------------------------
@@ -116,6 +136,10 @@ type InferenceIdentityBindingStatus struct {
 	// renderedSelectors shows the final workload selectors for each rendered identity.
 	// +optional
 	RenderedSelectors []RenderedSelectorStatus `json:"renderedSelectors,omitempty"`
+
+	// renderedClusterSPIFFEID shows the core rendered managed ClusterSPIFFEID output.
+	// +optional
+	RenderedClusterSPIFFEID *RenderedClusterSPIFFEIDStatus `json:"renderedClusterSPIFFEID,omitempty"`
 }
 
 // -------------------------------------------------------------------------

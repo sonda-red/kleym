@@ -45,7 +45,7 @@ When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be c
 1. `poolRef` references one [`InferencePool`][gaie-inferencepool]. The pool is the required workload anchor and selector provenance source.
 2. `serviceAccountName` is required. Kleym renders safety selectors internally as `k8s:ns:<binding namespace>` and `k8s:sa:<serviceAccountName>`.
 3. SPIFFE IDs are always deterministic under the configured trust domain: `spiffe://<trustDomain>/ns/<namespace>/pool/<pool-name>`.
-4. Status records `trustDomain`, `clusterSPIFFEIDClassName`, `computedSpiffeIDs`, `renderedSelectors`, and conditions. The current pool-only condition taxonomy is limited to `Ready`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure`.
+4. Status records `trustDomain`, `clusterSPIFFEIDClassName`, `computedSpiffeIDs`, `renderedSelectors`, `renderedClusterSPIFFEID`, and conditions. The current pool-only condition taxonomy is limited to `Ready`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure`.
 5. `trustDomain` and `clusterSPIFFEIDClassName` record the operator config values used for the latest status update. They are observation data for read-only inspection compatibility; they do not make trust domain or class name per-binding spec intent.
 6. The CRD exposes printer columns for `POOL`, `READY`, `REASON`, and `SPIFFE ID` so `kubectl get inferenceidentitybindings.kleym.sonda.red -A` is the primary binding list view.
 
@@ -84,7 +84,8 @@ Unsupported pool selector input is refused, including:
 Rendered selector sets are canonical. Kleym removes duplicate selector strings
 and sorts the remaining strings lexicographically before writing
 `status.renderedSelectors`, managed `ClusterSPIFFEID`
-`spec.workloadSelectorTemplates`, or any future rendered selector fingerprint.
+`spec.workloadSelectorTemplates`, or the rendered selector fingerprint in
+`status.renderedClusterSPIFFEID.selectorFingerprint`.
 The canonical set preserves provenance by selector form: namespace and
 service-account selectors are binding-derived, and `k8s:pod-label` selectors are
 pool-derived.
@@ -93,7 +94,24 @@ Malformed or unsupported pool selector input fails reconciliation with
 `UnsafeSelector=True` reason `InvalidPoolSelector`. A rendered selector set that
 would omit or escape the mandatory namespace or service-account boundary fails
 with `UnsafeSelector=True` reason `UnsafeSelector`. Selector failures produce no
-managed output and clear `computedSpiffeIDs` plus `renderedSelectors` in status.
+managed output and clear `computedSpiffeIDs`, `renderedSelectors`, and
+`renderedClusterSPIFFEID` in status.
+
+## Rendered Managed Status
+
+On successful reconciliation, `status.renderedClusterSPIFFEID` exposes the core
+managed `ClusterSPIFFEID` details that status-only clients need for inspection:
+the deterministic managed resource name, the rendered SPIFFE ID, a
+`sha256:<hex>` fingerprint of the canonical selector set, and the observed
+managed resource generation when it is available from Kubernetes.
+
+`status.renderedClusterSPIFFEID.spiffeID` is populated from the same rendered
+identity used for `status.computedSpiffeIDs`; it is not a second SPIFFE state.
+`observedGeneration` is omitted when Kubernetes has not reported a persisted
+generation for the managed resource. Kleym does not write `0` as a fake
+generation. If the managed resource cannot be listed or applied because the API
+request itself fails, reconciliation returns the API error and does not advance
+rendered managed status from that failed attempt.
 
 ## Required Behavior
 
@@ -125,9 +143,9 @@ Allowed condition types and reasons:
 | `InvalidRef`, `UnsafeSelector`, `RenderFailure` | `False` | `Resolved` |
 | `InvalidRef`, `UnsafeSelector`, `RenderFailure` | `Unknown` | `Initializing` |
 
-On success, `Ready=True` uses `Reconciled`, every failure condition is `False` with `Resolved`, and rendered identity status is populated.
+On success, `Ready=True` uses `Reconciled`, every failure condition is `False` with `Resolved`, and rendered identity plus managed-resource status is populated.
 
-On failure, `Ready=False` uses the same reason and message as the one active failure condition. Exactly one of `InvalidRef`, `UnsafeSelector`, or `RenderFailure` is `True`, and `computedSpiffeIDs` plus `renderedSelectors` are cleared.
+On failure, `Ready=False` uses the same reason and message as the one active failure condition. Exactly one of `InvalidRef`, `UnsafeSelector`, or `RenderFailure` is `True`, and `computedSpiffeIDs`, `renderedSelectors`, plus `renderedClusterSPIFFEID` are cleared.
 
 Dependency-unavailable states use the same taxonomy:
 

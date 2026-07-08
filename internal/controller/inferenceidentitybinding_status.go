@@ -76,9 +76,11 @@ func applySuccessStatus(
 	status *kleymv1alpha1.InferenceIdentityBindingStatus,
 	generation int64,
 	identities []renderedIdentity,
+	managedStatuses []kleymv1alpha1.RenderedClusterSPIFFEIDStatus,
 ) {
 	status.ComputedSpiffeIDs = make([]kleymv1alpha1.ComputedSpiffeIDStatus, 0, len(identities))
 	status.RenderedSelectors = make([]kleymv1alpha1.RenderedSelectorStatus, 0, len(identities))
+	status.RenderedClusterSPIFFEID = nil
 
 	for _, identity := range identities {
 		status.ComputedSpiffeIDs = append(status.ComputedSpiffeIDs, kleymv1alpha1.ComputedSpiffeIDStatus{
@@ -88,6 +90,10 @@ func applySuccessStatus(
 			SpiffeID:  identity.SpiffeID,
 			Selectors: identity.Selectors,
 		})
+	}
+	if len(managedStatuses) > 0 {
+		rendered := managedStatuses[0]
+		status.RenderedClusterSPIFFEID = &rendered
 	}
 
 	setCondition(status, generation, conditionTypeReady, metav1.ConditionTrue, conditionReasonReconciled, "Binding reconciled")
@@ -103,6 +109,7 @@ func applyFailureStatus(
 ) {
 	status.ComputedSpiffeIDs = nil
 	status.RenderedSelectors = nil
+	status.RenderedClusterSPIFFEID = nil
 
 	setCondition(status, generation, conditionTypeReady, metav1.ConditionFalse, stateErr.reason, stateErr.message)
 	setCondition(status, generation, stateErr.conditionType, metav1.ConditionTrue, stateErr.reason, stateErr.message)

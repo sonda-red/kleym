@@ -126,4 +126,20 @@ func TestReconcileUsesOperatorConfigForRenderedOutput(t *testing.T) {
 	if current.Status.ClusterSPIFFEIDClassName != "kleym" {
 		t.Fatalf("status.clusterSPIFFEIDClassName = %q, want kleym", current.Status.ClusterSPIFFEIDClassName)
 	}
+	if current.Status.RenderedClusterSPIFFEID == nil {
+		t.Fatalf("status.renderedClusterSPIFFEID was not populated")
+	}
+	if current.Status.RenderedClusterSPIFFEID.Name != list.Items[0].GetName() {
+		t.Fatalf(
+			"status.renderedClusterSPIFFEID.name = %q, want %q",
+			current.Status.RenderedClusterSPIFFEID.Name,
+			list.Items[0].GetName(),
+		)
+	}
+	if current.Status.RenderedClusterSPIFFEID.SpiffeID != spiffeID {
+		t.Fatalf("status.renderedClusterSPIFFEID.spiffeID = %q, want %q", current.Status.RenderedClusterSPIFFEID.SpiffeID, spiffeID)
+	}
+	if current.Status.RenderedClusterSPIFFEID.SelectorFingerprint == "" {
+		t.Fatalf("status.renderedClusterSPIFFEID.selectorFingerprint was not populated")
+	}
 }

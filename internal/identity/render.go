@@ -16,8 +16,11 @@ limitations under the License.
 package identity
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -145,4 +148,18 @@ func UniqueAndSorted(values []string) []string {
 	sort.Strings(unique)
 
 	return unique
+}
+
+// SelectorFingerprint returns a stable sha256 fingerprint for the canonical selector set.
+// The canonical selector contract is defined in docs/spec/operator.md.
+func SelectorFingerprint(selectors []string) string {
+	canonical := UniqueAndSorted(selectors)
+	hash := sha256.New()
+	for _, selector := range canonical {
+		hash.Write([]byte(strconv.Itoa(len(selector))))
+		hash.Write([]byte{0})
+		hash.Write([]byte(selector))
+		hash.Write([]byte{0})
+	}
+	return "sha256:" + hex.EncodeToString(hash.Sum(nil))
 }

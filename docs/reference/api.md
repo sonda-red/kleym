@@ -50,6 +50,15 @@ Current validation rules enforced by the CRD:
 | `clusterSPIFFEIDClassName` | Optional operator `ClusterSPIFFEID` class name used for the latest status update. Empty means classless output. |
 | `computedSpiffeIDs` | Computed SPIFFE IDs produced from the pool binding. |
 | `renderedSelectors` | Final selector set used for each rendered identity. |
+| `renderedClusterSPIFFEID.name` | Deterministic managed `ClusterSPIFFEID` name rendered for the binding. |
+| `renderedClusterSPIFFEID.spiffeID` | Rendered SPIFFE ID written to the managed `ClusterSPIFFEID`. This matches the SPIFFE ID in `computedSpiffeIDs`. |
+| `renderedClusterSPIFFEID.selectorFingerprint` | `sha256:<hex>` fingerprint of the canonical rendered selector set. |
+| `renderedClusterSPIFFEID.observedGeneration` | Observed `metadata.generation` of the managed `ClusterSPIFFEID` when Kubernetes reports a persisted generation. Omitted when no persisted generation has been reported. API failures while listing or applying the managed resource do not advance rendered managed status from that failed attempt. |
+
+On reference, selector, render, or managed-output infrastructure failure, the
+operator clears `computedSpiffeIDs`, `renderedSelectors`, and
+`renderedClusterSPIFFEID` together so status-only clients do not read stale
+rendered output.
 
 ## Kubectl Columns
 

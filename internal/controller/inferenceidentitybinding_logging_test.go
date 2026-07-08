@@ -142,7 +142,7 @@ func TestReconcileClusterSPIFFEIDsLogsApplyDecisions(t *testing.T) {
 		Scheme: scheme,
 	}
 
-	if err := reconciler.reconcileClusterSPIFFEIDs(ctx, binding, []renderedIdentity{identity}); err != nil {
+	if _, err := reconciler.reconcileClusterSPIFFEIDs(ctx, binding, []renderedIdentity{identity}); err != nil {
 		t.Fatalf("reconcileClusterSPIFFEIDs returned error: %v", err)
 	}
 

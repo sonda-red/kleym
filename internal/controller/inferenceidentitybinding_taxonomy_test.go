@@ -53,6 +53,22 @@ func TestReconcileConditionTaxonomySuccess(t *testing.T) {
 	if len(current.Status.RenderedSelectors) != 1 {
 		t.Fatalf("renderedSelectors = %d, want 1", len(current.Status.RenderedSelectors))
 	}
+	if current.Status.RenderedClusterSPIFFEID == nil {
+		t.Fatalf("renderedClusterSPIFFEID was not populated")
+	}
+	if current.Status.RenderedClusterSPIFFEID.SpiffeID != current.Status.ComputedSpiffeIDs[0].SpiffeID {
+		t.Fatalf(
+			"renderedClusterSPIFFEID.spiffeID = %q, want %q",
+			current.Status.RenderedClusterSPIFFEID.SpiffeID,
+			current.Status.ComputedSpiffeIDs[0].SpiffeID,
+		)
+	}
+	if current.Status.RenderedClusterSPIFFEID.Name == "" {
+		t.Fatalf("renderedClusterSPIFFEID.name was not populated")
+	}
+	if current.Status.RenderedClusterSPIFFEID.SelectorFingerprint == "" {
+		t.Fatalf("renderedClusterSPIFFEID.selectorFingerprint was not populated")
+	}
 }
 
 func TestReconcileConditionTaxonomyFailures(t *testing.T) {
@@ -174,6 +190,9 @@ func TestReconcileConditionTaxonomyFailures(t *testing.T) {
 			}
 			if len(current.Status.RenderedSelectors) != 0 {
 				t.Fatalf("renderedSelectors = %d, want cleared on failure", len(current.Status.RenderedSelectors))
+			}
+			if current.Status.RenderedClusterSPIFFEID != nil {
+				t.Fatalf("renderedClusterSPIFFEID = %#v, want cleared on failure", current.Status.RenderedClusterSPIFFEID)
 			}
 		})
 	}

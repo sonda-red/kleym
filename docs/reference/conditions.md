@@ -42,7 +42,7 @@ On any failure state:
 - `Ready=False` with the primary failure reason and message
 - Exactly one of `InvalidRef`, `UnsafeSelector`, or `RenderFailure` is set to `True` with the same reason and message
 - The other non-triggering conditions are set to `False` with resolution or healthy messages
-- `computedSpiffeIDs` and `renderedSelectors` are cleared
+- `computedSpiffeIDs`, `renderedSelectors`, and `renderedClusterSPIFFEID` are cleared
 
 Dependency-unavailable states are classified as follows:
 

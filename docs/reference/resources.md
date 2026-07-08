@@ -50,6 +50,18 @@ Managed `ClusterSPIFFEID` names are deterministic and derived from:
 
 That keeps names DNS-safe while allowing the SPIFFE ID to remain the real identity contract.
 
+## Binding Status Exposure
+
+`InferenceIdentityBinding.status.renderedClusterSPIFFEID` records the core
+managed output after a successful reconcile:
+
+| Field | Meaning |
+| --- | --- |
+| `name` | Deterministic managed `ClusterSPIFFEID` name. |
+| `spiffeID` | Rendered SPIFFE ID, matching `status.computedSpiffeIDs`. |
+| `selectorFingerprint` | `sha256:<hex>` fingerprint of the canonical selector set rendered into `spec.workloadSelectorTemplates`. |
+| `observedGeneration` | Observed managed `ClusterSPIFFEID` generation when Kubernetes reports a persisted generation. Omitted when no persisted generation has been reported. API failures while listing or applying the managed resource do not advance rendered managed status from that failed attempt. |
+
 ## Other Resources Touched
 
 | Resource | Role |

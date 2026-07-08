@@ -6,8 +6,10 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	"github.com/sonda-red/kleym/internal/identity"
 )
 
 func TestInitializeConditionsEnsuresCanonicalSetForCurrentGeneration(t *testing.T) {
@@ -110,15 +112,104 @@ func TestApplySuccessStatusRecordsRenderedSelectors(t *testing.T) {
 		"k8s:sa:inference-sa",
 	}
 
-	applySuccessStatus(&status, 4, []renderedIdentity{{
-		SpiffeID:  "spiffe://example.org/ns/default/pool/pool-a",
-		Selectors: wantSelectors,
-	}})
+	spiffeID := "spiffe://example.org/ns/default/pool/pool-a"
+	applySuccessStatus(
+		&status,
+		4,
+		[]renderedIdentity{{
+			SpiffeID:  spiffeID,
+			Selectors: wantSelectors,
+		}},
+		[]kleymv1alpha1.RenderedClusterSPIFFEIDStatus{{
+			Name:                "kleym-default-binding-pool-e2d8bd8d",
+			SpiffeID:            spiffeID,
+			SelectorFingerprint: identity.SelectorFingerprint(wantSelectors),
+		}},
+	)
 
 	if len(status.RenderedSelectors) != 1 {
 		t.Fatalf("renderedSelectors = %d, want 1", len(status.RenderedSelectors))
 	}
 	if !slices.Equal(status.RenderedSelectors[0].Selectors, wantSelectors) {
 		t.Fatalf("selectors = %v, want %v", status.RenderedSelectors[0].Selectors, wantSelectors)
+	}
+	if status.RenderedClusterSPIFFEID == nil {
+		t.Fatalf("renderedClusterSPIFFEID was not populated")
+	}
+	if status.RenderedClusterSPIFFEID.SpiffeID != status.ComputedSpiffeIDs[0].SpiffeID {
+		t.Fatalf(
+			"renderedClusterSPIFFEID.spiffeID = %q, want computed SPIFFE ID %q",
+			status.RenderedClusterSPIFFEID.SpiffeID,
+			status.ComputedSpiffeIDs[0].SpiffeID,
+		)
+	}
+	if status.RenderedClusterSPIFFEID.SelectorFingerprint != identity.SelectorFingerprint(wantSelectors) {
+		t.Fatalf("selectorFingerprint = %q, want sha256 fingerprint", status.RenderedClusterSPIFFEID.SelectorFingerprint)
+	}
+}
+
+func TestApplyFailureStatusClearsRenderedManagedStatus(t *testing.T) {
+	t.Parallel()
+
+	generation := int64(3)
+	status := kleymv1alpha1.InferenceIdentityBindingStatus{
+		ComputedSpiffeIDs: []kleymv1alpha1.ComputedSpiffeIDStatus{{
+			SpiffeID: "spiffe://example.org/ns/default/pool/pool-a",
+		}},
+		RenderedSelectors: []kleymv1alpha1.RenderedSelectorStatus{{
+			SpiffeID:  "spiffe://example.org/ns/default/pool/pool-a",
+			Selectors: []string{"k8s:ns:default"},
+		}},
+		RenderedClusterSPIFFEID: &kleymv1alpha1.RenderedClusterSPIFFEIDStatus{
+			Name:                "kleym-default-binding-pool-e2d8bd8d",
+			SpiffeID:            "spiffe://example.org/ns/default/pool/pool-a",
+			SelectorFingerprint: "sha256:old",
+			ObservedGeneration:  &generation,
+		},
+	}
+
+	applyFailureStatus(&status, generation, newStateError(conditionTypeInvalidRef, "TargetPoolNotFound", "pool not found"))
+
+	if len(status.ComputedSpiffeIDs) != 0 {
+		t.Fatalf("computedSpiffeIDs = %d, want cleared", len(status.ComputedSpiffeIDs))
+	}
+	if len(status.RenderedSelectors) != 0 {
+		t.Fatalf("renderedSelectors = %d, want cleared", len(status.RenderedSelectors))
+	}
+	if status.RenderedClusterSPIFFEID != nil {
+		t.Fatalf("renderedClusterSPIFFEID = %#v, want cleared", status.RenderedClusterSPIFFEID)
+	}
+}
+
+func TestRenderedClusterSPIFFEIDStatusRecordsObservedGeneration(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderedIdentity{
+		SpiffeID:  "spiffe://example.org/ns/default/pool/pool-a",
+		Selectors: []string{"k8s:ns:default", "k8s:sa:inference-sa"},
+	}
+	object := &unstructured.Unstructured{}
+	object.SetName("kleym-default-binding-pool-e2d8bd8d")
+	object.SetGeneration(7)
+
+	status := renderedClusterSPIFFEIDStatus(rendered, object)
+
+	if status.Name != object.GetName() {
+		t.Fatalf("name = %q, want %q", status.Name, object.GetName())
+	}
+	if status.SpiffeID != rendered.SpiffeID {
+		t.Fatalf("spiffeID = %q, want %q", status.SpiffeID, rendered.SpiffeID)
+	}
+	if status.SelectorFingerprint != identity.SelectorFingerprint(rendered.Selectors) {
+		t.Fatalf("selectorFingerprint = %q, want fingerprint for rendered selectors", status.SelectorFingerprint)
+	}
+	if status.ObservedGeneration == nil || *status.ObservedGeneration != 7 {
+		t.Fatalf("observedGeneration = %v, want 7", status.ObservedGeneration)
+	}
+
+	object.SetGeneration(0)
+	status = renderedClusterSPIFFEIDStatus(rendered, object)
+	if status.ObservedGeneration != nil {
+		t.Fatalf("observedGeneration = %v, want omitted for zero generation", *status.ObservedGeneration)
 	}
 }
