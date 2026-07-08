@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"slices"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -96,5 +97,28 @@ func TestInitializeConditionsSetsUnevaluatedConditionsToInitializing(t *testing.
 		if condition.ObservedGeneration != 3 {
 			t.Fatalf("condition %q observedGeneration = %d, want 3", conditionType, condition.ObservedGeneration)
 		}
+	}
+}
+
+func TestApplySuccessStatusRecordsRenderedSelectors(t *testing.T) {
+	t.Parallel()
+
+	status := kleymv1alpha1.InferenceIdentityBindingStatus{}
+	wantSelectors := []string{
+		"k8s:ns:default",
+		"k8s:pod-label:app:model-server",
+		"k8s:sa:inference-sa",
+	}
+
+	applySuccessStatus(&status, 4, []renderedIdentity{{
+		SpiffeID:  "spiffe://example.org/ns/default/pool/pool-a",
+		Selectors: wantSelectors,
+	}})
+
+	if len(status.RenderedSelectors) != 1 {
+		t.Fatalf("renderedSelectors = %d, want 1", len(status.RenderedSelectors))
+	}
+	if !slices.Equal(status.RenderedSelectors[0].Selectors, wantSelectors) {
+		t.Fatalf("selectors = %v, want %v", status.RenderedSelectors[0].Selectors, wantSelectors)
 	}
 }

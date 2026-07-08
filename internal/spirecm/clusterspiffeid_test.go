@@ -1,6 +1,7 @@
 package spirecm
 
 import (
+	"slices"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -34,6 +35,52 @@ func TestDesiredClusterSPIFFEIDIncludesHintAndFallback(t *testing.T) {
 	}
 	if spec["fallback"] != false {
 		t.Fatalf("fallback = %v, want false", spec["fallback"])
+	}
+}
+
+func TestDesiredClusterSPIFFEIDUsesCanonicalSelectorTemplates(t *testing.T) {
+	t.Parallel()
+
+	binding := &kleymv1alpha1.InferenceIdentityBinding{}
+	binding.Name = "binding-a"
+	binding.Namespace = "default"
+	binding.Spec.ServiceAccountName = "inference-sa"
+	plan, err := identity.PlanIdentity(identity.PlanInput{
+		Binding:     binding,
+		TrustDomain: "example.org",
+		PoolName:    "pool-a",
+		PodSelector: map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
+		PoolDerivedSelectors: []string{
+			"k8s:pod-label:team:ml",
+			"k8s:pod-label:app:model-server",
+			"k8s:pod-label:app:model-server",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PlanIdentity returned error: %v", err)
+	}
+
+	desired := DesiredClusterSPIFFEID(binding, plan, "")
+	gotSelectors, found, err := unstructured.NestedStringSlice(
+		desired.Object,
+		"spec",
+		"workloadSelectorTemplates",
+	)
+	if err != nil {
+		t.Fatalf("failed to inspect workloadSelectorTemplates: %v", err)
+	}
+	if !found {
+		t.Fatal("workloadSelectorTemplates missing")
+	}
+
+	wantSelectors := []string{
+		"k8s:ns:default",
+		"k8s:pod-label:app:model-server",
+		"k8s:pod-label:team:ml",
+		"k8s:sa:inference-sa",
+	}
+	if !slices.Equal(gotSelectors, wantSelectors) {
+		t.Fatalf("workloadSelectorTemplates = %v, want %v", gotSelectors, wantSelectors)
 	}
 }
 

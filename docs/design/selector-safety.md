@@ -11,6 +11,10 @@ aliases:
 The controller writes identities for workloads that match the referenced pool,
 binding namespace, and required service account selectors.
 
+The authoritative rendered selector contract lives in
+[Operator Spec](/spec/operator/#rendered-selector-contract). This design note
+explains the safety rationale and must not broaden that contract.
+
 ## Current Safety Layers
 
 The current implementation requires:
@@ -36,9 +40,10 @@ It rejects:
 
 - empty selectors
 - empty label keys or values
+- non-string label values
 - label keys or values that do not satisfy Kubernetes label syntax
 - label values with leading or trailing whitespace
-- `matchExpressions`
+- any `matchExpressions` field
 - pool selectors that cannot be decoded into a stable label map
 
 The controller renders pool labels directly into SPIRE workload selectors, so it
@@ -49,3 +54,5 @@ did not specify. `matchExpressions` are not rendered.
 
 Users provide only `serviceAccountName`. Kleym renders the namespace and
 service-account selectors internally and derives pool selectors from `poolRef`.
+The final selector set is de-duplicated and sorted before it is reported in
+status or written to managed `ClusterSPIFFEID` output.

@@ -51,6 +51,50 @@ When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be c
 
 Field details live in [API Reference][api-reference]. Condition details live in [Conditions Reference][conditions-reference].
 
+## Rendered Selector Contract
+
+The current selector contract is pool-only. A binding accepts only
+`spec.poolRef` and `spec.serviceAccountName`; it does not accept user-supplied
+selector lists or selector source modes.
+
+Every rendered identity selector set is assembled from these sources:
+
+1. Mandatory namespace selector rendered internally from the binding namespace:
+   `k8s:ns:<binding namespace>`.
+2. Mandatory service-account selector rendered internally from
+   `spec.serviceAccountName`: `k8s:sa:<serviceAccountName>`.
+3. Pool-derived selectors rendered from the referenced `InferencePool`
+   `spec.selector.matchLabels`.
+
+The only pool selector compatibility form is an existing flat string map under
+`spec.selector`; Kleym normalizes it to `matchLabels` before rendering. Pool
+labels render directly to `k8s:pod-label:<key>:<value>` workload selectors.
+
+Unsupported pool selector input is refused, including:
+
+- missing or empty `spec.selector`
+- empty `matchLabels`
+- empty or malformed label keys
+- empty, malformed, or non-string label values
+- label values with leading or trailing whitespace
+- any `matchExpressions` field, including an empty array
+- selector shapes that cannot be decoded into deterministic string
+  `matchLabels`
+
+Rendered selector sets are canonical. Kleym removes duplicate selector strings
+and sorts the remaining strings lexicographically before writing
+`status.renderedSelectors`, managed `ClusterSPIFFEID`
+`spec.workloadSelectorTemplates`, or any future rendered selector fingerprint.
+The canonical set preserves provenance by selector form: namespace and
+service-account selectors are binding-derived, and `k8s:pod-label` selectors are
+pool-derived.
+
+Malformed or unsupported pool selector input fails reconciliation with
+`UnsafeSelector=True` reason `InvalidPoolSelector`. A rendered selector set that
+would omit or escape the mandatory namespace or service-account boundary fails
+with `UnsafeSelector=True` reason `UnsafeSelector`. Selector failures produce no
+managed output and clear `computedSpiffeIDs` plus `renderedSelectors` in status.
+
 ## Required Behavior
 
 1. Discover the supported GAIE pool GVK served by the cluster and watch it.

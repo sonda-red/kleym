@@ -22,9 +22,9 @@ GVK examples:
 `spec.selector.matchLabels` or a flat selector map that can be normalized into
 `matchLabels`.
 
-`kleym-operator` rejects empty selectors, invalid label keys or values, values with leading
-or trailing whitespace, non-empty `matchExpressions`, and selector shapes that
-cannot be decoded into a stable label map.
+`kleym-operator` rejects empty selectors, invalid label keys or values, non-string
+values, values with leading or trailing whitespace, any `matchExpressions` field,
+and selector shapes that cannot be decoded into a stable label map.
 
 ## Discovery Behavior
 
