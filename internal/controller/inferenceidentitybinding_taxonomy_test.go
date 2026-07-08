@@ -148,6 +148,83 @@ func TestReconcileManagedOutputApplyFailureSetsFailureStatus(t *testing.T) {
 	}
 }
 
+func TestReconcileFailureCleanupApplyFailureSetsManagedOutputFailureStatus(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scheme := newControllerTestScheme(t)
+	binding := newPoolOnlyBinding("binding-managed-output-cleanup-failure", "")
+	binding.Spec.PoolRef.Name = "missing-pool"
+	binding.Status = kleymv1alpha1.InferenceIdentityBindingStatus{
+		ComputedSpiffeIDs: []kleymv1alpha1.ComputedSpiffeIDStatus{{
+			SpiffeID: "spiffe://stale.example/ns/default/pool/old",
+		}},
+		RenderedSelectors: []kleymv1alpha1.RenderedSelectorStatus{{
+			SpiffeID:  "spiffe://stale.example/ns/default/pool/old",
+			Selectors: []string{"k8s:ns:default", "k8s:sa:old"},
+		}},
+		RenderedClusterSPIFFEID: &kleymv1alpha1.RenderedClusterSPIFFEIDStatus{
+			Name:                "stale",
+			SpiffeID:            "spiffe://stale.example/ns/default/pool/old",
+			SelectorFingerprint: "sha256:stale",
+		},
+		Conditions: []metav1.Condition{{
+			Type:    conditionTypeReady,
+			Status:  metav1.ConditionTrue,
+			Reason:  conditionReasonReconciled,
+			Message: "stale success",
+		}},
+	}
+
+	cleanupErr := stderrors.New("list managed ClusterSPIFFEIDs for cleanup failed")
+	baseClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+		WithObjects(binding).
+		Build()
+	k8sClient := interceptor.NewClient(baseClient, interceptor.Funcs{
+		List: func(
+			ctx context.Context,
+			k8sClient client.WithWatch,
+			list client.ObjectList,
+			opts ...client.ListOption,
+		) error {
+			clusterSPIFFEIDListGVK := clusterSPIFFEIDGVK.GroupVersion().WithKind(clusterSPIFFEIDGVK.Kind + "List")
+			if list.GetObjectKind().GroupVersionKind() == clusterSPIFFEIDListGVK {
+				return cleanupErr
+			}
+			return k8sClient.List(ctx, list, opts...)
+		},
+	})
+	reconciler := &InferenceIdentityBindingReconciler{
+		Config: testOperatorConfig(),
+		Client: k8sClient,
+		Scheme: scheme,
+	}
+
+	result, err := reconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: binding.Name},
+	})
+	if !stderrors.Is(err, cleanupErr) {
+		t.Fatalf("Reconcile error = %v, want %v", err, cleanupErr)
+	}
+	if result != (ctrl.Result{}) {
+		t.Fatalf("result = %#v, want empty result", result)
+	}
+
+	current := fetchBinding(t, ctx, k8sClient, binding.Name)
+	assertPrimaryFailureCondition(t, current, conditionTypeRenderFailure, conditionReasonManagedOutputApplyFailed)
+	if len(current.Status.ComputedSpiffeIDs) != 0 {
+		t.Fatalf("computedSpiffeIDs = %d, want cleared on cleanup failure", len(current.Status.ComputedSpiffeIDs))
+	}
+	if len(current.Status.RenderedSelectors) != 0 {
+		t.Fatalf("renderedSelectors = %d, want cleared on cleanup failure", len(current.Status.RenderedSelectors))
+	}
+	if current.Status.RenderedClusterSPIFFEID != nil {
+		t.Fatalf("renderedClusterSPIFFEID = %#v, want cleared on cleanup failure", current.Status.RenderedClusterSPIFFEID)
+	}
+}
+
 func TestReconcileConditionTaxonomyFailures(t *testing.T) {
 	t.Parallel()
 
