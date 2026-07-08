@@ -52,6 +52,7 @@ const (
 	conditionReasonInitializing              = "Initializing"
 	conditionReasonInvalidPoolRef            = "InvalidPoolRef"
 	conditionReasonClusterSPIFFEIDCRDMissing = "ClusterSPIFFEIDCRDMissing"
+	conditionReasonManagedOutputApplyFailed  = "ManagedOutputApplyFailed"
 
 	fieldIndexPoolRefName          = "spec.poolRef.name"
 	infraNotReadyRequeueAfter      = 30 * time.Second
@@ -180,6 +181,9 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 			return ctrl.Result{}, err
 		}
 		if err := r.applyStateError(ctx, binding, stateErr); err != nil {
+			if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+				return ctrl.Result{}, statusErr
+			}
 			return ctrl.Result{}, err
 		}
 		if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
@@ -212,6 +216,9 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 		if meta.IsNoMatchError(err) {
 			stateErr := newClusterSPIFFEIDCRDMissingStateError()
 			if err := r.applyStateError(ctx, binding, stateErr); err != nil {
+				if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+					return ctrl.Result{}, statusErr
+				}
 				return ctrl.Result{}, err
 			}
 			if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
@@ -230,6 +237,9 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 				logKeyRequeueAfter, infraNotReadyRequeueAfter,
 			)
 			return ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}, nil
+		}
+		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+			return ctrl.Result{}, statusErr
 		}
 		return ctrl.Result{}, err
 	}
@@ -441,6 +451,28 @@ func (r *InferenceIdentityBindingReconciler) applyStateError(
 	}
 
 	applyFailureStatus(&binding.Status, binding.Generation, stateErr)
+	return nil
+}
+
+func (r *InferenceIdentityBindingReconciler) patchManagedOutputApplyFailureStatus(
+	ctx context.Context,
+	statusBase *kleymv1alpha1.InferenceIdentityBinding,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	applyErr error,
+) error {
+	stateErr := newManagedOutputApplyFailedStateError(applyErr)
+	applyFailureStatus(&binding.Status, binding.Generation, stateErr)
+	if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
+		return err
+	}
+	r.recordTerminalOutcome(binding)
+	logger := logf.FromContext(ctx)
+	logger.Info(
+		"applied failure status",
+		logKeyCondition, stateErr.conditionType,
+		logKeyReason, stateErr.reason,
+	)
+	r.recordEventf(binding, corev1.EventTypeWarning, stateErr.reason, "%s", stateErr.message)
 	return nil
 }
 

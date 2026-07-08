@@ -109,9 +109,11 @@ managed resource generation when it is available from Kubernetes.
 identity used for `status.computedSpiffeIDs`; it is not a second SPIFFE state.
 `observedGeneration` is omitted when Kubernetes has not reported a persisted
 generation for the managed resource. Kleym does not write `0` as a fake
-generation. If the managed resource cannot be listed or applied because the API
-request itself fails, reconciliation returns the API error and does not advance
-rendered managed status from that failed attempt.
+generation. If the managed resource cannot be listed, created, updated, or
+deleted because the API request itself fails, reconciliation reports
+`RenderFailure=True` with reason `ManagedOutputApplyFailed`, clears
+`computedSpiffeIDs`, `renderedSelectors`, and `renderedClusterSPIFFEID`, and
+returns the API error so reconciliation retries.
 
 ## Required Behavior
 
@@ -139,7 +141,7 @@ Allowed condition types and reasons:
 | `Ready` | `Unknown` | `Initializing` |
 | `InvalidRef` | `True` | `InvalidPoolRef`, `TargetPoolNotFound`, `InferencePoolCRDMissing` |
 | `UnsafeSelector` | `True` | `InvalidPoolSelector`, `UnsafeSelector` |
-| `RenderFailure` | `True` | `MissingTrustDomain`, `InvalidServiceAccountName`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing` |
+| `RenderFailure` | `True` | `MissingTrustDomain`, `InvalidServiceAccountName`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing`, `ManagedOutputApplyFailed` |
 | `InvalidRef`, `UnsafeSelector`, `RenderFailure` | `False` | `Resolved` |
 | `InvalidRef`, `UnsafeSelector`, `RenderFailure` | `Unknown` | `Initializing` |
 
@@ -151,6 +153,7 @@ Dependency-unavailable states use the same taxonomy:
 
 - Missing GAIE `InferencePool` CRD during pool discovery or pool resolution is `InvalidRef=True` with reason `InferencePoolCRDMissing`. Startup discovery fails when no supported GAIE pool GVK is served.
 - Missing SPIRE Controller Manager `ClusterSPIFFEID` CRD during reconcile is `RenderFailure=True` with reason `ClusterSPIFFEIDCRDMissing` and the reconcile retries on a timer.
+- Generic managed `ClusterSPIFFEID` list, create, update, or delete API failures are `RenderFailure=True` with reason `ManagedOutputApplyFailed`. The reconcile returns the API error for retry and clears rendered identity plus managed-resource status from the failed attempt.
 
 ## Safety Invariants
 

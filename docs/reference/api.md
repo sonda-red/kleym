@@ -53,12 +53,14 @@ Current validation rules enforced by the CRD:
 | `renderedClusterSPIFFEID.name` | Deterministic managed `ClusterSPIFFEID` name rendered for the binding. |
 | `renderedClusterSPIFFEID.spiffeID` | Rendered SPIFFE ID written to the managed `ClusterSPIFFEID`. This matches the SPIFFE ID in `computedSpiffeIDs`. |
 | `renderedClusterSPIFFEID.selectorFingerprint` | `sha256:<hex>` fingerprint of the canonical rendered selector set. |
-| `renderedClusterSPIFFEID.observedGeneration` | Observed `metadata.generation` of the managed `ClusterSPIFFEID` when Kubernetes reports a persisted generation. Omitted when no persisted generation has been reported. API failures while listing or applying the managed resource do not advance rendered managed status from that failed attempt. |
+| `renderedClusterSPIFFEID.observedGeneration` | Observed `metadata.generation` of the managed `ClusterSPIFFEID` when Kubernetes reports a persisted generation. Omitted when no persisted generation has been reported. |
 
-On reference, selector, render, or managed-output infrastructure failure, the
-operator clears `computedSpiffeIDs`, `renderedSelectors`, and
+On reference, selector, render, managed-output infrastructure, or managed-output
+API failure, the operator clears `computedSpiffeIDs`, `renderedSelectors`, and
 `renderedClusterSPIFFEID` together so status-only clients do not read stale
-rendered output.
+rendered output. Generic managed `ClusterSPIFFEID` list, create, update, or
+delete API failures report `RenderFailure=True` with reason
+`ManagedOutputApplyFailed`.
 
 ## Kubectl Columns
 

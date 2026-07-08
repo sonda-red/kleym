@@ -50,3 +50,13 @@ func newClusterSPIFFEIDCRDMissingStateError() *reconcileStateError {
 		"ClusterSPIFFEID CRD is not installed",
 	)
 }
+
+// newManagedOutputApplyFailedStateError maps transient managed-output API
+// failures to the RenderFailure taxonomy from docs/spec/operator.md.
+func newManagedOutputApplyFailedStateError(err error) *reconcileStateError {
+	return newStateError(
+		conditionTypeRenderFailure,
+		conditionReasonManagedOutputApplyFailed,
+		"Managed ClusterSPIFFEID output could not be applied: "+err.Error(),
+	)
+}
