@@ -38,6 +38,7 @@ If reconciliation fails, `Ready=False` and the triggering condition becomes `Tru
 | `RenderFailure` | `InvalidSPIFFEID` | The computed SPIFFE ID is not valid. | Check the referenced namespace and pool names. |
 | `RenderFailure` | `MissingTrustDomain` | The operator has no trust domain configured. | Configure `--trust-domain` or `KLEYM_TRUST_DOMAIN` before starting the operator. |
 | `RenderFailure` | `ClusterSPIFFEIDCRDMissing` | SPIRE Controller Manager or its `ClusterSPIFFEID` CRD is missing. | Install SPIRE Controller Manager and confirm the `clusterspiffeids.spire.spiffe.io` CRD exists. |
+| `RenderFailure` | `ManagedOutputApplyFailed` | The Kubernetes API rejected or failed a managed `ClusterSPIFFEID` list, create, update, or delete request. | Check API server availability, RBAC, admission errors, and SPIRE Controller Manager CRD health; the controller returns the API error for retry. |
 
 ## Missing CRDs
 

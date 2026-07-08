@@ -60,7 +60,12 @@ managed output after a successful reconcile:
 | `name` | Deterministic managed `ClusterSPIFFEID` name. |
 | `spiffeID` | Rendered SPIFFE ID, matching `status.computedSpiffeIDs`. |
 | `selectorFingerprint` | `sha256:<hex>` fingerprint of the canonical selector set rendered into `spec.workloadSelectorTemplates`. |
-| `observedGeneration` | Observed managed `ClusterSPIFFEID` generation when Kubernetes reports a persisted generation. Omitted when no persisted generation has been reported. API failures while listing or applying the managed resource do not advance rendered managed status from that failed attempt. |
+| `observedGeneration` | Observed managed `ClusterSPIFFEID` generation when Kubernetes reports a persisted generation. Omitted when no persisted generation has been reported. |
+
+Generic managed `ClusterSPIFFEID` list, create, update, or delete API failures
+report `RenderFailure=True` with reason `ManagedOutputApplyFailed` and clear
+`computedSpiffeIDs`, `renderedSelectors`, and `renderedClusterSPIFFEID` so
+status-only clients do not read stale rendered output.
 
 ## Other Resources Touched
 

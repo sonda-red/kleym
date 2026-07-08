@@ -52,6 +52,7 @@ const (
 	conditionReasonInitializing              = "Initializing"
 	conditionReasonInvalidPoolRef            = "InvalidPoolRef"
 	conditionReasonClusterSPIFFEIDCRDMissing = "ClusterSPIFFEIDCRDMissing"
+	conditionReasonManagedOutputApplyFailed  = "ManagedOutputApplyFailed"
 
 	fieldIndexPoolRefName          = "spec.poolRef.name"
 	infraNotReadyRequeueAfter      = 30 * time.Second
@@ -231,6 +232,18 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 			)
 			return ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}, nil
 		}
+		stateErr := newManagedOutputApplyFailedStateError(err)
+		applyFailureStatus(&binding.Status, binding.Generation, stateErr)
+		if patchErr := r.patchStatusFromBase(ctx, statusBase, binding); patchErr != nil {
+			return ctrl.Result{}, patchErr
+		}
+		r.recordTerminalOutcome(binding)
+		logger.Info(
+			"applied failure status",
+			logKeyCondition, stateErr.conditionType,
+			logKeyReason, stateErr.reason,
+		)
+		r.recordEventf(binding, corev1.EventTypeWarning, stateErr.reason, "%s", stateErr.message)
 		return ctrl.Result{}, err
 	}
 
