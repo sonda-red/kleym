@@ -96,6 +96,36 @@ func TestPlanIdentityCanonicalizesRenderedSelectors(t *testing.T) {
 	}
 }
 
+func TestSelectorFingerprintUsesCanonicalSelectorSet(t *testing.T) {
+	t.Parallel()
+
+	left := SelectorFingerprint([]string{
+		"k8s:sa:inference-sa",
+		"k8s:pod-label:app:model-server",
+		"k8s:ns:default",
+		"k8s:pod-label:app:model-server",
+	})
+	right := SelectorFingerprint([]string{
+		"k8s:ns:default",
+		"k8s:pod-label:app:model-server",
+		"k8s:sa:inference-sa",
+	})
+
+	if left != right {
+		t.Fatalf("fingerprints differ for equivalent selector sets: %q != %q", left, right)
+	}
+	if left == SelectorFingerprint([]string{
+		"k8s:ns:default",
+		"k8s:pod-label:app:other",
+		"k8s:sa:inference-sa",
+	}) {
+		t.Fatalf("fingerprint did not change for a different selector set")
+	}
+	if got, want := left[:7], "sha256:"; got != want {
+		t.Fatalf("fingerprint prefix = %q, want %q", got, want)
+	}
+}
+
 func TestPlanIdentityRejectsMissingTrustDomain(t *testing.T) {
 	t.Parallel()
 

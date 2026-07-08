@@ -25,6 +25,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
+	identitypkg "github.com/sonda-red/kleym/internal/identity"
 	"github.com/sonda-red/kleym/internal/spirecm"
 )
 
@@ -32,11 +33,11 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	identities []renderedIdentity,
-) error {
+) ([]kleymv1alpha1.RenderedClusterSPIFFEIDStatus, error) {
 	logger := logf.FromContext(ctx)
 	existing, err := r.listManagedClusterSPIFFEIDs(ctx, binding)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	logger.V(1).Info("listed managed ClusterSPIFFEIDs", "count", len(existing))
 
@@ -46,6 +47,7 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 	}
 
 	desiredNames := make(map[string]struct{}, len(identities))
+	statuses := make([]kleymv1alpha1.RenderedClusterSPIFFEIDStatus, 0, len(identities))
 	for _, identity := range identities {
 		desired := spirecm.DesiredClusterSPIFFEID(binding, identity, r.Config.ClusterSPIFFEIDClassName)
 		desiredName := desired.GetName()
@@ -58,9 +60,20 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 				logKeyClusterSPIFFEID, desiredName,
 				logKeySpiffeID, identity.SpiffeID,
 			)
-			if err := r.Create(ctx, desired); err != nil && !apierrors.IsAlreadyExists(err) {
-				return err
+			if err := r.Create(ctx, desired); err != nil {
+				if !apierrors.IsAlreadyExists(err) {
+					return nil, err
+				}
+				current = desired.DeepCopy()
+				current.SetGroupVersionKind(clusterSPIFFEIDGVK)
+				current.SetName(desiredName)
+				if getErr := r.Get(ctx, client.ObjectKey{Name: desiredName}, current); getErr != nil {
+					return nil, getErr
+				}
+				statuses = append(statuses, renderedClusterSPIFFEIDStatus(identity, current))
+				continue
 			}
+			statuses = append(statuses, renderedClusterSPIFFEIDStatus(identity, desired))
 			continue
 		}
 
@@ -72,8 +85,9 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 			)
 			spirecm.MergeDesiredClusterSPIFFEID(current, desired)
 			if err := r.Update(ctx, current); err != nil {
-				return err
+				return nil, err
 			}
+			statuses = append(statuses, renderedClusterSPIFFEIDStatus(identity, current))
 			continue
 		}
 		logger.V(1).Info(
@@ -81,6 +95,7 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 			logKeyClusterSPIFFEID, desiredName,
 			logKeySpiffeID, identity.SpiffeID,
 		)
+		statuses = append(statuses, renderedClusterSPIFFEIDStatus(identity, current))
 	}
 
 	for name, object := range existingByName {
@@ -89,11 +104,31 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 		}
 		logger.Info("deleting stale managed ClusterSPIFFEID", logKeyClusterSPIFFEID, name)
 		if err := r.Delete(ctx, object); err != nil && !apierrors.IsNotFound(err) {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return statuses, nil
+}
+
+func renderedClusterSPIFFEIDStatus(
+	identity renderedIdentity,
+	object *unstructured.Unstructured,
+) kleymv1alpha1.RenderedClusterSPIFFEIDStatus {
+	return kleymv1alpha1.RenderedClusterSPIFFEIDStatus{
+		Name:                object.GetName(),
+		SpiffeID:            identity.SpiffeID,
+		SelectorFingerprint: identitypkg.SelectorFingerprint(identity.Selectors),
+		ObservedGeneration:  observedGenerationStatus(object),
+	}
+}
+
+func observedGenerationStatus(object *unstructured.Unstructured) *int64 {
+	generation := object.GetGeneration()
+	if generation <= 0 {
+		return nil
+	}
+	return &generation
 }
 
 func (r *InferenceIdentityBindingReconciler) listManagedClusterSPIFFEIDs(

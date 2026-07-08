@@ -170,6 +170,33 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              renderedClusterSPIFFEID:
+                description: renderedClusterSPIFFEID shows the core rendered managed
+                  ClusterSPIFFEID output.
+                properties:
+                  name:
+                    description: name is the deterministic managed ClusterSPIFFEID
+                      name rendered for this binding.
+                    type: string
+                  observedGeneration:
+                    description: |-
+                      observedGeneration is the observed metadata.generation of the managed ClusterSPIFFEID.
+                      It is omitted when the managed resource is absent, unreadable, unavailable, or has no persisted generation.
+                    format: int64
+                    type: integer
+                  selectorFingerprint:
+                    description: selectorFingerprint is the deterministic sha256 fingerprint
+                      of the canonical selector set.
+                    type: string
+                  spiffeID:
+                    description: spiffeID is the rendered SPIFFE ID written to the
+                      managed ClusterSPIFFEID.
+                    type: string
+                required:
+                - name
+                - selectorFingerprint
+                - spiffeID
+                type: object
               renderedSelectors:
                 description: renderedSelectors shows the final workload selectors
                   for each rendered identity.

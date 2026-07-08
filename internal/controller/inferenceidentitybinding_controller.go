@@ -207,7 +207,8 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 	}
 
 	// Phase 5: Apply — reconcile ClusterSPIFFEID resources.
-	if err := r.reconcileClusterSPIFFEIDs(ctx, binding, desiredState.identities); err != nil {
+	managedStatuses, err := r.reconcileClusterSPIFFEIDs(ctx, binding, desiredState.identities)
+	if err != nil {
 		if meta.IsNoMatchError(err) {
 			stateErr := newClusterSPIFFEIDCRDMissingStateError()
 			if err := r.applyStateError(ctx, binding, stateErr); err != nil {
@@ -233,7 +234,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 		return ctrl.Result{}, err
 	}
 
-	applySuccessStatus(&binding.Status, binding.Generation, desiredState.identities)
+	applySuccessStatus(&binding.Status, binding.Generation, desiredState.identities, managedStatuses)
 	if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
 		return ctrl.Result{}, err
 	}
