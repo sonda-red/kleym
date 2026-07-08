@@ -53,7 +53,7 @@ Current validation rules enforced by the CRD:
 | `renderedClusterSPIFFEID.name` | Deterministic managed `ClusterSPIFFEID` name rendered for the binding. |
 | `renderedClusterSPIFFEID.spiffeID` | Rendered SPIFFE ID written to the managed `ClusterSPIFFEID`. This matches the SPIFFE ID in `computedSpiffeIDs`. |
 | `renderedClusterSPIFFEID.selectorFingerprint` | `sha256:<hex>` fingerprint of the canonical rendered selector set. |
-| `renderedClusterSPIFFEID.observedGeneration` | Observed `metadata.generation` of the managed `ClusterSPIFFEID` when the managed resource exists and can be read. Omitted when absent, unreadable, unavailable, or not persisted. |
+| `renderedClusterSPIFFEID.observedGeneration` | Observed `metadata.generation` of the managed `ClusterSPIFFEID` when Kubernetes reports a persisted generation. Omitted when no persisted generation has been reported. API failures while listing or applying the managed resource do not advance rendered managed status from that failed attempt. |
 
 On reference, selector, render, or managed-output infrastructure failure, the
 operator clears `computedSpiffeIDs`, `renderedSelectors`, and

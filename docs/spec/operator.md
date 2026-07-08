@@ -107,9 +107,11 @@ managed resource generation when it is available from Kubernetes.
 
 `status.renderedClusterSPIFFEID.spiffeID` is populated from the same rendered
 identity used for `status.computedSpiffeIDs`; it is not a second SPIFFE state.
-`observedGeneration` is omitted when the managed resource is absent, unreadable,
-unavailable, or has no persisted generation. Kleym does not write `0` as a fake
-generation.
+`observedGeneration` is omitted when Kubernetes has not reported a persisted
+generation for the managed resource. Kleym does not write `0` as a fake
+generation. If the managed resource cannot be listed or applied because the API
+request itself fails, reconciliation returns the API error and does not advance
+rendered managed status from that failed attempt.
 
 ## Required Behavior
 

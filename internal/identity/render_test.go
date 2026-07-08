@@ -114,6 +114,9 @@ func TestSelectorFingerprintUsesCanonicalSelectorSet(t *testing.T) {
 	if left != right {
 		t.Fatalf("fingerprints differ for equivalent selector sets: %q != %q", left, right)
 	}
+	if want := "sha256:d2ef4ccce3e70ad8c81e2084bfa52d5c0692f66c842487adb0f13c97e794b64c"; left != want {
+		t.Fatalf("fingerprint = %q, want %q", left, want)
+	}
 	if left == SelectorFingerprint([]string{
 		"k8s:ns:default",
 		"k8s:pod-label:app:other",

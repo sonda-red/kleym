@@ -96,7 +96,7 @@ type RenderedClusterSPIFFEIDStatus struct {
 	SelectorFingerprint string `json:"selectorFingerprint"`
 
 	// observedGeneration is the observed metadata.generation of the managed ClusterSPIFFEID.
-	// It is omitted when the managed resource is absent, unreadable, unavailable, or has no persisted generation.
+	// It is omitted when Kubernetes has not reported a persisted generation for the managed resource.
 	// +optional
 	ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
 }
