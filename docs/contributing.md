@@ -128,6 +128,8 @@ Run `make lint` as well when you touch Go code, build logic, or CI-sensitive beh
 - Prefer the smallest command set that proves the change.
 - Use `make test` for normal API and controller work.
 - Use `make test-e2e-chainsaw` for cluster behavior and binding-to-`ClusterSPIFFEID` reconciliation coverage that can be expressed as Kubernetes resources and assertions.
+- Keep Go unit tests and envtest as the default home for negative paths, including invalid `poolRef`, missing GAIE `InferencePool` inputs, unsafe pool-derived selectors, and current pool-only condition coverage.
+- Add a negative Chainsaw scenario only when a real API server or Kind cluster is required to faithfully cover a concrete cluster-only risk. The case must state why Go or envtest cannot cover that behavior, so the existing e2e suite stays intentionally small.
 - If you skip a relevant test, say so in your handoff.
 
 ## Docs Workflow
