@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
@@ -74,17 +75,21 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 		return pool
 	}
 
-	It("initializes the full canonical condition set for render failures", func() {
+	It("initializes the full canonical condition set for legacy invalid service accounts", func() {
 		poolName := newName("pool-unsafe")
 		bindingName := newName("binding-unsafe")
 
 		createPool(poolName)
 
 		binding := &kleymv1alpha1.InferenceIdentityBinding{
-			ObjectMeta: metav1.ObjectMeta{Namespace: testNamespace, Name: bindingName},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:  testNamespace,
+				Name:       bindingName,
+				Finalizers: []string{inferenceIdentityBindingFinalizer},
+			},
 			Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
 				PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName},
-				ServiceAccountName: "bad_service_account",
+				ServiceAccountName: "inference-sa",
 			},
 		}
 		Expect(k8sClient.Create(ctx, binding)).To(Succeed())
@@ -92,7 +97,11 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 			cleanupBinding(types.NamespacedName{Namespace: testNamespace, Name: bindingName})
 		})
 
-		reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: k8sClient, Scheme: k8sClient.Scheme()}
+		legacyObjectClient := legacyInvalidServiceAccountClient{
+			Client: k8sClient,
+			key:    types.NamespacedName{Namespace: testNamespace, Name: bindingName},
+		}
+		reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: legacyObjectClient, Scheme: k8sClient.Scheme()}
 		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: bindingName}})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -154,3 +163,30 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 	})
 
 })
+
+type legacyInvalidServiceAccountClient struct {
+	client.Client
+	key types.NamespacedName
+}
+
+// Get simulates an object persisted before service-account admission validation.
+func (c legacyInvalidServiceAccountClient) Get(
+	ctx context.Context,
+	key client.ObjectKey,
+	object client.Object,
+	options ...client.GetOption,
+) error {
+	if err := c.Client.Get(ctx, key, object, options...); err != nil {
+		return err
+	}
+	if key != c.key {
+		return nil
+	}
+
+	legacyBinding, ok := object.(*kleymv1alpha1.InferenceIdentityBinding)
+	if ok {
+		// The API server now rejects this value; runtime validation must handle legacy objects safely.
+		legacyBinding.Spec.ServiceAccountName = "bad_service_account"
+	}
+	return nil
+}

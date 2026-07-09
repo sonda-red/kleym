@@ -76,6 +76,7 @@ func TestSetupWithManagerStartsAndReconcilesWithCurrentPoolCRD(t *testing.T) {
 		t.Fatalf("create manager: %v", err)
 	}
 	assertLegacyPoolGroupRejectedByCRD(t, context.Background(), mgr.GetClient())
+	assertServiceAccountNameValidationAtCRDAdmission(t, context.Background(), mgr.GetClient())
 
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: mgr.GetClient(),
@@ -239,6 +240,46 @@ func assertLegacyPoolGroupRejectedByCRD(
 	err := k8sClient.Create(ctx, binding)
 	if !apierrors.IsInvalid(err) {
 		t.Fatalf("create binding with legacy pool group error = %v, want Invalid", err)
+	}
+}
+
+// assertServiceAccountNameValidationAtCRDAdmission verifies CRD admission matches the DNS-1123 service account contract.
+func assertServiceAccountNameValidationAtCRDAdmission(
+	t *testing.T,
+	ctx context.Context,
+	k8sClient client.Client,
+) {
+	t.Helper()
+
+	invalidBinding := &kleymv1alpha1.InferenceIdentityBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: testNamespace,
+			Name:      "invalid-service-account-rejected",
+		},
+		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-current"},
+			ServiceAccountName: "Invalid_ServiceAccount",
+		},
+	}
+	if err := k8sClient.Create(ctx, invalidBinding); !apierrors.IsInvalid(err) {
+		t.Fatalf("create binding with invalid service account error = %v, want Invalid", err)
+	}
+
+	validBinding := &kleymv1alpha1.InferenceIdentityBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: testNamespace,
+			Name:      "dns-subdomain-service-account-admitted",
+		},
+		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-current"},
+			ServiceAccountName: "inference.service-account",
+		},
+	}
+	if err := k8sClient.Create(ctx, validBinding); err != nil {
+		t.Fatalf("create binding with DNS-1123 subdomain service account: %v", err)
+	}
+	if err := k8sClient.Delete(ctx, validBinding); err != nil {
+		t.Fatalf("delete admitted binding: %v", err)
 	}
 }
 
