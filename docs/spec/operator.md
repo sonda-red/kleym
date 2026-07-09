@@ -16,6 +16,25 @@ Kleym does not own inference workloads, schedulers, routes, gateways, serving be
 
 Dependency facts live in [Dependencies][dependencies]. Supported GAIE inputs live in [GAIE Compatibility][gaie-compatibility].
 
+## Binding Write Authorization Boundary
+
+`InferenceIdentityBinding` is a namespaced resource, but `kleym-operator`
+reconciles each successful binding into a cluster-scoped SPIRE Controller
+Manager `ClusterSPIFFEID` resource. Create, update, or patch permission on
+`InferenceIdentityBinding` is therefore a privileged namespace capability: it
+delegates permission to request Kleym-managed SPIRE identity registration for
+workloads in that namespace.
+
+Kubernetes RBAC and admission policy decide who may create, update, or patch
+bindings. Kleym does not perform tenant authorization for binding authors. Broad
+application-developer write access to `InferenceIdentityBinding` should be a
+deliberate delegation of identity-registration authority.
+
+Selector safety is separate from authorization. The namespace, service-account,
+and pool selectors constrain the rendered `ClusterSPIFFEID` workload match, but
+they are not the authorization decision for whether a user may request identity
+registration.
+
 ## Operator Configuration
 
 `kleym-operator` requires install-level identity configuration at startup.
