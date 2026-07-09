@@ -31,7 +31,7 @@ Kleym stops at identity registration. It does not deploy inference workloads, ro
 
 ## Key Resources
 
-- [Concepts](https://kleym.sonda.red/concepts/) - GAIE InferencePool input, pool identity, and selector safety.
+- [Concepts](https://kleym.sonda.red/concepts/) - GAIE InferencePool input, service-account-scoped inference target identity, and selector safety.
 - [Architecture](https://kleym.sonda.red/architecture/) - End-to-end control flow from `InferenceIdentityBinding` to SPIRE registration state.
 - [API reference](https://kleym.sonda.red/reference/api/) - `InferenceIdentityBinding` API fields and validation rules.
 - [Managed resources](https://kleym.sonda.red/reference/resources/) - Managed `ClusterSPIFFEID` output shape.

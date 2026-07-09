@@ -64,6 +64,42 @@ func TestRenderIdentityPassesValidGAIESelectorIntoIdentityPlan(t *testing.T) {
 	if identity.PodSelector["matchLabels"] == nil {
 		t.Fatalf("expected GAIE matchLabels selector to be passed into identity plan, got %v", identity.PodSelector)
 	}
+	if identity.SpiffeID != "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-valid-selector" {
+		t.Fatalf("spiffeID = %q, want service-account-scoped pool target identity", identity.SpiffeID)
+	}
+}
+
+func TestRenderIdentityDistinguishesServiceAccountsForTheSamePool(t *testing.T) {
+	t.Parallel()
+
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig()}
+	pool := testRenderPool("pool-a", map[string]any{"app": "model-server"})
+
+	firstBinding := testRenderBinding("binding-a", "pool-a")
+	first, err := reconciler.renderIdentity(firstBinding, pool)
+	if err != nil {
+		t.Fatalf("renderIdentity returned error: %v", err)
+	}
+
+	secondBinding := testRenderBinding("binding-b", "pool-a")
+	secondBinding.Spec.ServiceAccountName = "other-inference-sa"
+	second, err := reconciler.renderIdentity(secondBinding, pool)
+	if err != nil {
+		t.Fatalf("renderIdentity returned error: %v", err)
+	}
+
+	if first.SpiffeID == second.SpiffeID {
+		t.Fatalf("SPIFFE IDs match for different service accounts: %q", first.SpiffeID)
+	}
+
+	samePrincipalBinding := testRenderBinding("binding-c", "pool-a")
+	samePrincipal, err := reconciler.renderIdentity(samePrincipalBinding, pool)
+	if err != nil {
+		t.Fatalf("renderIdentity returned error: %v", err)
+	}
+	if first.SpiffeID != samePrincipal.SpiffeID {
+		t.Fatalf("binding name changed SPIFFE ID: %q != %q", first.SpiffeID, samePrincipal.SpiffeID)
+	}
 }
 
 func testRenderBinding(name, poolName string) *kleymv1alpha1.InferenceIdentityBinding {

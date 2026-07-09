@@ -29,7 +29,7 @@ The in-cluster `kleym-operator` watches `InferencePool` workload intent, then co
 ### Operator docs
 
 - [Install](/install/): local run, deployment, GitOps install, metrics, and validation commands
-- [Concepts](/concepts/): GAIE pool input, pool identity, and selector safety
+- [Concepts](/concepts/): GAIE pool input, service-account-scoped inference target identity, and selector safety
 - [Architecture](/architecture/): end-to-end reconcile flow from binding intent to SPIRE registration resources
 - [Demo](/demo/): reference binding-to-`ClusterSPIFFEID` walkthrough
 - [Examples](/examples/): concrete manifests and expected reconciliation outcomes

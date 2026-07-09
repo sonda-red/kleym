@@ -28,7 +28,6 @@ import (
 
 // PlanIdentity computes desired identity state from resolved, read-only inputs.
 func PlanIdentity(input PlanInput) (Plan, error) {
-	binding := input.Binding
 	if strings.TrimSpace(input.TrustDomain) == "" {
 		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
@@ -38,12 +37,12 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 	}
 
 	templateData := renderTemplateData{
-		Namespace:   binding.Namespace,
-		BindingName: binding.Name,
-		PoolName:    input.PoolName,
+		Namespace:          input.Namespace,
+		ServiceAccountName: input.ServiceAccountName,
+		IdentityAnchor:     input.Target.IdentityAnchor,
 	}
 
-	renderedSelectors, err := renderSafetySelectors(binding.Namespace, binding.Spec.ServiceAccountName)
+	renderedSelectors, err := renderSafetySelectors(input.Namespace, input.ServiceAccountName)
 	if err != nil {
 		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
@@ -51,10 +50,17 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 			err.Error(),
 		)
 	}
+	if err := validateIdentityAnchor(input.Target.IdentityAnchor); err != nil {
+		return Plan{}, newStateError(
+			ConditionTypeRenderFailure,
+			ReasonInvalidSPIFFEID,
+			err.Error(),
+		)
+	}
 
-	selectors := append(renderedSelectors, input.PoolDerivedSelectors...)
+	selectors := append(renderedSelectors, input.Target.DerivedSelectors...)
 	selectors = UniqueAndSorted(selectors)
-	if err := validateRenderedSafetySelectors(binding.Namespace, selectors); err != nil {
+	if err := validateRenderedSafetySelectors(input.Namespace, input.ServiceAccountName, selectors); err != nil {
 		return Plan{}, newStateError(
 			ConditionTypeUnsafeSelector,
 			ReasonUnsafeSelector,
@@ -62,7 +68,7 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 		)
 	}
 
-	spiffeID := renderPoolSPIFFEID(input.TrustDomain, templateData)
+	spiffeID := renderInferenceTargetSPIFFEID(input.TrustDomain, templateData)
 	if !strings.HasPrefix(spiffeID, "spiffe://") {
 		return Plan{}, newStateError(
 			ConditionTypeRenderFailure,
@@ -72,10 +78,10 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 	}
 
 	return Plan{
-		SpiffeID:    spiffeID,
-		Selectors:   selectors,
-		PodSelector: input.PodSelector,
-		PoolRef:     input.PoolName,
+		SpiffeID:       spiffeID,
+		Selectors:      selectors,
+		PodSelector:    input.Target.PodSelector,
+		IdentityAnchor: input.Target.IdentityAnchor,
 	}, nil
 }
 
@@ -93,13 +99,37 @@ func renderSafetySelectors(namespace, serviceAccountName string) ([]string, erro
 	}, nil
 }
 
-// renderPoolSPIFFEID computes the fixed pool SPIFFE ID form defined by docs/spec/operator.md.
-func renderPoolSPIFFEID(trustDomain string, data renderTemplateData) string {
-	return fmt.Sprintf("spiffe://%s/ns/%s/pool/%s", trustDomain, data.Namespace, data.PoolName)
+// validateIdentityAnchor keeps source resolver output safe before it enters the SPIFFE path.
+func validateIdentityAnchor(anchor IdentityAnchor) error {
+	if strings.TrimSpace(anchor.Kind) == "" {
+		return fmt.Errorf("identity anchor kind must not be empty")
+	}
+	if strings.TrimSpace(anchor.Name) == "" {
+		return fmt.Errorf("identity anchor name must not be empty")
+	}
+	if strings.Contains(anchor.Kind, "/") || strings.Contains(anchor.Name, "/") {
+		return fmt.Errorf("identity anchor segments must not contain /")
+	}
+	if anchor.Kind != strings.TrimSpace(anchor.Kind) || anchor.Name != strings.TrimSpace(anchor.Name) {
+		return fmt.Errorf("identity anchor segments must not include leading or trailing whitespace")
+	}
+	return nil
+}
+
+// renderInferenceTargetSPIFFEID computes the resolved-target SPIFFE ID form from docs/spec/operator.md.
+func renderInferenceTargetSPIFFEID(trustDomain string, data renderTemplateData) string {
+	return fmt.Sprintf(
+		"spiffe://%s/ns/%s/sa/%s/inference/%s/%s",
+		trustDomain,
+		data.Namespace,
+		data.ServiceAccountName,
+		data.IdentityAnchor.Kind,
+		data.IdentityAnchor.Name,
+	)
 }
 
 // validateRenderedSafetySelectors verifies that internally-rendered safety selectors are still present.
-func validateRenderedSafetySelectors(namespace string, selectors []string) error {
+func validateRenderedSafetySelectors(namespace, serviceAccountName string, selectors []string) error {
 	hasNamespaceSelector := false
 	hasServiceAccountSelector := false
 
@@ -115,6 +145,9 @@ func validateRenderedSafetySelectors(namespace string, selectors []string) error
 			serviceAccount := strings.TrimPrefix(selector, "k8s:sa:")
 			if strings.TrimSpace(serviceAccount) == "" {
 				return fmt.Errorf("service account selector must not be empty")
+			}
+			if serviceAccount != serviceAccountName {
+				return fmt.Errorf("selector %q escapes binding service account %q", selector, serviceAccountName)
 			}
 			hasServiceAccountSelector = true
 		}

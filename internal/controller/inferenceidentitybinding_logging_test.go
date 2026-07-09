@@ -52,10 +52,10 @@ func TestReconcileLogsStructuredSuccessPath(t *testing.T) {
 	})
 	logs.requireEntry(t, "rendered identity from inference intent", map[string]string{
 		logKeyPool:     "pool-a",
-		logKeySpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a",
+		logKeySpiffeID: "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a",
 	})
 	logs.requireEntry(t, "creating managed ClusterSPIFFEID", map[string]string{
-		logKeySpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a",
+		logKeySpiffeID: "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a",
 	})
 	logs.requireEntry(t, "applied success status", map[string]string{
 		logKeyCondition: conditionTypeReady,
@@ -115,7 +115,7 @@ func TestReconcileClusterSPIFFEIDsLogsApplyDecisions(t *testing.T) {
 	scheme := newControllerTestScheme(t)
 	binding := newPoolOnlyBinding("binding-log-apply", "pool-a")
 	identity := renderedIdentity{
-		SpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a",
+		SpiffeID: "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a",
 		Selectors: []string{
 			"k8s:ns:default",
 			"k8s:pod-label:app:model-server",
@@ -124,7 +124,6 @@ func TestReconcileClusterSPIFFEIDsLogsApplyDecisions(t *testing.T) {
 		PodSelector: map[string]any{
 			"matchLabels": map[string]any{"app": "model-server"},
 		},
-		PoolRef: "pool-a",
 	}
 
 	drifted := spirecm.DesiredClusterSPIFFEID(binding, identity, "")

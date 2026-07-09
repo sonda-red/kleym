@@ -38,7 +38,7 @@ func TestDeriveBindingOutcomeLabelsReady(t *testing.T) {
 	binding := newPoolOnlyBinding("binding-ready", "")
 	initializeConditions(&binding.Status, 1)
 	applySuccessStatus(&binding.Status, binding.Generation, []renderedIdentity{{
-		SpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a",
+		SpiffeID: "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a",
 	}}, nil)
 
 	labels, ok := deriveBindingOutcomeLabels(binding, false)
@@ -230,8 +230,8 @@ func TestIdentityBindingGaugeCollectorAggregatesOutcomes(t *testing.T) {
 	initializeConditions(&unsafe.Status, 1)
 	initializeConditions(&initializing.Status, 1)
 
-	applySuccessStatus(&readyA.Status, readyA.Generation, []renderedIdentity{{SpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a"}}, nil)
-	applySuccessStatus(&readyB.Status, readyB.Generation, []renderedIdentity{{SpiffeID: "spiffe://kleym.sonda.red/ns/default/pool/pool-a"}}, nil)
+	applySuccessStatus(&readyA.Status, readyA.Generation, []renderedIdentity{{SpiffeID: "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a"}}, nil)
+	applySuccessStatus(&readyB.Status, readyB.Generation, []renderedIdentity{{SpiffeID: "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a"}}, nil)
 	applyFailureStatus(&unsafe.Status, unsafe.Generation, newStateError(conditionTypeUnsafeSelector, "UnsafeSelector", "selectors are unsafe"))
 
 	k8sClient := fake.NewClientBuilder().

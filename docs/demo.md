@@ -114,7 +114,7 @@ kubectl get clusterspiffeids.spire.spiffe.io \
 
 Expected observation: exactly one managed `ClusterSPIFFEID` exists. Its
 `spec.spiffeIDTemplate` is
-`spiffe://kleym.sonda.red/ns/kleym-reference-inference/pool/reference-pool`,
+`spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool`,
 its pod selector matches the reference pool selector, and its workload selectors
 include the reference namespace, service account, and pool labels.
 

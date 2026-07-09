@@ -17,8 +17,6 @@ package identity
 
 import (
 	"k8s.io/apimachinery/pkg/types"
-
-	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
 
 const (
@@ -62,30 +60,43 @@ func newStateError(conditionType, reason, message string) *StateError {
 	}
 }
 
+// IdentityAnchor identifies the inference-serving boundary used in a SPIFFE ID.
+type IdentityAnchor struct {
+	Kind string
+	Name string
+}
+
+// ResolvedInferenceTarget carries source-independent identity and selector data.
+// Source-specific resolvers populate it before identity rendering.
+type ResolvedInferenceTarget struct {
+	IdentityAnchor   IdentityAnchor
+	PodSelector      map[string]any
+	DerivedSelectors []string
+}
+
 // PlanInput carries already-resolved identity planning inputs.
 type PlanInput struct {
-	Binding              *kleymv1alpha1.InferenceIdentityBinding
-	TrustDomain          string
-	PoolName             string
-	PodSelector          map[string]any
-	PoolDerivedSelectors []string
+	Namespace          string
+	ServiceAccountName string
+	TrustDomain        string
+	Target             ResolvedInferenceTarget
 }
 
 // Plan is the pure desired identity state shared by the controller and CLI.
 type Plan struct {
-	SpiffeID    string
-	Selectors   []string
-	PodSelector map[string]any
-	PoolRef     string
+	SpiffeID       string
+	Selectors      []string
+	PodSelector    map[string]any
+	IdentityAnchor IdentityAnchor
 }
 
 // RenderedIdentity is kept as a compatibility alias for callers during the package split.
 type RenderedIdentity = Plan
 
 type renderTemplateData struct {
-	Namespace   string
-	BindingName string
-	PoolName    string
+	Namespace          string
+	ServiceAccountName string
+	IdentityAnchor     IdentityAnchor
 }
 
 // NamespacedBindingKey returns the canonical namespace/name key used in logs and messages.

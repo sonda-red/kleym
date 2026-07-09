@@ -45,7 +45,7 @@ Managed `ClusterSPIFFEID` names are deterministic and derived from:
 - the `kleym-operator` controller name
 - binding namespace
 - binding name
-- rendered pool identity kind
+- rendered identity anchor kind (`pool` for the current GAIE source)
 - a short hash of the SPIFFE ID
 
 That keeps names DNS-safe while allowing the SPIFFE ID to remain the real identity contract.

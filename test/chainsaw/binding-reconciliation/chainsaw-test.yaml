@@ -164,7 +164,7 @@ spec:
               kubectl wait --for=delete inferenceidentitybinding/binding \
                 -n kleym-reference-inference \
                 --timeout=60s
-              kubectl wait --for=delete clusterspiffeid/kleym-kleym-reference-inference-binding-pool-e2d8bd8d \
+              kubectl wait --for=delete clusterspiffeid/kleym-kleym-reference-inference-binding-pool-e1a1f353 \
                 --timeout=60s
 
     - name: apply-pool-binding
@@ -194,7 +194,7 @@ spec:
               kubectl wait --for=delete inferenceidentitybinding/pool-binding \
                 -n kleym-reference-inference \
                 --timeout=60s
-              kubectl wait --for=delete clusterspiffeid/kleym-kleym-reference-inference-pool-binding-pool-e2d8bd8d \
+              kubectl wait --for=delete clusterspiffeid/kleym-kleym-reference-inference-pool-binding-pool-e1a1f353 \
                 --timeout=60s
         - script:
             workDir: ../../..
