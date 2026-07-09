@@ -154,7 +154,7 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 	labels["drifted"] = "true"
 	drifted.SetLabels(labels)
 	drifted.Object["spec"] = map[string]any{
-		"spiffeIDTemplate":          "spiffe://drifted.example/ns/default/pool/pool-a",
+		"spiffeIDTemplate":          "spiffe://drifted.example/ns/default/sa/inference-sa/inference/pool/pool-a",
 		"podSelector":               map[string]any{"matchLabels": map[string]any{"app": "drifted"}},
 		"workloadSelectorTemplates": []any{"k8s:ns:default", "k8s:sa:drifted"},
 	}
@@ -200,7 +200,7 @@ func newManagedClusterSPIFFEIDForBinding(
 	managed.SetName(name)
 	managed.SetLabels(spirecm.ManagedClusterSPIFFEIDLabels(binding))
 	managed.Object["spec"] = map[string]any{
-		"spiffeIDTemplate": "spiffe://example.test/ns/default/pool/example",
+		"spiffeIDTemplate": "spiffe://example.test/ns/default/sa/inference-sa/inference/pool/example",
 	}
 	return managed
 }

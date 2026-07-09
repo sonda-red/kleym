@@ -82,7 +82,7 @@ Status does not compare live managed `ClusterSPIFFEID` output, prove SVID issuan
 1. Resolve the binding and `poolRef`.
 2. Choose identity config by precedence: explicit flag, binding status, then CLI default.
 3. Record config values and sources. If binding status lacks operator config, add a warning finding.
-4. Render identity and deterministic `ClusterSPIFFEID` output with shared Kleym logic.
+4. Resolve the pool to the same inference target identity model used by the operator, then render identity and deterministic `ClusterSPIFFEID` output with shared Kleym logic.
 5. Read pods when permitted and report pods or containers matching rendered Kubernetes-observable selectors.
 6. Preserve current binding conditions.
 7. Emit the report and exit according to finding severity.
@@ -103,7 +103,7 @@ Matched pods are not proof of SVID issuance, workload attestation, identity cons
 
 ## Implementation Boundary
 
-The CLI and operator share pure GAIE resolution, selector derivation, selector rendering, SPIFFE ID rendering, and deterministic `ClusterSPIFFEID` naming logic. `kleym` does not import controller orchestration, finalizer handling, watches, status patching, or resource mutation logic.
+The CLI and operator share pure GAIE resolution, the source-independent resolved inference target model, selector rendering, SPIFFE ID rendering, and deterministic `ClusterSPIFFEID` naming logic. `kleym` does not import controller orchestration, finalizer handling, watches, status patching, or resource mutation logic.
 
 ## References
 

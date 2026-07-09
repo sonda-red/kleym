@@ -11,5 +11,5 @@ identity boundaries, and downstream consumption patterns.
 
 - [Reconciliation](/design/reconciliation/): current controller flow.
 - [Selector Safety](/design/selector-safety/): selector validation rationale.
-- [Identity Boundaries](/design/identity-boundaries/): pool identity boundary.
+- [Identity Boundaries](/design/identity-boundaries/): service-account-scoped inference target identity boundary.
 - [Downstream Patterns](/design/downstream-patterns/): non-normative gateway, proxy, and policy handoff patterns.

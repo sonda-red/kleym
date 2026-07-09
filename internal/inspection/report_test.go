@@ -120,7 +120,7 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 			},
 		},
 		RenderedIdentity: BindingInspectionRenderedIdentity{
-			SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
+			SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/sa/model-sa/inference/pool/pool-a",
 			PodSelector: map[string]any{
 				"matchLabels": map[string]any{"app": "pool-a"},
 			},
@@ -136,7 +136,7 @@ func TestBindingInspectionReportJSONRepresentativeShape(t *testing.T) {
 		},
 		RenderedClusterSPIFFEID: BindingInspectionRenderedClusterSPIFFEID{
 			Name:     "tenant-a-binding-a-1234abcd",
-			SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
+			SPIFFEID: "spiffe://kleym.sonda.red/ns/tenant-a/sa/model-sa/inference/pool/pool-a",
 			PodSelector: map[string]any{
 				"matchLabels": map[string]any{"app": "pool-a"},
 			},
@@ -289,13 +289,13 @@ func TestWriteBindingInspectionReportTextRepresentativeReport(t *testing.T) {
 			},
 		},
 		RenderedIdentity: BindingInspectionRenderedIdentity{
-			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
+			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/sa/model-sa/inference/pool/pool-a",
 			PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
 			WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 		},
 		RenderedClusterSPIFFEID: BindingInspectionRenderedClusterSPIFFEID{
 			Name:              "tenant-a-binding-a-1234abcd",
-			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
+			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/sa/model-sa/inference/pool/pool-a",
 			PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
 			WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 			Hint:              "tenant-a/binding-a",
@@ -323,7 +323,7 @@ func TestWriteBindingInspectionReportTextRepresentativeReport(t *testing.T) {
 		"Binding: tenant-a/binding-a",
 		"Source: InferencePool tenant-a/pool-a",
 		"Identity:",
-		"SPIFFE ID: spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
+		"SPIFFE ID: spiffe://kleym.sonda.red/ns/tenant-a/sa/model-sa/inference/pool/pool-a",
 		"namespace: tenant-a",
 		"serviceAccount: model-sa",
 		"ClusterSPIFFEID:",
@@ -350,13 +350,13 @@ func TestWriteBindingInspectionReportTextHealthy(t *testing.T) {
 			Name:      "binding-a",
 		},
 		RenderedIdentity: BindingInspectionRenderedIdentity{
-			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
+			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/sa/model-sa/inference/pool/pool-a",
 			PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
 			WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 		},
 		RenderedClusterSPIFFEID: BindingInspectionRenderedClusterSPIFFEID{
 			Name:              "tenant-a-binding-a-1234abcd",
-			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
+			SPIFFEID:          "spiffe://kleym.sonda.red/ns/tenant-a/sa/model-sa/inference/pool/pool-a",
 			PodSelector:       map[string]any{"matchLabels": map[string]any{"app": "pool-a"}},
 			WorkloadSelectors: []string{"k8s:ns:tenant-a", "k8s:sa:model-sa"},
 			Hint:              "tenant-a/binding-a",

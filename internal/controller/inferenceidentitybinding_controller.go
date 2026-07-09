@@ -425,7 +425,7 @@ func (r *InferenceIdentityBindingReconciler) computeDesiredState(
 		).GetName(),
 		logKeySelectors, identity.Selectors,
 		logKeyPodSelector, identity.PodSelector,
-		logKeyPool, identity.PoolRef,
+		logKeyPool, identity.IdentityAnchor.Name,
 	)
 
 	return desiredBindingState{

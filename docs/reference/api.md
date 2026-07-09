@@ -79,11 +79,15 @@ until the operator has reconciled the binding and written status.
 
 ## Current Defaults
 
-The controller always renders deterministic pool SPIFFE IDs under its configured trust domain:
+The controller always renders deterministic service-account-scoped inference
+target SPIFFE IDs under its configured trust domain:
 
 ```text
-spiffe://<trustDomain>/ns/<namespace>/pool/<pool-name>
+spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/<anchor-kind>/<anchor-name>
 ```
+
+For the current GAIE source, `<anchor-kind>` is `pool` and `<anchor-name>` is
+the referenced pool name.
 
 ## External Objects Resolved
 

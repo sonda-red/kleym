@@ -112,7 +112,7 @@ func TestApplySuccessStatusRecordsRenderedSelectors(t *testing.T) {
 		"k8s:sa:inference-sa",
 	}
 
-	spiffeID := "spiffe://example.org/ns/default/pool/pool-a"
+	spiffeID := "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a"
 	applySuccessStatus(
 		&status,
 		4,
@@ -121,7 +121,7 @@ func TestApplySuccessStatusRecordsRenderedSelectors(t *testing.T) {
 			Selectors: wantSelectors,
 		}},
 		[]kleymv1alpha1.RenderedClusterSPIFFEIDStatus{{
-			Name:                "kleym-default-binding-pool-e2d8bd8d",
+			Name:                "kleym-default-binding-pool-34c1d5c4",
 			SpiffeID:            spiffeID,
 			SelectorFingerprint: identity.SelectorFingerprint(wantSelectors),
 		}},
@@ -154,15 +154,15 @@ func TestApplyFailureStatusClearsRenderedManagedStatus(t *testing.T) {
 	generation := int64(3)
 	status := kleymv1alpha1.InferenceIdentityBindingStatus{
 		ComputedSpiffeIDs: []kleymv1alpha1.ComputedSpiffeIDStatus{{
-			SpiffeID: "spiffe://example.org/ns/default/pool/pool-a",
+			SpiffeID: "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a",
 		}},
 		RenderedSelectors: []kleymv1alpha1.RenderedSelectorStatus{{
-			SpiffeID:  "spiffe://example.org/ns/default/pool/pool-a",
+			SpiffeID:  "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a",
 			Selectors: []string{"k8s:ns:default"},
 		}},
 		RenderedClusterSPIFFEID: &kleymv1alpha1.RenderedClusterSPIFFEIDStatus{
-			Name:                "kleym-default-binding-pool-e2d8bd8d",
-			SpiffeID:            "spiffe://example.org/ns/default/pool/pool-a",
+			Name:                "kleym-default-binding-pool-34c1d5c4",
+			SpiffeID:            "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a",
 			SelectorFingerprint: "sha256:old",
 			ObservedGeneration:  &generation,
 		},
@@ -185,11 +185,11 @@ func TestRenderedClusterSPIFFEIDStatusRecordsObservedGeneration(t *testing.T) {
 	t.Parallel()
 
 	rendered := renderedIdentity{
-		SpiffeID:  "spiffe://example.org/ns/default/pool/pool-a",
+		SpiffeID:  "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a",
 		Selectors: []string{"k8s:ns:default", "k8s:sa:inference-sa"},
 	}
 	object := &unstructured.Unstructured{}
-	object.SetName("kleym-default-binding-pool-e2d8bd8d")
+	object.SetName("kleym-default-binding-pool-34c1d5c4")
 	object.SetGeneration(7)
 
 	status := renderedClusterSPIFFEIDStatus(rendered, object)

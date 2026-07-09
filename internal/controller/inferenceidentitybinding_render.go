@@ -29,7 +29,7 @@ func (r *InferenceIdentityBindingReconciler) renderIdentity(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	pool *unstructured.Unstructured,
 ) (identity.RenderedIdentity, error) {
-	podSelector, poolDerivedSelectors, err := gaie.DeriveSelectorsFromPool(pool)
+	target, err := gaie.ResolveInferenceTarget(pool)
 	if err != nil {
 		return identity.RenderedIdentity{}, &identity.StateError{
 			ConditionType: identity.ConditionTypeUnsafeSelector,
@@ -38,11 +38,10 @@ func (r *InferenceIdentityBindingReconciler) renderIdentity(
 		}
 	}
 	return identity.PlanIdentity(identity.PlanInput{
-		Binding:              binding,
-		TrustDomain:          r.Config.TrustDomain,
-		PoolName:             pool.GetName(),
-		PodSelector:          podSelector,
-		PoolDerivedSelectors: poolDerivedSelectors,
+		Namespace:          binding.Namespace,
+		ServiceAccountName: binding.Spec.ServiceAccountName,
+		TrustDomain:        r.Config.TrustDomain,
+		Target:             target,
 	})
 }
 

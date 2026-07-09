@@ -50,6 +50,6 @@ This flow uses Gateway API Inference Extension (GAIE) objects as upstream inputs
 
 ## See Also
 
-- Read [Concepts](/concepts/) for the pool identity and selector model.
+- Read [Concepts](/concepts/) for the resolved inference target identity and selector model.
 - Read [Managed Resources](/reference/resources/) for the concrete output object shape.
 - Read [Reconciliation](/design/reconciliation/) for the controller flow in more detail.

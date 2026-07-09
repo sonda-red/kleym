@@ -98,6 +98,31 @@ func TestResolveInferencePoolPropagatesUnexpectedReaderError(t *testing.T) {
 	}
 }
 
+func TestResolveInferenceTargetUsesPoolIdentityAnchor(t *testing.T) {
+	t.Parallel()
+
+	pool := testPool("pool-a")
+	pool.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "inference.networking.k8s.io",
+		Version: "v1",
+		Kind:    "InferencePool",
+	})
+
+	target, err := ResolveInferenceTarget(pool)
+	if err != nil {
+		t.Fatalf("ResolveInferenceTarget returned error: %v", err)
+	}
+	if target.IdentityAnchor.Kind != "pool" || target.IdentityAnchor.Name != "pool-a" {
+		t.Fatalf("identity anchor = %+v, want pool/pool-a", target.IdentityAnchor)
+	}
+	if _, ok := target.PodSelector["matchLabels"].(map[string]any); !ok {
+		t.Fatalf("pod selector = %v, want matchLabels", target.PodSelector)
+	}
+	if !slices.Contains(target.DerivedSelectors, "k8s:pod-label:app:model-server") {
+		t.Fatalf("derived selectors = %v, want pool label selector", target.DerivedSelectors)
+	}
+}
+
 func TestConditionTaxonomyReasonStrings(t *testing.T) {
 	t.Parallel()
 
