@@ -327,7 +327,7 @@ func (i *bindingInspector) inspectRenderedIdentity(
 	}
 	report.Resolved.PoolRef = poolRefToReportRef(poolRef, pool.GroupVersionKind())
 
-	poolSelector, poolDerivedSelectors, err := gaie.DeriveSelectorsFromPool(pool)
+	target, err := gaie.ResolveInferenceTarget(pool)
 	if err != nil {
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
 		i.addFindingForError(report, &identity.StateError{
@@ -339,11 +339,10 @@ func (i *bindingInspector) inspectRenderedIdentity(
 	}
 
 	rendered, err := identity.PlanIdentity(identity.PlanInput{
-		Binding:              binding,
-		TrustDomain:          identityConfig.trustDomain,
-		PoolName:             pool.GetName(),
-		PodSelector:          poolSelector,
-		PoolDerivedSelectors: poolDerivedSelectors,
+		Namespace:          binding.Namespace,
+		ServiceAccountName: binding.Spec.ServiceAccountName,
+		TrustDomain:        identityConfig.trustDomain,
+		Target:             target,
 	})
 	if err != nil {
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
@@ -351,8 +350,8 @@ func (i *bindingInspector) inspectRenderedIdentity(
 		return identity.RenderedIdentity{}, false
 	}
 
-	provenance := selectorProvenance(rendered, poolDerivedSelectors)
-	report.Resolved.PoolSelector = poolSelector
+	provenance := selectorProvenance(rendered, target.DerivedSelectors)
+	report.Resolved.PoolSelector = target.PodSelector
 	report.Resolved.SelectorProvenance = &provenance
 	clusterSPIFFEIDName := spirecm.BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, rendered.SpiffeID)
 	clusterSPIFFEIDHint := spirecm.BuildClusterSPIFFEIDHint(binding)

@@ -43,13 +43,25 @@ When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be c
 `InferenceIdentityBinding` is namespaced. Pool references stay in that namespace.
 
 1. `poolRef` references one [`InferencePool`][gaie-inferencepool]. The pool is the required workload anchor and selector provenance source.
-2. `serviceAccountName` is required. Kleym renders safety selectors internally as `k8s:ns:<binding namespace>` and `k8s:sa:<serviceAccountName>`.
-3. SPIFFE IDs are always deterministic under the configured trust domain: `spiffe://<trustDomain>/ns/<namespace>/pool/<pool-name>`.
+2. `serviceAccountName` is required. It scopes the rendered identity path, and Kleym renders safety selectors internally as `k8s:ns:<binding namespace>` and `k8s:sa:<serviceAccountName>`.
+3. SPIFFE IDs are always deterministic under the configured trust domain: `spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/<anchor-kind>/<anchor-name>`.
 4. Status records `trustDomain`, `clusterSPIFFEIDClassName`, `computedSpiffeIDs`, `renderedSelectors`, `renderedClusterSPIFFEID`, and conditions. The current pool-only condition taxonomy is limited to `Ready`, `InvalidRef`, `UnsafeSelector`, and `RenderFailure`.
 5. `trustDomain` and `clusterSPIFFEIDClassName` record the operator config values used for the latest status update. They are observation data for read-only inspection compatibility; they do not make trust domain or class name per-binding spec intent.
 6. The CRD exposes printer columns for `POOL`, `READY`, `REASON`, and `SPIFFE ID` so `kubectl get inferenceidentitybindings.kleym.sonda.red -A` is the primary binding list view.
 
 Field details live in [API Reference][api-reference]. Condition details live in [Conditions Reference][conditions-reference].
+
+## Resolved Inference Target Contract
+
+Identity and selector rendering consume a resolved inference target after the
+referenced source object has been read. A GAIE `InferencePool` resolves to
+identity anchor kind `pool`, with the anchor name equal to the pool name.
+
+The canonical identity path contains the binding namespace, required service
+account, and resolved identity anchor. Source provenance such as the raw source
+group, version, or kind and the `InferenceIdentityBinding` name remains outside
+the SPIFFE ID. Two bindings for the same namespace and pool but different
+service accounts therefore render different SPIFFE IDs.
 
 ## Rendered Selector Contract
 
@@ -120,11 +132,12 @@ returns the API error so reconciliation retries.
 1. Discover the supported GAIE pool GVK served by the cluster and watch it.
 2. Fail startup when the supported `InferencePool` GVK is not available.
 3. Resolve `poolRef` only to documented supported GAIE groups.
-4. Derive pod selection from the referenced pool, then combine it with internal namespace and service-account safety selectors.
-5. Refuse unsafe selectors. If the selector set cannot be proven to stay within the binding namespace and required service account boundary, set `UnsafeSelector` and produce no managed output.
-6. Render the SPIFFE ID and managed `ClusterSPIFFEID` shape deterministically. Rendered output fields are documented in [Managed Resources][managed-resources].
-7. After startup succeeds, treat missing managed-output CRDs and infrastructure-not-ready states as transient by retrying reconciliation on a timer.
-8. On deletion, delete managed `ClusterSPIFFEID` children first and keep the binding finalizer until a follow-up list confirms no managed children remain.
+4. Resolve the referenced pool into the inference target identity anchor and pod-selector inputs.
+5. Combine resolved target selectors with internal namespace and service-account safety selectors.
+6. Refuse unsafe selectors. If the selector set cannot be proven to stay within the binding namespace and required service account boundary, set `UnsafeSelector` and produce no managed output.
+7. Render the SPIFFE ID and managed `ClusterSPIFFEID` shape deterministically. Rendered output fields are documented in [Managed Resources][managed-resources].
+8. After startup succeeds, treat missing managed-output CRDs and infrastructure-not-ready states as transient by retrying reconciliation on a timer.
+9. On deletion, delete managed `ClusterSPIFFEID` children first and keep the binding finalizer until a follow-up list confirms no managed children remain.
 
 Selector rationale is expanded in [Selector Safety][selector-safety].
 

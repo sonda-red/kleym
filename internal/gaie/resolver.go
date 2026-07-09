@@ -27,7 +27,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/sonda-red/kleym/internal/identity"
 )
+
+const inferencePoolIdentityAnchorKind = "pool"
 
 // ResolveInferencePool reads a pool from the first matching supported GAIE GVK.
 func ResolveInferencePool(
@@ -158,4 +162,21 @@ func DeriveSelectorsFromPool(pool *unstructured.Unstructured) (map[string]any, [
 	}
 
 	return selectorMap, derivedSelectors, nil
+}
+
+// ResolveInferenceTarget maps a resolved GAIE InferencePool to source-independent identity inputs.
+func ResolveInferenceTarget(pool *unstructured.Unstructured) (identity.ResolvedInferenceTarget, error) {
+	podSelector, derivedSelectors, err := DeriveSelectorsFromPool(pool)
+	if err != nil {
+		return identity.ResolvedInferenceTarget{}, err
+	}
+
+	return identity.ResolvedInferenceTarget{
+		IdentityAnchor: identity.IdentityAnchor{
+			Kind: inferencePoolIdentityAnchorKind,
+			Name: pool.GetName(),
+		},
+		PodSelector:      podSelector,
+		DerivedSelectors: derivedSelectors,
+	}, nil
 }

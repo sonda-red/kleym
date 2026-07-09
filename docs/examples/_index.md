@@ -1,7 +1,7 @@
 ---
 title: Examples
 weight: 40
-description: "Kleym example manifests for pool identity registration with expected reconciliation output."
+description: "Kleym example manifests for service-account-scoped inference target identity registration with expected reconciliation output."
 aliases:
   - /operator/examples/
 ---

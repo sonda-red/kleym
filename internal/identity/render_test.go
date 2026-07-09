@@ -42,7 +42,7 @@ func TestPlanIdentityRejectsInvalidServiceAccountName(t *testing.T) {
 	}
 }
 
-func TestPlanIdentityUsesPoolSPIFFEID(t *testing.T) {
+func TestPlanIdentityUsesServiceAccountScopedInferenceTargetSPIFFEID(t *testing.T) {
 	t.Parallel()
 
 	binding := testBinding()
@@ -52,7 +52,7 @@ func TestPlanIdentityUsesPoolSPIFFEID(t *testing.T) {
 		t.Fatalf("PlanIdentity returned error: %v", err)
 	}
 
-	expectedSPIFFEID := "spiffe://example.org/ns/default/pool/pool-a"
+	expectedSPIFFEID := "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a"
 	if identity.SpiffeID != expectedSPIFFEID {
 		t.Fatalf("spiffeID = %q, want %q", identity.SpiffeID, expectedSPIFFEID)
 	}
@@ -67,11 +67,35 @@ func TestPlanIdentityUsesPoolSPIFFEID(t *testing.T) {
 	}
 }
 
+func TestPlanIdentityDistinguishesServiceAccountsForTheSameTarget(t *testing.T) {
+	t.Parallel()
+
+	firstInput := testPlanInput(testBinding(), "pool-a")
+	first, err := PlanIdentity(firstInput)
+	if err != nil {
+		t.Fatalf("PlanIdentity returned error: %v", err)
+	}
+
+	secondInput := testPlanInput(testBinding(), "pool-a")
+	secondInput.ServiceAccountName = "other-inference-sa"
+	second, err := PlanIdentity(secondInput)
+	if err != nil {
+		t.Fatalf("PlanIdentity returned error: %v", err)
+	}
+
+	if first.SpiffeID == second.SpiffeID {
+		t.Fatalf("SPIFFE IDs match for different service accounts: %q", first.SpiffeID)
+	}
+	if !containsString(second.Selectors, "k8s:sa:other-inference-sa") {
+		t.Fatalf("selectors = %v, want other service account selector", second.Selectors)
+	}
+}
+
 func TestPlanIdentityCanonicalizesRenderedSelectors(t *testing.T) {
 	t.Parallel()
 
 	input := testPlanInput(testBinding(), "pool-a")
-	input.PoolDerivedSelectors = []string{
+	input.Target.DerivedSelectors = []string{
 		"k8s:pod-label:z:last",
 		"k8s:pod-label:app:model-server",
 		"k8s:pod-label:app:model-server",
@@ -153,7 +177,7 @@ func TestPlanIdentityRejectsUnsafeSelector(t *testing.T) {
 	t.Parallel()
 
 	input := testPlanInput(testBinding(), "pool-a")
-	input.PoolDerivedSelectors = append(input.PoolDerivedSelectors, "k8s:ns:other")
+	input.Target.DerivedSelectors = append(input.Target.DerivedSelectors, "k8s:ns:other")
 
 	_, err := PlanIdentity(input)
 	if err == nil {
@@ -165,6 +189,25 @@ func TestPlanIdentityRejectsUnsafeSelector(t *testing.T) {
 	}
 	if stateErr.ConditionType != ConditionTypeUnsafeSelector || stateErr.Reason != "UnsafeSelector" {
 		t.Fatalf("condition/reason = %q/%q, want %q/UnsafeSelector", stateErr.ConditionType, stateErr.Reason, ConditionTypeUnsafeSelector)
+	}
+}
+
+func TestPlanIdentityRejectsInvalidIdentityAnchor(t *testing.T) {
+	t.Parallel()
+
+	input := testPlanInput(testBinding(), "pool-a")
+	input.Target.IdentityAnchor.Name = "bad/pool"
+
+	_, err := PlanIdentity(input)
+	if err == nil {
+		t.Fatalf("expected invalid identity anchor error, got nil")
+	}
+	var stateErr *StateError
+	if !errors.As(err, &stateErr) {
+		t.Fatalf("expected StateError, got %T", err)
+	}
+	if stateErr.ConditionType != ConditionTypeRenderFailure || stateErr.Reason != ReasonInvalidSPIFFEID {
+		t.Fatalf("condition/reason = %q/%q, want %q/%q", stateErr.ConditionType, stateErr.Reason, ConditionTypeRenderFailure, ReasonInvalidSPIFFEID)
 	}
 }
 
@@ -211,11 +254,16 @@ func testPlanInput(
 	poolName string,
 ) PlanInput {
 	return PlanInput{
-		Binding:              binding,
-		TrustDomain:          "example.org",
-		PoolName:             poolName,
-		PodSelector:          map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
-		PoolDerivedSelectors: []string{"k8s:pod-label:app:model-server"},
+		Namespace:          binding.Namespace,
+		ServiceAccountName: binding.Spec.ServiceAccountName,
+		TrustDomain:        "example.org",
+		Target: ResolvedInferenceTarget{
+			IdentityAnchor: IdentityAnchor{Kind: "pool", Name: poolName},
+			PodSelector:    map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
+			DerivedSelectors: []string{
+				"k8s:pod-label:app:model-server",
+			},
+		},
 	}
 }
 

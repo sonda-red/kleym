@@ -1,12 +1,12 @@
 ---
 title: Basic Binding
 weight: 10
-description: "Basic InferenceIdentityBinding example that renders one pool-level SPIFFE identity and managed ClusterSPIFFEID resource."
+description: "Basic InferenceIdentityBinding example that renders one service-account-scoped inference target identity and managed ClusterSPIFFEID resource."
 aliases:
   - /operator/examples/basic-binding/
 ---
 
-This example shows the current pool identity flow.
+This example shows a service-account-scoped identity anchored to a GAIE pool.
 
 `kleym-operator` currently consumes only a small slice of the referenced Gateway API Inference Extension (GAIE) objects:
 
@@ -43,7 +43,7 @@ spec:
 
 The binding should reconcile to a managed `ClusterSPIFFEID` with:
 
-- SPIFFE ID `spiffe://kleym.sonda.red/ns/default/pool/pool-a`
+- SPIFFE ID `spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a`
 - a pod selector equivalent to `matchLabels.app=model-server`
 - workload selectors including:
   - `k8s:ns:default`
@@ -61,7 +61,7 @@ metadata:
     kleym.sonda.red/binding-name: pool-a
     kleym.sonda.red/binding-namespace: default
 spec:
-  spiffeIDTemplate: spiffe://kleym.sonda.red/ns/default/pool/pool-a
+  spiffeIDTemplate: spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a
   podSelector:
     matchLabels:
       app: model-server

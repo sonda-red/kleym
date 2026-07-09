@@ -49,8 +49,8 @@ Kleym stops at identity registration. `kleym-operator` does not deploy inference
 ## How it works
 
 - `InferenceIdentityBinding` declares identity intent for one `InferencePool`.
-- `kleym-operator` resolves the pool directly.
-- The controller renders deterministic selectors and SPIFFE IDs from those inputs.
+- `kleym-operator` resolves the pool to an internal inference target anchored as `pool/<pool-name>`.
+- The controller combines that target with the binding namespace and service account to render deterministic selectors and SPIFFE IDs.
 - Managed `ClusterSPIFFEID` resources are reconciled for SPIRE Controller Manager.
 
 ## Quickstart
@@ -173,7 +173,7 @@ Docs live under [`docs/`](docs/), with the published site at <https://kleym.sond
 | Topic | What it covers |
 | --- | --- |
 | [`docs/install.md`](docs/install.md) | Local run, deployment, GitOps install, metrics, and validation commands |
-| [`docs/concepts.md`](docs/concepts.md) | GAIE pool input, pool identity, and selector safety |
+| [`docs/concepts.md`](docs/concepts.md) | GAIE pool input, service-account-scoped inference target identity, and selector safety |
 | [`docs/architecture.md`](docs/architecture.md) | End-to-end controller flow |
 | [`docs/demo.md`](docs/demo.md) | Reference binding-to-`ClusterSPIFFEID` walkthrough |
 | [`docs/examples/`](docs/examples/) | Concrete manifests and expected outcomes |

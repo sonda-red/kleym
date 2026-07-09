@@ -116,7 +116,7 @@ func TestInspectBindingUsesStatusOperatorConfig(t *testing.T) {
 		t.Fatalf("InspectBinding returned error: %v", err)
 	}
 
-	if report.RenderedIdentity.SPIFFEID != "spiffe://example.org/ns/tenant-a/pool/pool-a" {
+	if report.RenderedIdentity.SPIFFEID != "spiffe://example.org/ns/tenant-a/sa/model-sa/inference/pool/pool-a" {
 		t.Fatalf("rendered spiffeID = %q, want configured trust domain", report.RenderedIdentity.SPIFFEID)
 	}
 	if report.RenderedClusterSPIFFEID.ClassName != "kleym" {
@@ -158,7 +158,7 @@ func TestInspectBindingFlagsOverrideStatusOperatorConfig(t *testing.T) {
 		report.IdentityConfig.ClusterSPIFFEIDClassNameSource != identityConfigSourceFlag {
 		t.Fatalf("identityConfig = %#v, want flag sources", report.IdentityConfig)
 	}
-	if report.RenderedIdentity.SPIFFEID != "spiffe://example.org/ns/tenant-a/pool/pool-a" ||
+	if report.RenderedIdentity.SPIFFEID != "spiffe://example.org/ns/tenant-a/sa/model-sa/inference/pool/pool-a" ||
 		report.RenderedClusterSPIFFEID.ClassName != "kleym" {
 		t.Fatalf("rendered output = %#v / %#v, want flag-rendered output", report.RenderedIdentity, report.RenderedClusterSPIFFEID)
 	}
@@ -272,7 +272,7 @@ func TestInspectBindingIgnoresManagedClusterSPIFFEIDState(t *testing.T) {
 		t.Fatalf("render test identity: %v", err)
 	}
 	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
-	if err := unstructured.SetNestedField(managed.Object, "spiffe://wrong.example.test/ns/tenant-a/pool/pool-a", "spec", "spiffeIDTemplate"); err != nil {
+	if err := unstructured.SetNestedField(managed.Object, "spiffe://wrong.example.test/ns/tenant-a/sa/model-sa/inference/pool/pool-a", "spec", "spiffeIDTemplate"); err != nil {
 		t.Fatalf("set mismatched spiffeIDTemplate: %v", err)
 	}
 	pod := testInspectionPod("model-server-a", "model-server")
@@ -621,16 +621,15 @@ func inspectionPlanWithTrustDomain(
 	pool *unstructured.Unstructured,
 	trustDomain string,
 ) (identity.Plan, error) {
-	poolSelector, poolDerivedSelectors, err := gaie.DeriveSelectorsFromPool(pool)
+	target, err := gaie.ResolveInferenceTarget(pool)
 	if err != nil {
 		return identity.Plan{}, err
 	}
 	return identity.PlanIdentity(identity.PlanInput{
-		Binding:              binding,
-		TrustDomain:          trustDomain,
-		PoolName:             pool.GetName(),
-		PodSelector:          poolSelector,
-		PoolDerivedSelectors: poolDerivedSelectors,
+		Namespace:          binding.Namespace,
+		ServiceAccountName: binding.Spec.ServiceAccountName,
+		TrustDomain:        trustDomain,
+		Target:             target,
 	})
 }
 

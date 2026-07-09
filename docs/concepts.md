@@ -1,7 +1,7 @@
 ---
 title: Concepts
 weight: 10
-description: "Kleym concepts for inference workload identity, Gateway API Inference Extension InferencePool inputs, pool identity, and selector safety."
+description: "Kleym concepts for service-account-scoped inference target identity, Gateway API Inference Extension InferencePool inputs, and selector safety."
 aliases:
   - /operator/concepts/
 ---
@@ -10,7 +10,7 @@ aliases:
 
 Kleym uses inference workload identity to mean identity registration derived from a Kubernetes inference serving boundary, not from a pod alone. In the current contract, that serving boundary is a Gateway API Inference Extension (GAIE) `InferencePool` referenced by an `InferenceIdentityBinding`.
 
-The binding namespace and required service account constrain which workloads may match. Selectors from the referenced pool provide workload provenance. `kleym-operator` combines those facts to render one deterministic pool SPIFFE ID and reconcile a managed SPIRE Controller Manager `ClusterSPIFFEID`.
+The binding namespace and required service account constrain which workloads may match. Selectors from the referenced pool provide workload provenance. `kleym-operator` resolves the pool to an inference target, combines that target with the service-account boundary, and reconciles a managed SPIRE Controller Manager `ClusterSPIFFEID`.
 
 This stops at identity registration. Kleym does not deploy inference workloads, route traffic, configure gateways, evaluate request policy, issue credentials, or prove runtime SVID use. The authoritative behavior is defined in the [Operator Spec](/spec/operator/).
 
@@ -21,13 +21,19 @@ This stops at identity registration. Kleym does not deploy inference workloads, 
 
 `kleym-operator` supports the documented `InferencePool` GVK in [GAIE Compatibility](/reference/gaie-compatibility/).
 
-## Pool Identity
+## Resolved Inference Target Identity
 
-Kleym renders one identity for the referenced serving pool. The SPIFFE ID form is:
+Kleym renders one identity for the required service account and resolved
+inference target. The SPIFFE ID form is:
 
 ```text
-spiffe://<trustDomain>/ns/<namespace>/pool/<pool-name>
+spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/<anchor-kind>/<anchor-name>
 ```
+
+The current GAIE `InferencePool` source resolves to anchor kind `pool` and an
+anchor name equal to the pool name. The source GVK and binding name remain
+provenance rather than identity path material. The same pool rendered for two
+different service accounts therefore produces two distinct SPIFFE IDs.
 
 ## Safety Selectors
 

@@ -131,7 +131,7 @@ func testStatusBinding(
 		LastTransitionTime: metav1.Now(),
 	}}
 	binding.Status.RenderedSelectors = []kleymv1alpha1.RenderedSelectorStatus{{
-		SpiffeID: "spiffe://kleym.sonda.red/ns/tenant-a/pool/pool-a",
+		SpiffeID: "spiffe://kleym.sonda.red/ns/tenant-a/sa/model-sa/inference/pool/pool-a",
 		Selectors: []string{
 			"k8s:ns:tenant-a",
 			"k8s:sa:model-sa",

@@ -6,9 +6,9 @@ metadata:
 status:
   trustDomain: kleym.sonda.red
   computedSpiffeIDs:
-    - spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/pool/reference-pool
+    - spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool
   renderedSelectors:
-    - spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/pool/reference-pool
+    - spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool
       selectors:
         - k8s:ns:kleym-reference-inference
         - k8s:pod-label:app.kubernetes.io/name:reference-model-server

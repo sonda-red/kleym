@@ -81,15 +81,15 @@ func TestReconcileManagedOutputApplyFailureSetsFailureStatus(t *testing.T) {
 	binding := newPoolOnlyBinding("binding-managed-output-apply-failure", "")
 	binding.Status = kleymv1alpha1.InferenceIdentityBindingStatus{
 		ComputedSpiffeIDs: []kleymv1alpha1.ComputedSpiffeIDStatus{{
-			SpiffeID: "spiffe://stale.example/ns/default/pool/old",
+			SpiffeID: "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old",
 		}},
 		RenderedSelectors: []kleymv1alpha1.RenderedSelectorStatus{{
-			SpiffeID:  "spiffe://stale.example/ns/default/pool/old",
+			SpiffeID:  "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old",
 			Selectors: []string{"k8s:ns:default", "k8s:sa:old"},
 		}},
 		RenderedClusterSPIFFEID: &kleymv1alpha1.RenderedClusterSPIFFEIDStatus{
 			Name:                "stale",
-			SpiffeID:            "spiffe://stale.example/ns/default/pool/old",
+			SpiffeID:            "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old",
 			SelectorFingerprint: "sha256:stale",
 		},
 		Conditions: []metav1.Condition{{
@@ -157,15 +157,15 @@ func TestReconcileFailureCleanupApplyFailureSetsManagedOutputFailureStatus(t *te
 	binding.Spec.PoolRef.Name = "missing-pool"
 	binding.Status = kleymv1alpha1.InferenceIdentityBindingStatus{
 		ComputedSpiffeIDs: []kleymv1alpha1.ComputedSpiffeIDStatus{{
-			SpiffeID: "spiffe://stale.example/ns/default/pool/old",
+			SpiffeID: "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old",
 		}},
 		RenderedSelectors: []kleymv1alpha1.RenderedSelectorStatus{{
-			SpiffeID:  "spiffe://stale.example/ns/default/pool/old",
+			SpiffeID:  "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old",
 			Selectors: []string{"k8s:ns:default", "k8s:sa:old"},
 		}},
 		RenderedClusterSPIFFEID: &kleymv1alpha1.RenderedClusterSPIFFEIDStatus{
 			Name:                "stale",
-			SpiffeID:            "spiffe://stale.example/ns/default/pool/old",
+			SpiffeID:            "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old",
 			SelectorFingerprint: "sha256:stale",
 		},
 		Conditions: []metav1.Condition{{

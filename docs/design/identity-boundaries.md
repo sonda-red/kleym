@@ -1,16 +1,20 @@
 ---
 title: Identity Boundaries
 weight: 15
-description: "Design rationale for Kleym identity boundaries across namespaces, service accounts, and inference pools."
+description: "Design rationale for service-account-scoped inference target identities across namespaces, service accounts, and inference pools."
 aliases:
   - /operator/design/identity-boundaries/
 ---
 
 ## Boundaries
 
-One SPIFFE identity represents the serving pool pods selected by the referenced
-`InferencePool`.
+One SPIFFE identity represents workloads at the intersection of a required
+service account and a resolved inference target.
 
-The pool defines where inference runs. Kleym adds namespace and service-account
-selectors so the identity remains tied to the binding namespace and the expected
-workload service account.
+The current `InferencePool` source resolves to identity anchor `pool/<pool-name>`.
+Kleym combines that anchor with the binding namespace and service account in the
+SPIFFE ID, and enforces the same namespace and service account through mandatory
+workload selectors.
+
+Raw source GVK data and binding names remain provenance. They do not define the
+workload principal and do not enter SPIFFE ID paths.
