@@ -12,6 +12,9 @@ aliases:
 | --- | --- | --- |
 | `InferencePool` | `inference.networking.k8s.io/v1` | `spec.selector.matchLabels`; flat string label maps are normalized for compatibility |
 
+Other GAIE groups, versions, and selector shapes are unsupported unless a real
+cluster compatibility request justifies adding them.
+
 GVK examples:
 
 - `inference.networking.k8s.io/v1, Kind=InferencePool`
