@@ -192,6 +192,25 @@ func TestPlanIdentityRejectsUnsafeSelector(t *testing.T) {
 	}
 }
 
+func TestPlanIdentityRejectsEscapedServiceAccountSelector(t *testing.T) {
+	t.Parallel()
+
+	input := testPlanInput(testBinding(), "pool-a")
+	input.Target.DerivedSelectors = append(input.Target.DerivedSelectors, "k8s:sa:other-inference-sa")
+
+	_, err := PlanIdentity(input)
+	if err == nil {
+		t.Fatalf("expected escaped service account selector error, got nil")
+	}
+	var stateErr *StateError
+	if !errors.As(err, &stateErr) {
+		t.Fatalf("expected StateError, got %T", err)
+	}
+	if stateErr.ConditionType != ConditionTypeUnsafeSelector || stateErr.Reason != ReasonUnsafeSelector {
+		t.Fatalf("condition/reason = %q/%q, want %q/%q", stateErr.ConditionType, stateErr.Reason, ConditionTypeUnsafeSelector, ReasonUnsafeSelector)
+	}
+}
+
 func TestPlanIdentityRejectsInvalidIdentityAnchor(t *testing.T) {
 	t.Parallel()
 

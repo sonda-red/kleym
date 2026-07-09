@@ -60,7 +60,7 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 
 	selectors := append(renderedSelectors, input.Target.DerivedSelectors...)
 	selectors = UniqueAndSorted(selectors)
-	if err := validateRenderedSafetySelectors(input.Namespace, selectors); err != nil {
+	if err := validateRenderedSafetySelectors(input.Namespace, input.ServiceAccountName, selectors); err != nil {
 		return Plan{}, newStateError(
 			ConditionTypeUnsafeSelector,
 			ReasonUnsafeSelector,
@@ -129,7 +129,7 @@ func renderInferenceTargetSPIFFEID(trustDomain string, data renderTemplateData) 
 }
 
 // validateRenderedSafetySelectors verifies that internally-rendered safety selectors are still present.
-func validateRenderedSafetySelectors(namespace string, selectors []string) error {
+func validateRenderedSafetySelectors(namespace, serviceAccountName string, selectors []string) error {
 	hasNamespaceSelector := false
 	hasServiceAccountSelector := false
 
@@ -145,6 +145,9 @@ func validateRenderedSafetySelectors(namespace string, selectors []string) error
 			serviceAccount := strings.TrimPrefix(selector, "k8s:sa:")
 			if strings.TrimSpace(serviceAccount) == "" {
 				return fmt.Errorf("service account selector must not be empty")
+			}
+			if serviceAccount != serviceAccountName {
+				return fmt.Errorf("selector %q escapes binding service account %q", selector, serviceAccountName)
 			}
 			hasServiceAccountSelector = true
 		}
