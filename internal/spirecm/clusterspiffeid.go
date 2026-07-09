@@ -75,7 +75,12 @@ func DesiredClusterSPIFFEID(
 ) *unstructured.Unstructured {
 	object := &unstructured.Unstructured{}
 	object.SetGroupVersionKind(ClusterSPIFFEIDGVK())
-	object.SetName(BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, plan.SpiffeID))
+	object.SetName(BuildClusterSPIFFEIDName(
+		binding.Namespace,
+		binding.Name,
+		plan.IdentityAnchor.Kind,
+		plan.SpiffeID,
+	))
 	object.SetLabels(ManagedClusterSPIFFEIDLabels(binding))
 
 	selectorTemplates := make([]any, 0, len(plan.Selectors))
@@ -111,9 +116,13 @@ func ManagedClusterSPIFFEIDLabels(binding *kleymv1alpha1.InferenceIdentityBindin
 func BuildClusterSPIFFEIDName(
 	namespace string,
 	bindingName string,
+	identityAnchorKind string,
 	spiffeID string,
 ) string {
-	modeText := "pool"
+	modeText := sanitizeDNSLabel(identityAnchorKind)
+	if modeText == "" {
+		modeText = "identity"
+	}
 
 	hashSum := sha1.Sum([]byte(spiffeID))
 	hashSuffix := hex.EncodeToString(hashSum[:nameHashBytes])
@@ -219,7 +228,7 @@ func DriftEntries(desired *unstructured.Unstructured, observed *unstructured.Uns
 func sanitizeDNSLabel(input string) string {
 	lower := strings.ToLower(strings.TrimSpace(input))
 	if lower == "" {
-		return defaultNameValue
+		return ""
 	}
 
 	var labelBuilder strings.Builder
@@ -239,7 +248,7 @@ func sanitizeDNSLabel(input string) string {
 
 	sanitized := strings.Trim(labelBuilder.String(), "-")
 	if sanitized == "" {
-		return defaultNameValue
+		return ""
 	}
 
 	return sanitized

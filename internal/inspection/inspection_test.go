@@ -44,7 +44,12 @@ func TestInspectBindingSuccessReport(t *testing.T) {
 	if report.BindingRef.Name != "binding-a" {
 		t.Fatalf("bindingRef = %#v", report.BindingRef)
 	}
-	expectedName := spirecm.BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, rendered.SpiffeID)
+	expectedName := spirecm.BuildClusterSPIFFEIDName(
+		binding.Namespace,
+		binding.Name,
+		rendered.IdentityAnchor.Kind,
+		rendered.SpiffeID,
+	)
 	if report.RenderedClusterSPIFFEID.Name != expectedName {
 		t.Fatalf("rendered ClusterSPIFFEID name = %q, want %q", report.RenderedClusterSPIFFEID.Name, expectedName)
 	}

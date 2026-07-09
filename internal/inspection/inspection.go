@@ -353,7 +353,12 @@ func (i *bindingInspector) inspectRenderedIdentity(
 	provenance := selectorProvenance(rendered, target.DerivedSelectors)
 	report.Resolved.PoolSelector = target.PodSelector
 	report.Resolved.SelectorProvenance = &provenance
-	clusterSPIFFEIDName := spirecm.BuildClusterSPIFFEIDName(binding.Namespace, binding.Name, rendered.SpiffeID)
+	clusterSPIFFEIDName := spirecm.BuildClusterSPIFFEIDName(
+		binding.Namespace,
+		binding.Name,
+		rendered.IdentityAnchor.Kind,
+		rendered.SpiffeID,
+	)
 	clusterSPIFFEIDHint := spirecm.BuildClusterSPIFFEIDHint(binding)
 	clusterSPIFFEIDFallback := boolPtr(spirecm.RenderFallback())
 	report.RenderedIdentity = BindingInspectionRenderedIdentity{

@@ -2,6 +2,7 @@ package spirecm
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -17,9 +18,10 @@ func TestDesiredClusterSPIFFEIDIncludesHintAndFallback(t *testing.T) {
 	binding.Name = "binding-a"
 	binding.Namespace = "default"
 	plan := identity.Plan{
-		SpiffeID:    "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a",
-		PodSelector: map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
-		Selectors:   []string{"k8s:ns:default", "k8s:sa:inference-sa", "k8s:pod-label:app:model-server"},
+		SpiffeID:       "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a",
+		PodSelector:    map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
+		Selectors:      []string{"k8s:ns:default", "k8s:sa:inference-sa", "k8s:pod-label:app:model-server"},
+		IdentityAnchor: identity.IdentityAnchor{Kind: "pool", Name: "pool-a"},
 	}
 
 	desired := DesiredClusterSPIFFEID(binding, plan, "")
@@ -94,9 +96,10 @@ func TestDesiredClusterSPIFFEIDClassName(t *testing.T) {
 	binding.Name = "binding-a"
 	binding.Namespace = "default"
 	plan := identity.Plan{
-		SpiffeID:    "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a",
-		PodSelector: map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
-		Selectors:   []string{"k8s:ns:default", "k8s:sa:inference-sa", "k8s:pod-label:app:model-server"},
+		SpiffeID:       "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a",
+		PodSelector:    map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
+		Selectors:      []string{"k8s:ns:default", "k8s:sa:inference-sa", "k8s:pod-label:app:model-server"},
+		IdentityAnchor: identity.IdentityAnchor{Kind: "pool", Name: "pool-a"},
 	}
 
 	classless := DesiredClusterSPIFFEID(binding, plan, "")
@@ -124,10 +127,39 @@ func TestBuildClusterSPIFFEIDNameUsesServiceAccountScopedIdentityHash(t *testing
 	got := BuildClusterSPIFFEIDName(
 		"kleym-reference-inference",
 		"binding",
+		"pool",
 		"spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool",
 	)
 	want := "kleym-kleym-reference-inference-binding-pool-e1a1f353"
 	if got != want {
 		t.Fatalf("BuildClusterSPIFFEIDName = %q, want %q", got, want)
+	}
+}
+
+func TestBuildClusterSPIFFEIDNameUsesAnchorKindSegment(t *testing.T) {
+	t.Parallel()
+
+	got := BuildClusterSPIFFEIDName(
+		"default",
+		"binding",
+		"Model Endpoint",
+		"spiffe://example.org/ns/default/sa/inference-sa/inference/model-endpoint/model-a",
+	)
+	if wantSegment := "-model-endpoint-"; !strings.Contains(got, wantSegment) {
+		t.Fatalf("BuildClusterSPIFFEIDName = %q, want sanitized anchor kind segment %q", got, wantSegment)
+	}
+}
+
+func TestBuildClusterSPIFFEIDNameFallsBackForEmptyAnchorKind(t *testing.T) {
+	t.Parallel()
+
+	got := BuildClusterSPIFFEIDName(
+		"default",
+		"binding",
+		" ",
+		"spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a",
+	)
+	if wantSegment := "-identity-"; !strings.Contains(got, wantSegment) {
+		t.Fatalf("BuildClusterSPIFFEIDName = %q, want fallback anchor kind segment %q", got, wantSegment)
 	}
 }
