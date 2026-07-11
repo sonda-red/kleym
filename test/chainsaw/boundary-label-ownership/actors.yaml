@@ -1,0 +1,51 @@
+# Test-only authorization. The production reference intentionally leaves Pod
+# authorization to the platform's RBAC design.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kleym-boundary-label-ownership-test
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-writer
+  namespace: kleym-boundary-label-ownership-test
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - create
+      - delete
+      - get
+      - patch
+      - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: untrusted-pod-writer
+  namespace: kleym-boundary-label-ownership-test
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-writer
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: untrusted-workload-writer
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-pod-writers
+  namespace: kleym-boundary-label-ownership-test
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-writer
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: kleym.sonda.red/platform-workload-operators

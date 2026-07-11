@@ -209,7 +209,13 @@ An identity boundary label is security-sensitive metadata. Permission to assign 
 
 `identity.kleym.sonda.red/*` is reserved for platform-controlled boundary labels. Cluster admission policy must restrict assignment and mutation of reserved labels to platform-controlled actors. Boundary labels are immutable for the lifetime of a Pod; boundary changes use replacement Pods.
 
-Kleym does not mutate workloads, pools, or Pods.
+Deployments must enforce this ownership with Kubernetes admission control. See
+[Boundary Label Ownership][boundary-label-ownership] for an opt-in native
+Kubernetes reference policy.
+
+Kubernetes RBAC and admission control remain responsible for
+`InferenceIdentityBinding` writes and service-account assignment. Kleym does
+not mutate workloads, pools, or Pods and has no workload-mutation RBAC.
 
 ## CLI Boundary
 
@@ -236,3 +242,4 @@ current inspection contract is defined in the [CLI Spec](/spec/cli/).
 [conditions-reference]: /reference/conditions/
 [dependencies]: /reference/dependencies/
 [gaie-compatibility]: /reference/gaie-compatibility/
+[boundary-label-ownership]: /reference/boundary-label-ownership/

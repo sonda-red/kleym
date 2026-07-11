@@ -1,0 +1,125 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kyverno/chainsaw/main/.schemas/json/test-chainsaw-v1alpha1.json
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: boundary-label-ownership
+spec:
+  description: Verifies reserved identity boundary label admission on a real API server, including immutable Pod boundaries and platform-controlled replacement.
+  timeouts:
+    apply: 30s
+    assert: 30s
+    cleanup: 30s
+    delete: 30s
+    exec: 2m
+  steps:
+    - name: enforce-reserved-boundary-label-ownership
+      try:
+        # CEL admission evaluation and request impersonation need an API server;
+        # they cannot be covered by the controller's Go or envtest contracts.
+        - script:
+            workDir: ../../..
+            content: |
+              set -eu
+
+              namespace="kleym-boundary-label-ownership-test"
+              policy="kleym-reserved-identity-boundary-labels"
+              platform_group="kleym.sonda.red/platform-workload-operators"
+
+              cleanup() {
+                kubectl delete validatingadmissionpolicybinding "${policy}" --ignore-not-found=true
+                kubectl delete validatingadmissionpolicy "${policy}" --ignore-not-found=true
+                kubectl delete namespace "${namespace}" --ignore-not-found=true --wait=true
+              }
+              trap cleanup EXIT
+
+              cleanup
+              kubectl apply -f test/chainsaw/boundary-label-ownership/actors.yaml
+              kubectl apply -f test/reference/inference-environment/boundary-label-ownership.yaml
+
+              policy_ready=false
+              for _ in $(seq 1 30); do
+                output="$(mktemp)"
+                set +e
+                kubectl --as=untrusted-workload-writer -n "${namespace}" create --dry-run=server -f test/chainsaw/boundary-label-ownership/untrusted-boundary-pod.yaml >"${output}" 2>&1
+                status="$?"
+                set -e
+                if [ "${status}" -ne 0 ] && grep -Fq "Only platform workload operators may create Pods with reserved identity boundary labels." "${output}"; then
+                  policy_ready=true
+                  break
+                fi
+                sleep 1
+              done
+              if [ "${policy_ready}" != true ]; then
+                echo "admission policy binding did not become active" >&2
+                cat "${output}" >&2
+                exit 1
+              fi
+
+              kubectl --as=untrusted-workload-writer -n "${namespace}" create -f - <<'EOF'
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                name: ordinary-metadata
+                labels:
+                  app.kubernetes.io/name: ordinary-metadata
+              spec:
+                containers:
+                  - name: pause
+                    image: registry.k8s.io/pause:3.10
+              EOF
+              kubectl --as=untrusted-workload-writer -n "${namespace}" label pod ordinary-metadata example.com/revision=2
+
+              output="$(mktemp)"
+              set +e
+              kubectl --as=untrusted-workload-writer -n "${namespace}" create -f test/chainsaw/boundary-label-ownership/untrusted-boundary-pod.yaml >"${output}" 2>&1
+              status="$?"
+              set -e
+              if [ "${status}" -eq 0 ]; then
+                echo "expected reserved-label Pod creation to be denied" >&2
+                cat "${output}" >&2
+                exit 1
+              fi
+              grep -F "Only platform workload operators may create Pods with reserved identity boundary labels." "${output}"
+
+              kubectl --as=platform-workload-writer --as-group="${platform_group}" -n "${namespace}" create -f - <<'EOF'
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                name: boundary-pod
+                labels:
+                  identity.kleym.sonda.red/variant: prefill
+              spec:
+                containers:
+                  - name: pause
+                    image: registry.k8s.io/pause:3.10
+              EOF
+
+              expect_immutable_denial() {
+                output="$(mktemp)"
+                if "$@" >"${output}" 2>&1; then
+                  echo "expected reserved-label Pod update to be denied" >&2
+                  cat "${output}" >&2
+                  exit 1
+                fi
+                grep -F "Reserved identity boundary labels are immutable for the lifetime of a Pod; create a replacement Pod instead." "${output}"
+              }
+
+              expect_immutable_denial kubectl --as=platform-workload-writer --as-group="${platform_group}" -n "${namespace}" label pod ordinary-metadata identity.kleym.sonda.red/variant=prefill
+              expect_immutable_denial kubectl --as=platform-workload-writer --as-group="${platform_group}" -n "${namespace}" label pod boundary-pod identity.kleym.sonda.red/variant=decode --overwrite
+              expect_immutable_denial kubectl --as=platform-workload-writer --as-group="${platform_group}" -n "${namespace}" label pod boundary-pod identity.kleym.sonda.red/variant-
+
+              kubectl --as=platform-workload-writer --as-group="${platform_group}" -n "${namespace}" delete pod boundary-pod --grace-period=0 --force --wait=false
+              kubectl -n "${namespace}" wait --for=delete pod/boundary-pod --timeout=30s
+              kubectl --as=platform-workload-writer --as-group="${platform_group}" -n "${namespace}" create -f - <<'EOF'
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                name: boundary-pod
+                labels:
+                  identity.kleym.sonda.red/variant: decode
+              spec:
+                containers:
+                  - name: pause
+                    image: registry.k8s.io/pause:3.10
+              EOF
+              test "$(kubectl -n "${namespace}" get pod boundary-pod -o jsonpath='{.metadata.labels.identity\.kleym\.sonda\.red/variant}')" = "decode"

@@ -1,0 +1,41 @@
+# Optional, cluster-scoped reference policy. It is not part of the reference
+# environment kustomization or the default kleym installation.
+#
+# This example treats the authenticator-provided group
+# kleym.sonda.red/platform-workload-operators as the platform-controlled actor
+# group. Grant that group the required Pod permissions separately with RBAC.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: kleym-reserved-identity-boundary-labels
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - pods
+  validations:
+    - expression: >-
+        request.operation != 'CREATE' || !has(object.metadata.labels) || object.metadata.labels.all(key, !key.startsWith('identity.kleym.sonda.red/') || request.userInfo.groups.exists(group, group == 'kleym.sonda.red/platform-workload-operators'))
+      message: Only platform workload operators may create Pods with reserved identity boundary labels.
+      reason: Forbidden
+    - expression: >-
+        request.operation != 'UPDATE' || ((!has(object.metadata.labels) || object.metadata.labels.all(key, !key.startsWith('identity.kleym.sonda.red/') || (has(oldObject.metadata.labels) && key in oldObject.metadata.labels && object.metadata.labels[key] == oldObject.metadata.labels[key]))) && (!has(oldObject.metadata.labels) || oldObject.metadata.labels.all(key, !key.startsWith('identity.kleym.sonda.red/') || (has(object.metadata.labels) && key in object.metadata.labels && oldObject.metadata.labels[key] == object.metadata.labels[key]))))
+      message: Reserved identity boundary labels are immutable for the lifetime of a Pod; create a replacement Pod instead.
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: kleym-reserved-identity-boundary-labels
+spec:
+  policyName: kleym-reserved-identity-boundary-labels
+  validationActions:
+    - Deny

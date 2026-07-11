@@ -55,6 +55,16 @@ This reference environment intentionally does not include:
 Those layers are separate from the reference inference environment and should be
 added only by tests or demos that explicitly need them.
 
+## Optional Boundary Label Admission Policy
+
+`boundary-label-ownership.yaml` is a separate, cluster-scoped
+`ValidatingAdmissionPolicy` and binding reference. It is deliberately excluded
+from `kustomization.yaml`: it reserves `identity.kleym.sonda.red/*` for the
+example platform actor group `kleym.sonda.red/platform-workload-operators` and
+therefore affects Pod admission in every namespace. See
+[Boundary Label Ownership](/reference/boundary-label-ownership/) before
+applying it.
+
 Apply the reference manifests with:
 
 ```sh

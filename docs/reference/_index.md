@@ -1,7 +1,7 @@
 ---
 title: Reference
 weight: 50
-description: "Reference documentation for Kleym API fields, conditions, managed resources, compatibility, dependencies, and GAIE support."
+description: "Reference documentation for Kleym API fields, boundary-label ownership, conditions, managed resources, compatibility, dependencies, and GAIE support."
 aliases:
   - /operator/reference/
 ---
@@ -9,6 +9,7 @@ aliases:
 Stable API facts for fields, conditions, dependencies, compatibility, and managed resources.
 
 - [API](/reference/api/): `InferenceIdentityBinding` fields, defaults, status fields, and external objects resolved by the controller.
+- [Boundary Label Ownership](/reference/boundary-label-ownership/): opt-in Kubernetes admission control for platform-owned identity boundary labels.
 - [Conditions](/reference/conditions/): current condition types, reasons, and status behavior.
 - [Managed Resources](/reference/resources/): resources written by `kleym-operator`, managed labels, naming, and watch behavior.
 - [Compatibility](/reference/compatibility/): compatibility surfaces, change checklist, and upgrade checks.
