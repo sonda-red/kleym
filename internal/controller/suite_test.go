@@ -17,20 +17,16 @@ limitations under the License.
 package controller
 
 import (
-	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -40,35 +36,22 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
-// These tests use Ginkgo (BDD-style Go testing framework). Refer to
-// http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
-
 var (
-	ctx       context.Context
-	cancel    context.CancelFunc
 	testEnv   *envtest.Environment
-	cfg       *rest.Config
 	k8sClient client.Client
 )
-
-func TestControllers(t *testing.T) {
-	RegisterFailHandler(Fail)
-
-	RunSpecs(t, "Controller Suite")
-}
 
 func testOperatorConfig() OperatorConfig {
 	return OperatorConfig{TrustDomain: "kleym.sonda.red"}
 }
 
-var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+func TestMain(m *testing.M) {
+	logf.SetLogger(zap.New(zap.WriteTo(os.Stderr), zap.UseDevMode(true)))
 
-	ctx, cancel = context.WithCancel(context.TODO())
-
-	var err error
-	err = kleymv1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
+	if err := kleymv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		fmt.Fprintf(os.Stderr, "add kleym scheme: %v\n", err)
+		os.Exit(1)
+	}
 	registerEnvtestUnstructuredGVK(scheme.Scheme, clusterSPIFFEIDGVK)
 	for _, gvk := range inferencePoolGVKs {
 		registerEnvtestUnstructuredGVK(scheme.Scheme, gvk)
@@ -76,7 +59,6 @@ var _ = BeforeSuite(func() {
 
 	// +kubebuilder:scaffold:scheme
 
-	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "config", "crd", "bases"),
@@ -90,29 +72,32 @@ var _ = BeforeSuite(func() {
 		testEnv.BinaryAssetsDirectory = getFirstFoundEnvTestBinaryDir()
 	}
 
-	// cfg is defined in this file globally.
-	cfg, err = testEnv.Start()
-	Expect(err).NotTo(HaveOccurred())
-	Expect(cfg).NotTo(BeNil())
+	cfg, err := testEnv.Start()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "start envtest: %v\n", err)
+		os.Exit(1)
+	}
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
-	Expect(err).NotTo(HaveOccurred())
-	Expect(k8sClient).NotTo(BeNil())
-})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "create envtest client: %v\n", err)
+		_ = testEnv.Stop()
+		os.Exit(1)
+	}
 
-var _ = AfterSuite(func() {
-	By("tearing down the test environment")
-	cancel()
-	err := testEnv.Stop()
+	exitCode := m.Run()
+	err = testEnv.Stop()
 	if os.Getenv("GITHUB_ACTIONS") == "true" &&
 		err != nil &&
 		strings.Contains(err.Error(), "unable to signal for process") &&
 		strings.Contains(err.Error(), "permission denied") {
-		_, _ = GinkgoWriter.Write([]byte("Ignoring envtest stop permission error in GitHub Actions\n"))
-		return
+		fmt.Fprintln(os.Stderr, "Ignoring envtest stop permission error in GitHub Actions")
+	} else if err != nil {
+		fmt.Fprintf(os.Stderr, "stop envtest: %v\n", err)
+		exitCode = 1
 	}
-	Expect(err).NotTo(HaveOccurred())
-})
+	os.Exit(exitCode)
+}
 
 // getFirstFoundEnvTestBinaryDir locates the first binary in the specified path.
 // ENVTEST-based tests depend on specific binaries, usually located in paths set by
