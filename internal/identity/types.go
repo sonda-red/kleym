@@ -39,6 +39,8 @@ const (
 	ReasonInvalidSPIFFEID = "InvalidSPIFFEID"
 	// ReasonInvalidPoolSelector reports a GAIE pool selector that cannot be rendered safely.
 	ReasonInvalidPoolSelector = "InvalidPoolSelector"
+	// ReasonInvalidIdentityBoundary reports a boundary that cannot be rendered safely.
+	ReasonInvalidIdentityBoundary = "InvalidIdentityBoundary"
 )
 
 // StateError carries condition metadata for shared identity computation errors.
@@ -66,6 +68,12 @@ type IdentityAnchor struct {
 	Name string
 }
 
+// Boundary is validated identity-boundary input used for rendering and exclusivity evaluation.
+type Boundary struct {
+	LabelKey   string
+	LabelValue string
+}
+
 // ResolvedInferenceTarget carries source-independent identity and selector data.
 // Source-specific resolvers populate it before identity rendering.
 type ResolvedInferenceTarget struct {
@@ -79,6 +87,7 @@ type PlanInput struct {
 	Namespace          string
 	ServiceAccountName string
 	TrustDomain        string
+	Boundary           Boundary
 	Target             ResolvedInferenceTarget
 }
 
@@ -88,6 +97,7 @@ type Plan struct {
 	Selectors      []string
 	PodSelector    map[string]any
 	IdentityAnchor IdentityAnchor
+	Boundary       Boundary
 }
 
 // RenderedIdentity is kept as a compatibility alias for callers during the package split.
@@ -97,6 +107,7 @@ type renderTemplateData struct {
 	Namespace          string
 	ServiceAccountName string
 	IdentityAnchor     IdentityAnchor
+	Boundary           Boundary
 }
 
 // NamespacedBindingKey returns the canonical namespace/name key used in logs and messages.

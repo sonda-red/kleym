@@ -48,9 +48,9 @@ Kleym stops at identity registration. `kleym-operator` does not deploy inference
 
 ## How it works
 
-- `InferenceIdentityBinding` declares identity intent for one `InferencePool`.
+- `InferenceIdentityBinding` declares identity intent and a reserved label boundary for one `InferencePool` workload variant.
 - `kleym-operator` resolves the pool to an internal inference target anchored as `pool/<pool-name>`.
-- The controller combines that target with the binding namespace and service account to render deterministic selectors and SPIFFE IDs.
+- The controller combines that target with the binding namespace, service account, and identity boundary to render deterministic selectors and variant SPIFFE IDs.
 - Managed `ClusterSPIFFEID` resources are reconciled for SPIRE Controller Manager.
 
 ## Quickstart

@@ -2,7 +2,7 @@
 title: Architecture
 weight: 20
 summary: End-to-end control flow from `InferenceIdentityBinding` to SPIFFE Runtime Environment (SPIRE) registration state.
-description: How `kleym-operator` resolves Gateway API Inference Extension (GAIE) resources, enforces selector safety, and reconciles `ClusterSPIFFEID`.
+description: How `kleym-operator` resolves Gateway API Inference Extension resources, proves identity-boundary exclusivity, and reconciles managed `ClusterSPIFFEID` output fail closed.
 aliases:
   - /operator/architecture/
 ---
@@ -23,8 +23,14 @@ This flow uses Gateway API Inference Extension (GAIE) objects as upstream inputs
     InferencePool ───────▶ Resolve poolRef → Pool
                          │
                   Derive selectors from pool
-                  Validate safety selectors
+                  Validate boundary + selectors
                   Render SPIFFE ID
+                         │
+                  Evaluate peer bindings
+                         │
+                   Conflict? ──yes──▶ Withdraw all conflict output
+                         │                    Confirm absence + patch conflict
+                         no
                          │
                     Reconcile
                     ClusterSPIFFEID

@@ -1,7 +1,7 @@
 ---
 title: API
 weight: 10
-description: "InferenceIdentityBinding API reference covering poolRef, service accounts, and status fields."
+description: "InferenceIdentityBinding API reference covering poolRef, service accounts, required identity boundaries, conflict diagnosis, and rendered status."
 aliases:
   - /operator/reference/api/
 ---
@@ -34,12 +34,15 @@ External SPIFFE/SPIRE references:
 | `poolRef.name` | Yes | References an `InferencePool` in the same namespace. |
 | `poolRef.group` | No | Constrains pool resolution to `inference.networking.k8s.io`. |
 | `serviceAccountName` | Yes | Admission-validated DNS-1123 subdomain Kubernetes service account required in every rendered identity selector set. |
+| `identityBoundary.labelKey` | Yes | Valid Kubernetes label key under the reserved `identity.kleym.sonda.red/` prefix. |
+| `identityBoundary.labelValue` | Yes | Valid, nonempty Kubernetes label value identifying the workload variant. |
 
 Current validation rules enforced by the CRD:
 
 - `poolRef.name` is required.
 - `poolRef.group`, when set, must be `inference.networking.k8s.io`.
 - `serviceAccountName` is required and admission-validated as a DNS-1123 subdomain with a maximum length of 253 characters.
+- both identity-boundary fields are required; the key must use the reserved prefix and the value must be a nonempty Kubernetes label value.
 
 ## Status Fields
 
@@ -48,8 +51,12 @@ Current validation rules enforced by the CRD:
 | `conditions` | Latest controller observations. |
 | `trustDomain` | Operator trust domain used for the latest status update. |
 | `clusterSPIFFEIDClassName` | Optional operator `ClusterSPIFFEID` class name used for the latest status update. Empty means classless output. |
+| `identityBoundary` | Validated boundary label key and value retained for diagnosis. |
+| `conflicts` | Deterministically sorted peer binding references, causes, SPIFFE IDs, and resolved peer boundary data. Present only for `Conflict=True`. |
 | `computedSpiffeIDs` | Computed SPIFFE IDs produced from the pool binding. |
 | `renderedSelectors` | Final selector set used for each rendered identity. |
+| `pendingClusterSPIFFEIDName` | Deterministic managed-output name durably reserved before `Create`. It lets retry converge an output created before confirmation status could be stored. |
+| `ownedClusterSPIFFEIDName` | Deterministic managed-output name whose creation has been confirmed. It remains independent of rendered output status. |
 | `renderedClusterSPIFFEID.name` | Deterministic managed `ClusterSPIFFEID` name rendered for the binding. |
 | `renderedClusterSPIFFEID.spiffeID` | Rendered SPIFFE ID written to the managed `ClusterSPIFFEID`. This matches the SPIFFE ID in `computedSpiffeIDs`. |
 | `renderedClusterSPIFFEID.selectorFingerprint` | `sha256:<hex>` fingerprint of the canonical rendered selector set. |
@@ -58,9 +65,10 @@ Current validation rules enforced by the CRD:
 On reference, selector, render, managed-output infrastructure, or managed-output
 API failure, the operator clears `computedSpiffeIDs`, `renderedSelectors`, and
 `renderedClusterSPIFFEID` together so status-only clients do not read stale
-rendered output. Generic managed `ClusterSPIFFEID` list, create, update, or
+rendered output. Generic managed `ClusterSPIFFEID` read, create, update, or
 delete API failures report `RenderFailure=True` with reason
-`ManagedOutputApplyFailed`.
+`ManagedOutputApplyFailed`. Pending and confirmed ownership survive transient
+API failures and are cleared only after the recorded output is confirmed absent.
 
 ## Kubectl Columns
 
@@ -70,6 +78,7 @@ columns for compact binding overviews:
 | Column | Source |
 | --- | --- |
 | `POOL` | `spec.poolRef.name` |
+| `BOUNDARY` | `status.identityBoundary.labelValue` |
 | `READY` | `status.conditions[Ready].status` |
 | `REASON` | `status.conditions[Ready].reason` |
 | `SPIFFE ID` | `status.computedSpiffeIDs[0].spiffeID` |
@@ -83,11 +92,11 @@ The controller always renders deterministic service-account-scoped inference
 target SPIFFE IDs under its configured trust domain:
 
 ```text
-spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/<anchor-kind>/<anchor-name>
+spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/pool/<pool-name>/variant/<labelValue>
 ```
 
-For the current GAIE source, `<anchor-kind>` is `pool` and `<anchor-name>` is
-the referenced pool name.
+The boundary label value is part of the identity path; the label key remains
+selector and exclusivity-proof material.
 
 ## External Objects Resolved
 

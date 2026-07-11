@@ -21,6 +21,7 @@ spec:
       labels:
         app.kubernetes.io/name: reference-model-server
         app.kubernetes.io/part-of: kleym-reference-inference
+        identity.kleym.sonda.red/variant: reference
         kleym.sonda.red/reference: inference-environment
     spec:
       serviceAccountName: reference-inference

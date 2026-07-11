@@ -105,8 +105,8 @@ func TestReconcileUsesOperatorConfigForRenderedOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read spec.spiffeIDTemplate: %v", err)
 	}
-	if spiffeID != "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a" {
-		t.Fatalf("spiffeIDTemplate = %q, want spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a", spiffeID)
+	if spiffeID != "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill" {
+		t.Fatalf("spiffeIDTemplate = %q, want variant-scoped pool target identity", spiffeID)
 	}
 	className, _, err := unstructured.NestedString(list.Items[0].Object, "spec", "className")
 	if err != nil {

@@ -77,6 +77,7 @@ func TestSetupWithManagerStartsAndReconcilesWithCurrentPoolCRD(t *testing.T) {
 	}
 	assertLegacyPoolGroupRejectedByCRD(t, context.Background(), mgr.GetClient())
 	assertServiceAccountNameValidationAtCRDAdmission(t, context.Background(), mgr.GetClient())
+	assertIdentityBoundaryValidationAtCRDAdmission(t, context.Background(), mgr.GetClient())
 
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: mgr.GetClient(),
@@ -134,6 +135,7 @@ func TestSetupWithManagerStartsAndReconcilesWithCurrentPoolCRD(t *testing.T) {
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
 			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName, Group: "inference.networking.k8s.io"},
 			ServiceAccountName: "inference-sa",
+			IdentityBoundary:   testIdentityBoundary,
 		},
 	}
 	if err := mgr.GetClient().Create(ctx, binding); err != nil {
@@ -235,6 +237,7 @@ func assertLegacyPoolGroupRejectedByCRD(
 				Group: "inference.networking.x-k8s.io",
 			},
 			ServiceAccountName: "inference-sa",
+			IdentityBoundary:   testIdentityBoundary,
 		},
 	}
 	err := k8sClient.Create(ctx, binding)
@@ -259,6 +262,7 @@ func assertServiceAccountNameValidationAtCRDAdmission(
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
 			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-current"},
 			ServiceAccountName: "Invalid_ServiceAccount",
+			IdentityBoundary:   testIdentityBoundary,
 		},
 	}
 	if err := k8sClient.Create(ctx, invalidBinding); !apierrors.IsInvalid(err) {
@@ -273,6 +277,7 @@ func assertServiceAccountNameValidationAtCRDAdmission(
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
 			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-current"},
 			ServiceAccountName: "inference.service-account",
+			IdentityBoundary:   testIdentityBoundary,
 		},
 	}
 	if err := k8sClient.Create(ctx, validBinding); err != nil {
@@ -280,6 +285,39 @@ func assertServiceAccountNameValidationAtCRDAdmission(
 	}
 	if err := k8sClient.Delete(ctx, validBinding); err != nil {
 		t.Fatalf("delete admitted binding: %v", err)
+	}
+}
+
+// assertIdentityBoundaryValidationAtCRDAdmission verifies required boundary fields and formats.
+func assertIdentityBoundaryValidationAtCRDAdmission(
+	t *testing.T,
+	ctx context.Context,
+	k8sClient client.Client,
+) {
+	t.Helper()
+
+	cases := map[string]kleymv1alpha1.IdentityBoundary{
+		"missing":        {},
+		"unreserved-key": {LabelKey: "example.com/variant", LabelValue: "prefill"},
+		"malformed-key":  {LabelKey: "identity.kleym.sonda.red/bad key", LabelValue: "prefill"},
+		"empty-value":    {LabelKey: "identity.kleym.sonda.red/variant"},
+		"malformed-value": {
+			LabelKey:   "identity.kleym.sonda.red/variant",
+			LabelValue: "bad/value",
+		},
+	}
+	for name, boundary := range cases {
+		binding := &kleymv1alpha1.InferenceIdentityBinding{
+			ObjectMeta: metav1.ObjectMeta{Namespace: testNamespace, Name: "boundary-" + name},
+			Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+				PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-current"},
+				ServiceAccountName: "inference-sa",
+				IdentityBoundary:   boundary,
+			},
+		}
+		if err := k8sClient.Create(ctx, binding); !apierrors.IsInvalid(err) {
+			t.Fatalf("create binding with %s boundary error = %v, want Invalid", name, err)
+		}
 	}
 }
 

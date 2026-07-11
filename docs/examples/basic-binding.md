@@ -1,7 +1,7 @@
 ---
 title: Basic Binding
 weight: 10
-description: "Basic InferenceIdentityBinding example that renders one service-account-scoped inference target identity and managed ClusterSPIFFEID resource."
+description: "Basic InferenceIdentityBinding example that renders one label-bound workload variant identity and managed ClusterSPIFFEID resource."
 aliases:
   - /operator/examples/basic-binding/
 ---
@@ -37,18 +37,22 @@ spec:
   poolRef:
     name: pool-a
   serviceAccountName: inference-sa
+  identityBoundary:
+    labelKey: identity.kleym.sonda.red/variant
+    labelValue: prefill
 ```
 
 ## Expected Outcome
 
 The binding should reconcile to a managed `ClusterSPIFFEID` with:
 
-- SPIFFE ID `spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a`
+- SPIFFE ID `spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill`
 - a pod selector equivalent to `matchLabels.app=model-server`
 - workload selectors including:
   - `k8s:ns:default`
   - `k8s:sa:inference-sa`
   - `k8s:pod-label:app:model-server`
+  - `k8s:pod-label:identity.kleym.sonda.red/variant:prefill`
 
 The generated `ClusterSPIFFEID` name is deterministic but includes a hash suffix, so the example below focuses on the meaningful fields:
 
@@ -61,13 +65,14 @@ metadata:
     kleym.sonda.red/binding-name: pool-a
     kleym.sonda.red/binding-namespace: default
 spec:
-  spiffeIDTemplate: spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a
+  spiffeIDTemplate: spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill
   podSelector:
     matchLabels:
       app: model-server
   workloadSelectorTemplates:
     - k8s:ns:default
     - k8s:pod-label:app:model-server
+    - k8s:pod-label:identity.kleym.sonda.red/variant:prefill
     - k8s:sa:inference-sa
 ```
 
@@ -76,4 +81,5 @@ The binding status should report:
 - `Ready=True`
 - `InvalidRef=False`
 - `UnsafeSelector=False`
+- `Conflict=False`
 - `RenderFailure=False`

@@ -156,7 +156,9 @@ value: <peer boundary label value>
 
 `Conflict=True` uses `DuplicateIdentityBinding` when any item has cause `DuplicateSPIFFEID`; otherwise it uses `IdentityBoundaryConflict`. The condition reason is the coarse conflict class, while each item records the precise cause.
 
-`status.computedSpiffeIDs`, `status.renderedSelectors`, and `status.renderedClusterSPIFFEID` are populated only when `Ready=True`. They are cleared for selector failures and conflicts.
+`status.computedSpiffeIDs`, `status.renderedSelectors`, and `status.renderedClusterSPIFFEID` are populated only when `Ready=True`. They are cleared for selector failures, conflicts, and managed-output API failures.
+
+`status.pendingClusterSPIFFEIDName` records a deterministic output name reserved after a successful NotFound read and before Kleym calls `Create`. Rendered output remains cleared while this claim is pending. If `Create` succeeds but the following status patch fails or the process stops, retry uses the pending claim to converge that output. `status.ownedClusterSPIFFEIDName` records the name only after creation is confirmed. A pending or confirmed name survives transient managed-output API failures and is cleared only after output absence is confirmed.
 
 Allowed condition types and reasons:
 
@@ -181,9 +183,13 @@ Exactly one primary failure condition is `True`. `Ready=False` uses the same rea
 
 On successful reconciliation, `status.renderedClusterSPIFFEID` exposes the deterministic managed `ClusterSPIFFEID` name, rendered SPIFFE ID, a `sha256:<hex>` fingerprint of the canonical selector set, and the observed managed-resource generation when Kubernetes reports one.
 
+The persisted pending and confirmed name fields form the durable managed-output ownership protocol. Neither rendered output status nor managed-by and binding labels prove ownership. A pre-existing deterministic-name object absent from both fields is foreign and must not be updated or deleted, even when its labels match the binding exactly.
+
+When an identity change produces a different deterministic name, Kleym deletes the recorded pending or confirmed output and confirms its absence before reserving or creating the replacement. While prior-output deletion is pending, the binding retains the recorded name, clears rendered output status, reports `Ready=Unknown` with reason `Initializing`, and requeues.
+
 `status.renderedClusterSPIFFEID.spiffeID` is populated from the same rendered identity used for `status.computedSpiffeIDs`; it is not a second SPIFFE state. `observedGeneration` is omitted when Kubernetes has not reported a persisted generation.
 
-If a managed resource cannot be listed, created, updated, or deleted because the API request fails, reconciliation reports `RenderFailure=True` with reason `ManagedOutputApplyFailed`, clears rendered output status, and returns the API error for retry.
+If a managed resource cannot be read, created, updated, or deleted because the API request fails, reconciliation reports `RenderFailure=True` with reason `ManagedOutputApplyFailed`, clears rendered output status, preserves pending and confirmed ownership, and returns the API error for retry. `meta.IsNoMatchError` is retryable API uncertainty, not confirmation that output is absent; it never clears ownership or permits finalizer removal.
 
 ## Required Behavior
 

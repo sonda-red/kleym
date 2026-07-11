@@ -16,12 +16,47 @@ limitations under the License.
 package identity
 
 import (
+	"errors"
 	"slices"
 	"testing"
 	"testing/quick"
 
 	"k8s.io/apimachinery/pkg/types"
 )
+
+func TestValidateBoundary(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]Boundary{
+		"missing":             {},
+		"unreserved-key":      {LabelKey: "example.com/variant", LabelValue: "prefill"},
+		"malformed-key":       {LabelKey: "identity.kleym.sonda.red/bad key", LabelValue: "prefill"},
+		"empty-value":         {LabelKey: "identity.kleym.sonda.red/variant"},
+		"malformed-value":     {LabelKey: "identity.kleym.sonda.red/variant", LabelValue: "bad/value"},
+		"leading-whitespace":  {LabelKey: " identity.kleym.sonda.red/variant", LabelValue: "prefill"},
+		"trailing-whitespace": {LabelKey: "identity.kleym.sonda.red/variant", LabelValue: "prefill "},
+	}
+	for name, boundary := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateBoundary(boundary)
+			var stateErr *StateError
+			if !errors.As(err, &stateErr) {
+				t.Fatalf("ValidateBoundary error = %v, want StateError", err)
+			}
+			if stateErr.ConditionType != ConditionTypeUnsafeSelector || stateErr.Reason != ReasonInvalidIdentityBoundary {
+				t.Fatalf("condition/reason = %s/%s, want %s/%s", stateErr.ConditionType, stateErr.Reason, ConditionTypeUnsafeSelector, ReasonInvalidIdentityBoundary)
+			}
+		})
+	}
+
+	if err := ValidateBoundary(Boundary{
+		LabelKey:   "identity.kleym.sonda.red/variant",
+		LabelValue: "decode.v1",
+	}); err != nil {
+		t.Fatalf("ValidateBoundary valid input returned error: %v", err)
+	}
+}
 
 func TestEvaluateBoundaryConflicts(t *testing.T) {
 	t.Parallel()
@@ -44,18 +79,19 @@ func TestEvaluateBoundaryConflicts(t *testing.T) {
 		"namespace mismatch proves exclusivity": {
 			change: func(peer *BoundaryRecord) {
 				peer.BindingRef.Namespace = "other"
-				peer.SpiffeID = testSpiffeID("other", peer.ServiceAccountName, "binding-b")
+				peer.SpiffeID = testSpiffeID("other", peer.ServiceAccountName, "binding-b", peer.LabelValue)
 			},
 		},
 		"service account mismatch proves exclusivity": {
 			change: func(peer *BoundaryRecord) {
 				peer.ServiceAccountName = "other-sa"
-				peer.SpiffeID = testSpiffeID(peer.BindingRef.Namespace, "other-sa", "binding-b")
+				peer.SpiffeID = testSpiffeID(peer.BindingRef.Namespace, "other-sa", "binding-b", peer.LabelValue)
 			},
 		},
 		"same key and different value proves exclusivity": {
 			change: func(peer *BoundaryRecord) {
 				peer.LabelValue = "decode"
+				peer.SpiffeID = testSpiffeID(peer.BindingRef.Namespace, peer.ServiceAccountName, "binding-b", peer.LabelValue)
 			},
 		},
 		"same boundary with distinct SPIFFE IDs conflicts": {
@@ -72,6 +108,7 @@ func TestEvaluateBoundaryConflicts(t *testing.T) {
 			change: func(peer *BoundaryRecord) {
 				peer.LabelKey = "identity.kleym.sonda.red/role"
 				peer.LabelValue = "decode"
+				peer.SpiffeID = testSpiffeID(peer.BindingRef.Namespace, peer.ServiceAccountName, "binding-b", peer.LabelValue)
 			},
 			wantCause: CauseBoundaryKeyMismatch,
 		},
@@ -121,6 +158,7 @@ func TestEvaluateBoundaryConflictsIsSymmetricAndOrderIndependent(t *testing.T) {
 			left.BindingRef.Namespace,
 			left.ServiceAccountName,
 			pools[int(spiffeIDIndex)%len(pools)],
+			left.LabelValue,
 		)
 		right := testBoundaryRecord("binding-b")
 
@@ -252,10 +290,10 @@ func testBoundaryRecord(name string) BoundaryRecord {
 		ServiceAccountName: "inference-sa",
 		LabelKey:           "identity.kleym.sonda.red/variant",
 		LabelValue:         "prefill",
-		SpiffeID:           testSpiffeID("default", "inference-sa", name),
+		SpiffeID:           testSpiffeID("default", "inference-sa", name, "prefill"),
 	}
 }
 
-func testSpiffeID(namespace, serviceAccount, pool string) string {
-	return "spiffe://example.org/ns/" + namespace + "/sa/" + serviceAccount + "/inference/pool/" + pool
+func testSpiffeID(namespace, serviceAccount, pool, variant string) string {
+	return "spiffe://example.org/ns/" + namespace + "/sa/" + serviceAccount + "/inference/pool/" + pool + "/variant/" + variant
 }

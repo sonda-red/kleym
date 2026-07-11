@@ -5,14 +5,19 @@ metadata:
   namespace: kleym-reference-inference
 status:
   trustDomain: kleym.sonda.red
+  identityBoundary:
+    labelKey: identity.kleym.sonda.red/variant
+    labelValue: reference
+  ownedClusterSPIFFEIDName: kleym-kleym-reference-inference-pool-binding-pool-18b7ab03
   computedSpiffeIDs:
-    - spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool
+    - spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool/variant/reference
   renderedSelectors:
-    - spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool
+    - spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool/variant/reference
       selectors:
         - k8s:ns:kleym-reference-inference
         - k8s:pod-label:app.kubernetes.io/name:reference-model-server
         - k8s:pod-label:app.kubernetes.io/part-of:kleym-reference-inference
+        - k8s:pod-label:identity.kleym.sonda.red/variant:reference
         - k8s:sa:reference-inference
   conditions:
     - type: Ready
@@ -22,6 +27,9 @@ status:
       status: "False"
       reason: Resolved
     - type: UnsafeSelector
+      status: "False"
+      reason: Resolved
+    - type: Conflict
       status: "False"
       reason: Resolved
     - type: RenderFailure

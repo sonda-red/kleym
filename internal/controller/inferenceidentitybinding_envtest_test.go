@@ -25,6 +25,7 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 		conditionTypeReady,
 		conditionTypeInvalidRef,
 		conditionTypeUnsafeSelector,
+		conditionTypeConflict,
 		conditionTypeRenderFailure,
 	}
 
@@ -90,6 +91,7 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 			Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
 				PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName},
 				ServiceAccountName: "inference-sa",
+				IdentityBoundary:   testIdentityBoundary,
 			},
 		}
 		Expect(k8sClient.Create(ctx, binding)).To(Succeed())
@@ -131,6 +133,7 @@ var _ = Describe("InferenceIdentityBinding Envtest Coverage", func() {
 			Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
 				PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName},
 				ServiceAccountName: "inference-sa",
+				IdentityBoundary:   testIdentityBoundary,
 			},
 		}
 		Expect(k8sClient.Create(ctx, binding)).To(Succeed())

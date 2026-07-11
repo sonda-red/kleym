@@ -45,6 +45,7 @@ const (
 	conditionTypeReady          = "Ready"
 	conditionTypeInvalidRef     = "InvalidRef"
 	conditionTypeUnsafeSelector = "UnsafeSelector"
+	conditionTypeConflict       = "Conflict"
 	conditionTypeRenderFailure  = "RenderFailure"
 
 	conditionReasonReconciled                = "Reconciled"
@@ -53,6 +54,8 @@ const (
 	conditionReasonInvalidPoolRef            = "InvalidPoolRef"
 	conditionReasonClusterSPIFFEIDCRDMissing = "ClusterSPIFFEIDCRDMissing"
 	conditionReasonManagedOutputApplyFailed  = "ManagedOutputApplyFailed"
+	conditionReasonIdentityBoundaryConflict  = "IdentityBoundaryConflict"
+	conditionReasonDuplicateIdentityBinding  = "DuplicateIdentityBinding"
 
 	fieldIndexPoolRefName          = "spec.poolRef.name"
 	infraNotReadyRequeueAfter      = 30 * time.Second
@@ -170,7 +173,17 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 	initializeConditions(&binding.Status, binding.Generation)
 	applyOperatorConfig(&binding.Status, r.Config)
 
-	desiredState, err := r.computeDesiredState(ctx, binding)
+	boundary, err := bindingIdentityBoundary(binding)
+	if err == nil {
+		applyIdentityBoundaryStatus(&binding.Status, boundary)
+	} else {
+		binding.Status.IdentityBoundary = nil
+	}
+
+	var desiredState desiredBindingState
+	if err == nil {
+		desiredState, err = r.computeDesiredState(ctx, binding)
+	}
 	if err != nil {
 		// reconcileStateError carries condition type + reason + message so we can
 		// set the right status condition from a single error return. Any other
@@ -208,6 +221,29 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 			return ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}, nil
 		}
 		return ctrl.Result{}, nil
+	}
+
+	if handled, result, err := r.reconcileConflictState(ctx, statusBase, binding, desiredState.identities[0]); handled || err != nil {
+		return result, err
+	}
+
+	primaryIdentity := desiredState.identities[0]
+	primaryClusterSPIFFEIDName := spirecm.DesiredClusterSPIFFEID(
+		binding,
+		primaryIdentity,
+		r.Config.ClusterSPIFFEIDClassName,
+	).GetName()
+	if pending, err := r.cleanupChangedClusterSPIFFEIDName(ctx, binding, primaryClusterSPIFFEIDName); err != nil {
+		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+			return ctrl.Result{}, statusErr
+		}
+		return ctrl.Result{}, err
+	} else if pending {
+		applyPendingManagedOutputReplacementStatus(&binding.Status, binding.Generation)
+		if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: deleteVerificationRequeueAfter}, nil
 	}
 
 	// Phase 5: Apply — reconcile ClusterSPIFFEID resources.
@@ -255,12 +291,6 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 		logKeyReason, conditionReasonReconciled,
 	)
 
-	primaryIdentity := desiredState.identities[0]
-	primaryClusterSPIFFEIDName := spirecm.DesiredClusterSPIFFEID(
-		binding,
-		primaryIdentity,
-		r.Config.ClusterSPIFFEIDClassName,
-	).GetName()
 	r.recordEventf(binding, corev1.EventTypeNormal, conditionReasonReconciled, "reconciled ClusterSPIFFEID %q", primaryClusterSPIFFEIDName)
 	logger.Info(
 		"reconciled successfully",
@@ -315,6 +345,11 @@ func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) 
 	watchPredicate := reconcileWatchPredicate()
 	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
 		For(&kleymv1alpha1.InferenceIdentityBinding{}, builder.WithPredicates(watchPredicate)).
+		Watches(
+			&kleymv1alpha1.InferenceIdentityBinding{},
+			handler.EnqueueRequestsFromMapFunc(r.mapBindingToPeers),
+			builder.WithPredicates(watchPredicate),
+		).
 		Named("inferenceidentitybinding")
 
 	for _, gvk := range availablePoolGVKs {
@@ -358,22 +393,36 @@ func (r *InferenceIdentityBindingReconciler) reconcileDelete(
 		return ctrl.Result{}, nil
 	}
 
+	statusBase := binding.DeepCopy()
 	if err := r.cleanupManagedClusterSPIFFEIDs(ctx, binding); err != nil {
+		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+			return ctrl.Result{}, statusErr
+		}
 		return ctrl.Result{}, err
 	}
 
 	remaining, err := r.listManagedClusterSPIFFEIDs(ctx, binding)
 	if err != nil {
-		if !meta.IsNoMatchError(err) {
-			return ctrl.Result{}, err
+		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+			return ctrl.Result{}, statusErr
 		}
-	} else if len(remaining) > 0 {
+		return ctrl.Result{}, err
+	}
+	if len(remaining) > 0 {
 		logger.Info(
 			"waiting for managed ClusterSPIFFEIDs to disappear before removing finalizer",
 			"remaining", len(remaining),
 			logKeyRequeueAfter, deleteVerificationRequeueAfter,
 		)
 		return ctrl.Result{RequeueAfter: deleteVerificationRequeueAfter}, nil
+	}
+
+	if recordedClusterSPIFFEIDName(binding) != "" {
+		statusBase := binding.DeepCopy()
+		clearClusterSPIFFEIDOwnership(&binding.Status)
+		if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	logger.Info("removing InferenceIdentityBinding finalizer")
@@ -447,6 +496,13 @@ func (r *InferenceIdentityBindingReconciler) applyStateError(
 		)
 		if err := r.cleanupManagedClusterSPIFFEIDs(ctx, binding); err != nil {
 			return err
+		}
+		remaining, err := r.listManagedClusterSPIFFEIDs(ctx, binding)
+		if err != nil {
+			return err
+		}
+		if len(remaining) == 0 {
+			clearClusterSPIFFEIDOwnership(&binding.Status)
 		}
 	}
 

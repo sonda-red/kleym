@@ -121,7 +121,7 @@ func TestInspectBindingUsesStatusOperatorConfig(t *testing.T) {
 		t.Fatalf("InspectBinding returned error: %v", err)
 	}
 
-	if report.RenderedIdentity.SPIFFEID != "spiffe://example.org/ns/tenant-a/sa/model-sa/inference/pool/pool-a" {
+	if report.RenderedIdentity.SPIFFEID != "spiffe://example.org/ns/tenant-a/sa/model-sa/inference/pool/pool-a/variant/prefill" {
 		t.Fatalf("rendered spiffeID = %q, want configured trust domain", report.RenderedIdentity.SPIFFEID)
 	}
 	if report.RenderedClusterSPIFFEID.ClassName != "kleym" {
@@ -163,7 +163,7 @@ func TestInspectBindingFlagsOverrideStatusOperatorConfig(t *testing.T) {
 		report.IdentityConfig.ClusterSPIFFEIDClassNameSource != identityConfigSourceFlag {
 		t.Fatalf("identityConfig = %#v, want flag sources", report.IdentityConfig)
 	}
-	if report.RenderedIdentity.SPIFFEID != "spiffe://example.org/ns/tenant-a/sa/model-sa/inference/pool/pool-a" ||
+	if report.RenderedIdentity.SPIFFEID != "spiffe://example.org/ns/tenant-a/sa/model-sa/inference/pool/pool-a/variant/prefill" ||
 		report.RenderedClusterSPIFFEID.ClassName != "kleym" {
 		t.Fatalf("rendered output = %#v / %#v, want flag-rendered output", report.RenderedIdentity, report.RenderedClusterSPIFFEID)
 	}
@@ -277,7 +277,7 @@ func TestInspectBindingIgnoresManagedClusterSPIFFEIDState(t *testing.T) {
 		t.Fatalf("render test identity: %v", err)
 	}
 	managed := spirecm.DesiredClusterSPIFFEID(binding, rendered, "")
-	if err := unstructured.SetNestedField(managed.Object, "spiffe://wrong.example.test/ns/tenant-a/sa/model-sa/inference/pool/pool-a", "spec", "spiffeIDTemplate"); err != nil {
+	if err := unstructured.SetNestedField(managed.Object, "spiffe://wrong.example.test/ns/tenant-a/sa/model-sa/inference/pool/pool-a/variant/prefill", "spec", "spiffeIDTemplate"); err != nil {
 		t.Fatalf("set mismatched spiffeIDTemplate: %v", err)
 	}
 	pod := testInspectionPod("model-server-a", "model-server")
@@ -479,7 +479,8 @@ func testInspectionPod(name string, containers ...string) *corev1.Pod {
 			Namespace: "tenant-a",
 			Name:      name,
 			Labels: map[string]string{
-				"app": "model-server",
+				"app":                              "model-server",
+				"identity.kleym.sonda.red/variant": "prefill",
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -502,6 +503,10 @@ func testInspectionBinding() *kleymv1alpha1.InferenceIdentityBinding {
 				Group: gaie.InferencePoolGVKs()[0].Group,
 			},
 			ServiceAccountName: "model-sa",
+			IdentityBoundary: kleymv1alpha1.IdentityBoundary{
+				LabelKey:   "identity.kleym.sonda.red/variant",
+				LabelValue: "prefill",
+			},
 		},
 		Status: kleymv1alpha1.InferenceIdentityBindingStatus{
 			TrustDomain:              identity.DefaultTrustDomain,
@@ -634,7 +639,11 @@ func inspectionPlanWithTrustDomain(
 		Namespace:          binding.Namespace,
 		ServiceAccountName: binding.Spec.ServiceAccountName,
 		TrustDomain:        trustDomain,
-		Target:             target,
+		Boundary: identity.Boundary{
+			LabelKey:   binding.Spec.IdentityBoundary.LabelKey,
+			LabelValue: binding.Spec.IdentityBoundary.LabelValue,
+		},
+		Target: target,
 	})
 }
 

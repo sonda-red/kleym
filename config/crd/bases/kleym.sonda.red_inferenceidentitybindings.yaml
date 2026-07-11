@@ -18,6 +18,9 @@ spec:
     - jsonPath: .spec.poolRef.name
       name: POOL
       type: string
+    - jsonPath: .status.identityBoundary.labelValue
+      name: BOUNDARY
+      type: string
     - jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: READY
       type: string
@@ -53,6 +56,27 @@ spec:
           spec:
             description: spec defines the desired state of InferenceIdentityBinding.
             properties:
+              identityBoundary:
+                description: identityBoundary declares the required platform-controlled
+                  label boundary for this workload variant.
+                properties:
+                  labelKey:
+                    description: labelKey is the reserved Kubernetes label key used
+                      as the structural exclusivity boundary.
+                    maxLength: 88
+                    minLength: 26
+                    pattern: ^identity\.kleym\.sonda\.red/[A-Za-z0-9]([A-Za-z0-9_.-]*[A-Za-z0-9])?$
+                    type: string
+                  labelValue:
+                    description: labelValue identifies this binding's workload variant.
+                    maxLength: 63
+                    minLength: 1
+                    pattern: ^[A-Za-z0-9]([A-Za-z0-9_.-]*[A-Za-z0-9])?$
+                    type: string
+                required:
+                - labelKey
+                - labelValue
+                type: object
               poolRef:
                 description: poolRef specifies the required InferencePool workload
                   anchor in the same namespace.
@@ -79,6 +103,7 @@ spec:
                 pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                 type: string
             required:
+            - identityBoundary
             - poolRef
             - serviceAccountName
             type: object
@@ -112,6 +137,7 @@ spec:
                     - "Ready"
                     - "InvalidRef"
                     - "UnsafeSelector"
+                    - "Conflict"
                     - "RenderFailure"
                 items:
                   description: Condition contains details for one aspect of the current
@@ -171,6 +197,72 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              conflicts:
+                description: conflicts lists deterministic peer diagnoses when Conflict=True.
+                items:
+                  description: IdentityBoundaryConflictStatus describes one precise
+                    conflict with a peer binding.
+                  properties:
+                    bindingRef:
+                      description: bindingRef identifies the peer binding.
+                      properties:
+                        name:
+                          description: name is the peer binding name.
+                          type: string
+                        namespace:
+                          description: namespace is the peer binding namespace.
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                      type: object
+                    cause:
+                      description: cause identifies the structural exclusivity failure.
+                      enum:
+                      - BoundaryValueReuse
+                      - BoundaryKeyMismatch
+                      - DuplicateSPIFFEID
+                      type: string
+                    labelKey:
+                      description: labelKey is the peer boundary key when it was resolved.
+                      type: string
+                    spiffeID:
+                      description: spiffeID is the peer's rendered SPIFFE ID.
+                      type: string
+                    value:
+                      description: value is the peer boundary value when it was resolved.
+                      type: string
+                  required:
+                  - bindingRef
+                  - cause
+                  - spiffeID
+                  type: object
+                type: array
+              identityBoundary:
+                description: identityBoundary records the validated boundary used
+                  for the latest evaluation.
+                properties:
+                  labelKey:
+                    description: labelKey is the validated Kubernetes label key.
+                    type: string
+                  labelValue:
+                    description: labelValue is the validated Kubernetes label value.
+                    type: string
+                required:
+                - labelKey
+                - labelValue
+                type: object
+              ownedClusterSPIFFEIDName:
+                description: |-
+                  ownedClusterSPIFFEIDName is the deterministic name of the managed ClusterSPIFFEID
+                  whose creation has been confirmed for this binding.
+                type: string
+              pendingClusterSPIFFEIDName:
+                description: |-
+                  pendingClusterSPIFFEIDName is the deterministic name reserved before creating
+                  a managed ClusterSPIFFEID. It remains set until creation is confirmed or
+                  absence is confirmed during cleanup.
+                type: string
               renderedClusterSPIFFEID:
                 description: renderedClusterSPIFFEID shows the core rendered managed
                   ClusterSPIFFEID output.

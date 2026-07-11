@@ -16,6 +16,7 @@ func TestInitializeConditionsEnsuresCanonicalSetForCurrentGeneration(t *testing.
 	t.Parallel()
 
 	status := kleymv1alpha1.InferenceIdentityBindingStatus{
+		OwnedClusterSPIFFEIDName: "kleym-default-binding-pool-34c1d5c4",
 		Conditions: []metav1.Condition{
 			{
 				Type:               conditionTypeReady,
@@ -40,6 +41,7 @@ func TestInitializeConditionsEnsuresCanonicalSetForCurrentGeneration(t *testing.
 		conditionTypeReady,
 		conditionTypeInvalidRef,
 		conditionTypeUnsafeSelector,
+		conditionTypeConflict,
 		conditionTypeRenderFailure,
 	}
 
@@ -67,9 +69,9 @@ func TestInitializeConditionsEnsuresCanonicalSetForCurrentGeneration(t *testing.
 		t.Fatalf("ready message = %q, want %q", ready.Message, "Binding reconciled")
 	}
 
-	conflict := meta.FindStatusCondition(status.Conditions, "Conflict")
-	if conflict != nil {
-		t.Fatalf("stale Conflict condition was not removed: %#v", conflict)
+	conflict := meta.FindStatusCondition(status.Conditions, conditionTypeConflict)
+	if conflict == nil || conflict.Status != metav1.ConditionTrue {
+		t.Fatalf("existing Conflict condition was not preserved during initialization: %#v", conflict)
 	}
 }
 
@@ -84,6 +86,7 @@ func TestInitializeConditionsSetsUnevaluatedConditionsToInitializing(t *testing.
 		conditionTypeReady,
 		conditionTypeInvalidRef,
 		conditionTypeUnsafeSelector,
+		conditionTypeConflict,
 		conditionTypeRenderFailure,
 	} {
 		condition := meta.FindStatusCondition(status.Conditions, conditionType)
@@ -105,14 +108,17 @@ func TestInitializeConditionsSetsUnevaluatedConditionsToInitializing(t *testing.
 func TestApplySuccessStatusRecordsRenderedSelectors(t *testing.T) {
 	t.Parallel()
 
-	status := kleymv1alpha1.InferenceIdentityBindingStatus{}
+	status := kleymv1alpha1.InferenceIdentityBindingStatus{
+		PendingClusterSPIFFEIDName: "kleym-default-binding-pool-34c1d5c4",
+	}
 	wantSelectors := []string{
 		"k8s:ns:default",
 		"k8s:pod-label:app:model-server",
+		"k8s:pod-label:identity.kleym.sonda.red/variant:prefill",
 		"k8s:sa:inference-sa",
 	}
 
-	spiffeID := "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a"
+	spiffeID := "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill"
 	applySuccessStatus(
 		&status,
 		4,
@@ -146,6 +152,12 @@ func TestApplySuccessStatusRecordsRenderedSelectors(t *testing.T) {
 	if status.RenderedClusterSPIFFEID.SelectorFingerprint != identity.SelectorFingerprint(wantSelectors) {
 		t.Fatalf("selectorFingerprint = %q, want sha256 fingerprint", status.RenderedClusterSPIFFEID.SelectorFingerprint)
 	}
+	if status.OwnedClusterSPIFFEIDName != status.RenderedClusterSPIFFEID.Name {
+		t.Fatalf("ownedClusterSPIFFEIDName = %q, want %q", status.OwnedClusterSPIFFEIDName, status.RenderedClusterSPIFFEID.Name)
+	}
+	if status.PendingClusterSPIFFEIDName != "" {
+		t.Fatalf("pendingClusterSPIFFEIDName = %q after confirmation, want empty", status.PendingClusterSPIFFEIDName)
+	}
 }
 
 func TestApplyFailureStatusClearsRenderedManagedStatus(t *testing.T) {
@@ -153,16 +165,18 @@ func TestApplyFailureStatusClearsRenderedManagedStatus(t *testing.T) {
 
 	generation := int64(3)
 	status := kleymv1alpha1.InferenceIdentityBindingStatus{
+		PendingClusterSPIFFEIDName: "pending-output",
+		OwnedClusterSPIFFEIDName:   "kleym-default-binding-pool-34c1d5c4",
 		ComputedSpiffeIDs: []kleymv1alpha1.ComputedSpiffeIDStatus{{
-			SpiffeID: "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a",
+			SpiffeID: "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill",
 		}},
 		RenderedSelectors: []kleymv1alpha1.RenderedSelectorStatus{{
-			SpiffeID:  "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a",
+			SpiffeID:  "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill",
 			Selectors: []string{"k8s:ns:default"},
 		}},
 		RenderedClusterSPIFFEID: &kleymv1alpha1.RenderedClusterSPIFFEIDStatus{
 			Name:                "kleym-default-binding-pool-34c1d5c4",
-			SpiffeID:            "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a",
+			SpiffeID:            "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill",
 			SelectorFingerprint: "sha256:old",
 			ObservedGeneration:  &generation,
 		},
@@ -179,13 +193,19 @@ func TestApplyFailureStatusClearsRenderedManagedStatus(t *testing.T) {
 	if status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v, want cleared", status.RenderedClusterSPIFFEID)
 	}
+	if status.OwnedClusterSPIFFEIDName != "kleym-default-binding-pool-34c1d5c4" {
+		t.Fatalf("ownedClusterSPIFFEIDName = %q, want retained", status.OwnedClusterSPIFFEIDName)
+	}
+	if status.PendingClusterSPIFFEIDName != "pending-output" {
+		t.Fatalf("pendingClusterSPIFFEIDName = %q, want retained", status.PendingClusterSPIFFEIDName)
+	}
 }
 
 func TestRenderedClusterSPIFFEIDStatusRecordsObservedGeneration(t *testing.T) {
 	t.Parallel()
 
 	rendered := renderedIdentity{
-		SpiffeID:  "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a",
+		SpiffeID:  "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill",
 		Selectors: []string{"k8s:ns:default", "k8s:sa:inference-sa"},
 	}
 	object := &unstructured.Unstructured{}

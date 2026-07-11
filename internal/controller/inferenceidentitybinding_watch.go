@@ -127,7 +127,27 @@ func (r *InferenceIdentityBindingReconciler) mapPoolToBindings(
 		}
 		filtered = append(filtered, binding)
 	}
-	return requestsForBindings(filtered)
+	if len(filtered) == 0 {
+		return nil
+	}
+	peers := &kleymv1alpha1.InferenceIdentityBindingList{}
+	if err := r.List(ctx, peers, client.InNamespace(object.GetNamespace())); err != nil {
+		return nil
+	}
+	return requestsForBindingItems(peers.Items)
+}
+
+// mapBindingToPeers requeues namespace peers because any binding lifecycle or
+// boundary change can change the structural exclusivity result for those peers.
+func (r *InferenceIdentityBindingReconciler) mapBindingToPeers(
+	ctx context.Context,
+	object client.Object,
+) []reconcile.Request {
+	peers := &kleymv1alpha1.InferenceIdentityBindingList{}
+	if err := r.List(ctx, peers, client.InNamespace(object.GetNamespace())); err != nil {
+		return nil
+	}
+	return requestsForBindingItems(peers.Items)
 }
 
 func (r *InferenceIdentityBindingReconciler) listBindingsReferencingPool(
@@ -155,4 +175,13 @@ func requestsForBindings(bindings []*kleymv1alpha1.InferenceIdentityBinding) []r
 	})
 
 	return requests
+}
+
+// requestsForBindingItems adapts listed API values to the shared sorted request helper.
+func requestsForBindingItems(bindings []kleymv1alpha1.InferenceIdentityBinding) []reconcile.Request {
+	pointers := make([]*kleymv1alpha1.InferenceIdentityBinding, 0, len(bindings))
+	for index := range bindings {
+		pointers = append(pointers, bindings[index].DeepCopy())
+	}
+	return requestsForBindings(pointers)
 }

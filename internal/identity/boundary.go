@@ -17,10 +17,15 @@ package identity
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
+
+const reservedBoundaryLabelPrefix = "identity.kleym.sonda.red/"
 
 // ConflictCause identifies why two identity boundaries are not exclusive.
 type ConflictCause string
@@ -55,6 +60,48 @@ type BoundaryConflict struct {
 	PeerSpiffeID   string
 	PeerLabelKey   string
 	PeerLabelValue string
+}
+
+// ValidateBoundary defensively enforces the admission contract before a boundary
+// can enter a SPIFFE ID or selector; see docs/spec/operator.md.
+func ValidateBoundary(boundary Boundary) error {
+	if boundary.LabelKey != strings.TrimSpace(boundary.LabelKey) ||
+		boundary.LabelValue != strings.TrimSpace(boundary.LabelValue) {
+		return newStateError(
+			ConditionTypeUnsafeSelector,
+			ReasonInvalidIdentityBoundary,
+			"identityBoundary label key and value must not include leading or trailing whitespace",
+		)
+	}
+	if !strings.HasPrefix(boundary.LabelKey, reservedBoundaryLabelPrefix) {
+		return newStateError(
+			ConditionTypeUnsafeSelector,
+			ReasonInvalidIdentityBoundary,
+			fmt.Sprintf("identityBoundary.labelKey %q must use reserved prefix %q", boundary.LabelKey, reservedBoundaryLabelPrefix),
+		)
+	}
+	if errs := validation.IsQualifiedName(boundary.LabelKey); len(errs) > 0 {
+		return newStateError(
+			ConditionTypeUnsafeSelector,
+			ReasonInvalidIdentityBoundary,
+			fmt.Sprintf("identityBoundary.labelKey %q is invalid: %s", boundary.LabelKey, strings.Join(errs, "; ")),
+		)
+	}
+	if boundary.LabelValue == "" {
+		return newStateError(
+			ConditionTypeUnsafeSelector,
+			ReasonInvalidIdentityBoundary,
+			"identityBoundary.labelValue must not be empty",
+		)
+	}
+	if errs := validation.IsValidLabelValue(boundary.LabelValue); len(errs) > 0 {
+		return newStateError(
+			ConditionTypeUnsafeSelector,
+			ReasonInvalidIdentityBoundary,
+			fmt.Sprintf("identityBoundary.labelValue %q is invalid: %s", boundary.LabelValue, strings.Join(errs, "; ")),
+		)
+	}
+	return nil
 }
 
 // EvaluateBoundaryConflicts returns both directional records for every non-exclusive pair.

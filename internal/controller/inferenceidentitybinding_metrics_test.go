@@ -38,7 +38,7 @@ func TestDeriveBindingOutcomeLabelsReady(t *testing.T) {
 	binding := newPoolOnlyBinding("binding-ready", "")
 	initializeConditions(&binding.Status, 1)
 	applySuccessStatus(&binding.Status, binding.Generation, []renderedIdentity{{
-		SpiffeID: "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a",
+		SpiffeID: "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill",
 	}}, nil)
 
 	labels, ok := deriveBindingOutcomeLabels(binding, false)
@@ -137,7 +137,7 @@ func TestReconcileRecordsSuccessfulTerminalOutcomeAfterStatusPatch(t *testing.T)
 	}
 }
 
-func TestReconcileRemovesStaleConflictCondition(t *testing.T) {
+func TestReconcileResolvesStaleConflictCondition(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -172,8 +172,9 @@ func TestReconcileRemovesStaleConflictCondition(t *testing.T) {
 	if err := k8sClient.Get(ctx, key, fetched); err != nil {
 		t.Fatalf("Get returned error: %v", err)
 	}
-	if condition := meta.FindStatusCondition(fetched.Status.Conditions, "Conflict"); condition != nil {
-		t.Fatalf("stale Conflict condition persisted: %#v", condition)
+	condition := meta.FindStatusCondition(fetched.Status.Conditions, conditionTypeConflict)
+	if condition == nil || condition.Status != metav1.ConditionFalse || condition.Reason != conditionReasonResolved {
+		t.Fatalf("Conflict condition = %#v, want False/Resolved", condition)
 	}
 }
 
@@ -230,8 +231,8 @@ func TestIdentityBindingGaugeCollectorAggregatesOutcomes(t *testing.T) {
 	initializeConditions(&unsafe.Status, 1)
 	initializeConditions(&initializing.Status, 1)
 
-	applySuccessStatus(&readyA.Status, readyA.Generation, []renderedIdentity{{SpiffeID: "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a"}}, nil)
-	applySuccessStatus(&readyB.Status, readyB.Generation, []renderedIdentity{{SpiffeID: "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a"}}, nil)
+	applySuccessStatus(&readyA.Status, readyA.Generation, []renderedIdentity{{SpiffeID: "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill"}}, nil)
+	applySuccessStatus(&readyB.Status, readyB.Generation, []renderedIdentity{{SpiffeID: "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill"}}, nil)
 	applyFailureStatus(&unsafe.Status, unsafe.Generation, newStateError(conditionTypeUnsafeSelector, "UnsafeSelector", "selectors are unsafe"))
 
 	k8sClient := fake.NewClientBuilder().
