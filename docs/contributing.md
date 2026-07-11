@@ -153,7 +153,9 @@ Docs-related pull requests and pushes to `main` run a dedicated docs workflow th
 ## CI And Releases
 
 - CI workflows run on GitHub-hosted runners (`ubuntu-latest`) and must not depend on local or self-hosted infrastructure.
-- `.github/workflows/ci.yml` runs separate `Lint` and `Test` jobs on pull requests and pushes to `main`
-- `.github/workflows/chainsaw-e2e.yml` runs the Kind-backed Chainsaw reconciliation check on pull requests, pushes to `main`, and manual dispatch
+- `.github/workflows/ci.yml` runs separate `Lint` and `Test` jobs on non-draft pull requests and pushes to `main`
+- `.github/workflows/chainsaw-e2e.yml` runs the Kind-backed Chainsaw reconciliation check on non-draft pull requests, pushes to `main`, and manual dispatch
+- `.github/workflows/docs.yml` builds documentation changes on non-draft pull requests, pushes to `main`, and manual dispatch
+- `.github/workflows/pr-title.yml` validates titles on non-draft pull requests, including when a draft is marked ready for review
 - `.github/workflows/release.yml` runs by manual `workflow_dispatch` from the GitHub Actions UI, builds artifacts and images, creates the release tag, and creates a GitHub Release
 - Follow Conventional Commits for PR titles. See `RELEASING.md` for the manual release procedure

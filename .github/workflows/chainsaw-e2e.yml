@@ -4,6 +4,11 @@ on:
   pull_request:
     branches:
       - main
+    types:
+      - opened
+      - ready_for_review
+      - reopened
+      - synchronize
   push:
     branches:
       - main
@@ -20,7 +25,7 @@ jobs:
   chainsaw:
     name: Kind + Chainsaw
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.head_ref, 'renovate/') }}
+    if: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.draft) && !contains(github.head_ref, 'renovate/') }}
     env:
       GOFLAGS: -buildvcs=false -p=2
       GOMAXPROCS: "2"
