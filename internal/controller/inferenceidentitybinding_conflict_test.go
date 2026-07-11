@@ -309,6 +309,8 @@ func newConflictTestReconciler(t *testing.T, objects ...client.Object) *Inferenc
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexPoolRefName, bindingPoolRefNameIndexValue).
+			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexManagedClusterSPIFFEIDName, bindingClusterSPIFFEIDNameIndexValues).
 			WithObjects(objects...).
 			Build(),
 		Scheme: scheme,

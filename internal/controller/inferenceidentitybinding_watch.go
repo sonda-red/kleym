@@ -217,7 +217,14 @@ func (r *InferenceIdentityBindingReconciler) listBindingsReferencingPool(
 	namespace string,
 	poolName string,
 ) ([]*kleymv1alpha1.InferenceIdentityBinding, error) {
-	return r.listBindingsByField(ctx, namespace, fieldIndexPoolRefName, poolName)
+	bindingList := &kleymv1alpha1.InferenceIdentityBindingList{}
+	if err := r.List(ctx, bindingList,
+		client.InNamespace(namespace),
+		client.MatchingFields{fieldIndexPoolRefName: poolName},
+	); err != nil {
+		return nil, err
+	}
+	return bindingPointers(bindingList.Items), nil
 }
 
 // listBindingsByManagedClusterSPIFFEIDName performs the cluster-scoped reverse
@@ -226,7 +233,13 @@ func (r *InferenceIdentityBindingReconciler) listBindingsByManagedClusterSPIFFEI
 	ctx context.Context,
 	name string,
 ) ([]*kleymv1alpha1.InferenceIdentityBinding, error) {
-	return r.listBindingsByField(ctx, "", fieldIndexManagedClusterSPIFFEIDName, name)
+	bindingList := &kleymv1alpha1.InferenceIdentityBindingList{}
+	if err := r.List(ctx, bindingList,
+		client.MatchingFields{fieldIndexManagedClusterSPIFFEIDName: name},
+	); err != nil {
+		return nil, err
+	}
+	return bindingPointers(bindingList.Items), nil
 }
 
 func requestsForBindings(bindings []*kleymv1alpha1.InferenceIdentityBinding) []reconcile.Request {
@@ -250,9 +263,13 @@ func requestsForBindings(bindings []*kleymv1alpha1.InferenceIdentityBinding) []r
 
 // requestsForBindingItems adapts listed API values to the shared sorted request helper.
 func requestsForBindingItems(bindings []kleymv1alpha1.InferenceIdentityBinding) []reconcile.Request {
+	return requestsForBindings(bindingPointers(bindings))
+}
+
+func bindingPointers(bindings []kleymv1alpha1.InferenceIdentityBinding) []*kleymv1alpha1.InferenceIdentityBinding {
 	pointers := make([]*kleymv1alpha1.InferenceIdentityBinding, 0, len(bindings))
 	for index := range bindings {
 		pointers = append(pointers, bindings[index].DeepCopy())
 	}
-	return requestsForBindings(pointers)
+	return pointers
 }
