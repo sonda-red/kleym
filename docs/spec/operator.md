@@ -50,7 +50,7 @@ When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be c
 5. Status records operator configuration, validated identity-boundary state, rendered output, conflicts, and conditions. The status rules are defined in [Status Contract](#status-contract).
 6. The CRD exposes printer columns for `POOL`, `BOUNDARY`, `READY`, `REASON`, and `SPIFFE ID` so `kubectl get inferenceidentitybindings.kleym.sonda.red -A` is the primary binding list view.
 
-[API Reference][api-reference] and [Conditions Reference][conditions-reference] document implemented API and condition surfaces. Follow-on API, controller, and CLI work must update those references before these boundary fields and reasons are shipped.
+[API Reference][api-reference] and [Conditions Reference][conditions-reference] document the implemented API and condition surfaces.
 
 ## Resolved Inference Target Contract
 
@@ -211,9 +211,11 @@ An identity boundary label is security-sensitive metadata. Permission to assign 
 
 Kleym does not mutate workloads, pools, or Pods.
 
-## CLI Impact
+## CLI Boundary
 
-The CLI remains read only. Follow-on CLI work must expose the declared boundary key and value, full normalized pool selector, conflict peers and causes, and managed output state. It must consume the operator's boundary and conflict status rather than implement a separate exclusivity model. This issue does not change the current CLI specification or report format.
+The CLI remains read only and consumes operator status. It does not reconcile
+resources or implement a separate identity-boundary exclusivity model. The
+current inspection contract is defined in the [CLI Spec](/spec/cli/).
 
 ## Safety Invariants
 

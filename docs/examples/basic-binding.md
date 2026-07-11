@@ -28,6 +28,7 @@ spec:
   selector:
     matchLabels:
       app: model-server
+---
 apiVersion: kleym.sonda.red/v1alpha1
 kind: InferenceIdentityBinding
 metadata:
@@ -41,6 +42,12 @@ spec:
     labelKey: identity.kleym.sonda.red/variant
     labelValue: prefill
 ```
+
+The selected Pods must carry
+`identity.kleym.sonda.red/variant=prefill`. Apply this example only after the
+cluster has the required
+[identity-boundary admission policy](/install/#identity-boundary-admission-policy);
+Kleym neither adds the label nor enforces its Pod-lifetime immutability.
 
 ## Expected Outcome
 

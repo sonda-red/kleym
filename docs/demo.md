@@ -31,6 +31,7 @@ Use a Kubernetes cluster with these dependencies already installed:
 - Gateway API Inference Extension CRD for the reference `InferencePool`
 - SPIRE Controller Manager with the `ClusterSPIFFEID` CRD
 - `kleym-operator` installed and running
+- [identity-boundary admission policy](/install/#identity-boundary-admission-policy) that controls `identity.kleym.sonda.red/*` labels and prevents mutation during a Pod's lifetime
 
 Confirm the external CRDs and controller are present:
 
@@ -56,6 +57,10 @@ kubectl -n kleym-reference-inference rollout status deployment/reference-model-s
 
 Expected observation: the reference namespace, service account, workload, and
 `InferencePool` exist before any binding is applied.
+
+The fixture Pod template already carries the reserved boundary label. The
+cluster admission policy, not Kleym, must authorize that platform-controlled
+assignment and prevent later changes to the label.
 
 ## Apply The Binding
 

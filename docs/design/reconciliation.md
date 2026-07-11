@@ -10,20 +10,32 @@ aliases:
 
 For each `InferenceIdentityBinding`, the reconciler currently does the following:
 
-1. Fetch the binding and ensure the `kleym.sonda.red/inferenceidentitybinding-finalizer` is present.
-2. Resolve the referenced `InferencePool` from `spec.poolRef`.
+1. Fetch the binding. If it is deleting, remove recorded managed output, confirm
+   absence, and only then remove the
+   `kleym.sonda.red/inferenceidentitybinding-finalizer`.
+2. Otherwise, ensure the finalizer and resolve the referenced `InferencePool`
+   from `spec.poolRef`.
 3. Resolve the pool to identity anchor `pool/<pool-name>` plus pod-label selector inputs.
-4. Render namespace and service-account safety selectors from the binding and merge them with the resolved target selectors.
-5. Validate selector safety before rendering or writing output.
-6. Render the deterministic service-account-scoped inference target SPIFFE ID.
-7. Create, update, or delete managed `ClusterSPIFFEID` resources to match the rendered identity.
-8. Patch binding status and emit events for success or failure.
+4. Validate the required identity boundary and render the mandatory namespace,
+   service-account, complete pool, and boundary selectors.
+5. Render the deterministic service-account-scoped inference target SPIFFE ID.
+6. Evaluate peer bindings using the pairwise exclusivity contract in the
+   [Operator Spec](/spec/operator/#identity-boundary-and-exclusivity).
+7. For a conflict or duplicate claim, withdraw managed output from every
+   conflict member and confirm absence before settling `Conflict=True`.
+8. For an exclusive claim, create or update the managed `ClusterSPIFFEID` only
+   after any previously recorded output is confirmed absent.
+9. Patch binding status and emit events for success or failure.
 
 ## Requeue Sources
 
 The controller does not only react to the binding itself. It also watches:
 
 - `InferencePool`, so selector changes requeue only bindings whose `spec.poolRef.name` points at that pool
+- peer `InferenceIdentityBinding` objects, so binding creation, update, and
+  deletion converge every affected peer without relying on in-memory state
+- managed `ClusterSPIFFEID` objects, so deletion or drift requeues the binding
+  that recorded the output name
 
 That keeps the rendered identity tied to current pool state instead of only the binding object.
 
@@ -31,6 +43,19 @@ Watch predicates filter status-only update events to avoid hot loops. Create and
 
 ## Failure Shape
 
-The reconciler treats invalid references, unsafe selectors, and render failures as controller state, not as crashes. In those paths it updates status, emits an event, and removes stale managed output instead of leaving outdated `ClusterSPIFFEID` resources behind.
+The reconciler treats invalid references, unsafe selectors, conflicts, and
+render failures as controller state, not as crashes. Invalid boundaries report
+`UnsafeSelector=True` with reason `InvalidIdentityBoundary`. Conflict members
+report `Conflict=True` only after their managed output is absent; duplicate
+SPIFFE ID claims use reason `DuplicateIdentityBinding`, while other boundary
+conflicts use `IdentityBoundaryConflict`.
 
-For missing required external CRDs (`InferencePool` or `ClusterSPIFFEID`), the reconciler also schedules a timed retry (`RequeueAfter`) so recovery does not depend on unrelated future events.
+When old or conflicting output deletion is still converging, rendered output is
+cleared and `Ready=Unknown` with reason `Initializing` records that absence has
+not yet been confirmed. API uncertainty is not absence confirmation.
+
+Controller setup fails when the supported `InferencePool` GVK is not served, so
+installing that CRD requires restarting an operator that already failed startup.
+After startup, a missing `ClusterSPIFFEID` CRD is a managed-output failure and
+uses a timed retry (`RequeueAfter`) so recovery does not depend on unrelated
+watch events.

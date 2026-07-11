@@ -18,12 +18,25 @@ previewing the documentation site locally. CLI usage is documented separately in
 - Access to a Kubernetes cluster
 - Gateway API Inference Extension (GAIE) CRD for [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/)
 - SPIFFE Runtime Environment (SPIRE) Controller Manager with the [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md)
+- An admission-policy implementation for the identity-boundary label controls described below
 - Docker for Kind-backed e2e; the e2e targets bootstrap `kind` and Chainsaw under `bin/`
 - Hugo Extended `0.146+` for docs preview/build
 
 The repository bootstraps local tool binaries under `bin/` through `make` targets, so you do not need to install `controller-gen`, `kustomize`, `setup-envtest`, `golangci-lint`, `kind`, or Chainsaw globally.
 
 For identity-system background, see [SPIFFE overview](https://spiffe.io/docs/latest/spiffe-about/overview/) and [SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/).
+
+## Identity Boundary Admission Policy
+
+Before creating bindings or labeled workloads, install cluster admission policy
+for the reserved `identity.kleym.sonda.red/*` Pod-label prefix. The policy must:
+
+- allow assignment of reserved boundary labels only by platform-controlled actors
+- reject adding, changing, or removing a reserved boundary label on an existing Pod; boundary changes require replacement Pods
+
+Use a Kubernetes admission controller, policy engine, or webhook appropriate to
+your cluster. Kleym does not install this external policy or mutate Pods. The
+authoritative ownership requirement is [Boundary Label Ownership](/spec/operator/#boundary-label-ownership).
 
 ## Run Locally
 

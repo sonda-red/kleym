@@ -1,7 +1,7 @@
 ---
 title: Selector Safety
 weight: 20
-description: "Selector safety design for proving namespace, service account, and pool boundaries before rendering SPIFFE identities."
+description: "Selector safety design for constraining namespace, service account, pool, and identity-boundary workload matches before rendering SPIFFE identities."
 aliases:
   - /operator/design/selector-safety/
 ---
@@ -22,10 +22,23 @@ The current implementation requires:
 - a namespace selector: `k8s:ns:<binding-namespace>`
 - a service account selector: `k8s:sa:<service-account>`
 - selectors derived from the referenced pool
+- one boundary selector rendered from required `spec.identityBoundary`:
+  `k8s:pod-label:<label-key>:<label-value>`
 
 If the namespace selector does not match the binding namespace, reconciliation fails.
 
 If no service account selector is present, reconciliation fails.
+
+An invalid, missing, or non-reserved boundary fails with
+`UnsafeSelector=True` reason `InvalidIdentityBoundary`. Different SPIFFE IDs in
+the same namespace and service account are exclusive only when their boundary
+keys match and their values differ. Other relationships conflict; the exact
+pairwise rules remain authoritative in the
+[Operator Spec](/spec/operator/#identity-boundary-and-exclusivity).
+
+Conflict members retain no managed output. The controller withdraws their owned
+`ClusterSPIFFEID` resources and confirms absence before reporting the conflict
+as settled or permitting peers to recreate output.
 
 ## Pool Selector Constraints
 
@@ -52,7 +65,12 @@ did not specify. `matchExpressions` are not rendered.
 
 ## Selector Ownership
 
-Users provide only `serviceAccountName`. Kleym renders the namespace and
-service-account selectors internally and derives pool selectors from `poolRef`.
-The final selector set is de-duplicated and sorted before it is reported in
-status or written to managed `ClusterSPIFFEID` output.
+Users declare `serviceAccountName` and `identityBoundary`; Kleym renders the
+namespace and service-account selectors internally and derives pool selectors
+from `poolRef`. The final selector set is de-duplicated and sorted before it is
+reported in status or written to managed `ClusterSPIFFEID` output.
+
+Selector exclusivity depends on the boundary label remaining platform
+controlled and immutable for the Pod lifetime. Kleym does not enforce workload
+label writes; installation must provide the external admission policy described
+in [Identity Boundary Admission Policy](/install/#identity-boundary-admission-policy).

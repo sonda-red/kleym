@@ -22,8 +22,11 @@ In normal operation:
 - `Ready=True` with reason `Reconciled`
 - all failure conditions are `False` with reason `Resolved`
 
-If reconciliation fails, `Ready=False` and the triggering condition becomes `True`.
-`Ready=False` carries the same reason and message as the single active failure condition.
+A settled validation, conflict, or managed-output failure sets `Ready=False`;
+the single active failure condition carries the same reason and message.
+`Ready=Unknown` with reason `Initializing` means reconciliation has not settled,
+including while the controller waits to confirm old or conflicting managed
+output is absent.
 
 ## Condition And Reason Map
 
@@ -33,12 +36,33 @@ If reconciliation fails, `Ready=False` and the triggering condition becomes `Tru
 | `InvalidRef` | `TargetPoolNotFound` | The binding points to an `InferencePool` that does not exist. | Create the pool or correct `spec.poolRef`. |
 | `InvalidRef` | `InferencePoolCRDMissing` | The GAIE `InferencePool` CRD is not installed in the cluster. | Install the required GAIE CRDs before reconciling bindings. |
 | `UnsafeSelector` | `InvalidPoolSelector` | The pool selector cannot be normalized into a rendered selector set, or its label keys or values are malformed. | Use a deterministic `matchLabels`-style selector with valid Kubernetes label keys and values. Do not rely on whitespace trimming. |
-| `UnsafeSelector` | `UnsafeSelector` | The rendered selector set is missing namespace or service account safety constraints, or would widen beyond the tenant boundary. | Ensure `serviceAccountName` and the pool-derived selector stay within the intended workload boundary. |
+| `UnsafeSelector` | `UnsafeSelector` | The rendered selector set is missing namespace or service account constraints, or would widen beyond the required workload match. | Ensure `serviceAccountName` and the pool-derived selector preserve the intended workload match. |
+| `UnsafeSelector` | `InvalidIdentityBoundary` | The required boundary key or value is missing, malformed, empty, or the key is outside `identity.kleym.sonda.red/*`. | Set a valid reserved `identityBoundary.labelKey` and nonempty Kubernetes label value. |
+| `Conflict` | `IdentityBoundaryConflict` | Peer claims in the same namespace and service account reuse a boundary value or use different boundary keys, so exclusivity is not proven. | Give distinct variants the same platform-controlled boundary key with different values, then wait for all conflicting output to be confirmed absent. |
+| `Conflict` | `DuplicateIdentityBinding` | This binding and at least one peer render the same SPIFFE ID. | Remove the duplicate claim or change its identity inputs; selector differences do not make duplicate SPIFFE IDs valid. |
 | `RenderFailure` | `InvalidServiceAccountName` | `spec.serviceAccountName` is empty or not a valid Kubernetes service account name. | Set `serviceAccountName` to the exact workload service account. |
 | `RenderFailure` | `InvalidSPIFFEID` | The computed SPIFFE ID is not valid. | Check the referenced namespace and pool names. |
 | `RenderFailure` | `MissingTrustDomain` | The operator has no trust domain configured. | Configure `--trust-domain` or `KLEYM_TRUST_DOMAIN` before starting the operator. |
 | `RenderFailure` | `ClusterSPIFFEIDCRDMissing` | SPIRE Controller Manager or its `ClusterSPIFFEID` CRD is missing. | Install SPIRE Controller Manager and confirm the `clusterspiffeids.spire.spiffe.io` CRD exists. |
 | `RenderFailure` | `ManagedOutputApplyFailed` | The Kubernetes API rejected or failed a managed `ClusterSPIFFEID` list, create, update, or delete request. | Check API server availability, RBAC, admission errors, and SPIRE Controller Manager CRD health; the controller returns the API error for retry. |
+
+## Conflict Diagnosis
+
+When `Conflict=True`, inspect `status.conflicts`. Each item identifies a peer
+binding and a precise cause:
+
+| Cause | Meaning |
+| --- | --- |
+| `BoundaryValueReuse` | Different SPIFFE IDs in the same namespace and service account reuse the same boundary key and value. |
+| `BoundaryKeyMismatch` | Different SPIFFE IDs in the same namespace and service account use different boundary keys, which does not prove disjointness. |
+| `DuplicateSPIFFEID` | Both bindings render the same SPIFFE ID; this is a duplicate claim regardless of selectors or boundary declarations. |
+
+Conflict output is fail closed. The controller withdraws every owned
+`ClusterSPIFFEID` in the conflict group and reports the settled conflict only
+after absence is confirmed. While deletion or a prior identity replacement is
+pending, expect cleared rendered output and `Ready=Unknown` with reason
+`Initializing`. A deleting peer remains a competitor until its output absence
+is confirmed, so do not recreate output manually.
 
 ## Missing CRDs
 
