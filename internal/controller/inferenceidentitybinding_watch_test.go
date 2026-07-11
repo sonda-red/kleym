@@ -44,6 +44,52 @@ func TestClusterSPIFFEIDWatchMapsOnlyPersistedManagedOutputNames(t *testing.T) {
 	assertRequestNames(t, reconciler.mapClusterSPIFFEIDToBindings(ctx, labelOnlyEvent), nil)
 }
 
+func TestReverseBindingLookupsUseConfiguredFieldIndexes(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	matchingPool := newPoolOnlyBinding("binding-pool-match", "")
+	unrelatedPool := newPoolOnlyBinding("binding-pool-other", "")
+	unrelatedPool.Spec.PoolRef.Name = "pool-other"
+	matchingOutput := newPoolOnlyBinding("binding-output-match", "")
+	matchingOutput.Status.OwnedClusterSPIFFEIDName = "recorded-output"
+	unrelatedOutput := newPoolOnlyBinding("binding-output-other", "")
+	unrelatedOutput.Status.PendingClusterSPIFFEIDName = "other-output"
+	reconciler := newIndexedWatchTestReconciler(t, matchingPool, unrelatedPool, matchingOutput, unrelatedOutput)
+
+	poolBindings, err := reconciler.listBindingsReferencingPool(ctx, testNamespace, "pool-a")
+	if err != nil {
+		t.Fatalf("list bindings by pool reference: %v", err)
+	}
+	assertBindingNames(t, poolBindings, []string{"binding-output-match", "binding-output-other", "binding-pool-match"})
+
+	outputBindings, err := reconciler.listBindingsByManagedClusterSPIFFEIDName(ctx, "recorded-output")
+	if err != nil {
+		t.Fatalf("list bindings by managed output name: %v", err)
+	}
+	assertBindingNames(t, outputBindings, []string{"binding-output-match"})
+}
+
+func TestReverseBindingLookupsReturnMissingIndexErrors(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	binding := newPoolOnlyBinding("binding-missing-index", "")
+	binding.Status.OwnedClusterSPIFFEIDName = "recorded-output"
+	scheme := newControllerTestScheme(t)
+	reconciler := &InferenceIdentityBindingReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(binding).Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.listBindingsReferencingPool(ctx, testNamespace, "pool-a"); err == nil {
+		t.Fatal("list bindings by pool reference error = nil, want missing-index error")
+	}
+	if _, err := reconciler.listBindingsByManagedClusterSPIFFEIDName(ctx, "recorded-output"); err == nil {
+		t.Fatal("list bindings by managed output name error = nil, want missing-index error")
+	}
+}
+
 func TestClusterSPIFFEIDWatchDeletionRequeuesRecordedBindingAndRestoresReady(t *testing.T) {
 	t.Parallel()
 
@@ -194,6 +240,25 @@ func assertRequestNames(t *testing.T, requests []reconcile.Request, want []strin
 	for i := range got {
 		if got[i] != want[i] {
 			t.Fatalf("requests = %v, want %v", got, want)
+		}
+	}
+}
+
+func assertBindingNames(t *testing.T, bindings []*kleymv1alpha1.InferenceIdentityBinding, want []string) {
+	t.Helper()
+
+	got := make([]string, 0, len(bindings))
+	for _, binding := range bindings {
+		got = append(got, binding.Name)
+	}
+	sort.Strings(got)
+	sort.Strings(want)
+	if len(got) != len(want) {
+		t.Fatalf("bindings = %v, want %v", got, want)
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			t.Fatalf("bindings = %v, want %v", got, want)
 		}
 	}
 }
