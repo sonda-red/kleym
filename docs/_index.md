@@ -22,7 +22,9 @@ The in-cluster `kleym-operator` watches `InferencePool` workload intent, then co
 
 - primary input: [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/)
 - primary output: deterministic `ClusterSPIFFEID` resources
-- safety model: namespace and service account selectors are always present; unsafe or ambiguous state is refused
+- safety model: namespace, service account, pool, and identity-boundary selectors are mandatory; peer bindings must be structurally exclusive
+- fail-closed behavior: unsafe, conflicting, or duplicate claims retain no managed output, and output absence is confirmed before conflicts settle
+- enforcement assumption: cluster admission controls reserved identity-boundary labels and keeps them immutable for each Pod lifetime
 
 ## Documentation Map
 

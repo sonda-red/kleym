@@ -10,7 +10,7 @@ aliases:
 
 Kleym uses inference workload identity to mean identity registration derived from a Kubernetes inference serving boundary, not from a pod alone. In the current contract, that serving boundary is a Gateway API Inference Extension (GAIE) `InferencePool` referenced by an `InferenceIdentityBinding`.
 
-The binding namespace and required service account constrain which workloads may match. Selectors from the referenced pool provide workload provenance, while `spec.identityBoundary` selects one label-defined workload variant. `kleym-operator` resolves the pool, validates structural exclusivity against peer bindings, and reconciles a managed SPIRE Controller Manager `ClusterSPIFFEID` only when the variant is exclusive.
+The binding namespace and required service account constrain which workloads may match. Selectors from the referenced pool provide workload provenance, while the required `spec.identityBoundary` selects one label-defined workload variant. `kleym-operator` resolves the pool, validates structural exclusivity against peer bindings, and reconciles a managed SPIRE Controller Manager `ClusterSPIFFEID` only when the variant is exclusive. SPIRE Controller Manager translates that resource into registration entries; SPIRE Server issues SVIDs, while SPIRE Agent attests workloads and delivers credentials.
 
 This stops at identity registration. Kleym does not deploy inference workloads, route traffic, configure gateways, evaluate request policy, issue credentials, or prove runtime SVID use. The authoritative behavior is defined in the [Operator Spec](/spec/operator/).
 
@@ -38,7 +38,8 @@ boundary label value identifies the variant within the pool.
 
 ## Safety Selectors
 
-Safety selectors are the controller's proof that the rendered identity stays inside the intended tenant boundary.
+Safety selectors constrain the rendered workload match; they do not authorize
+who may create bindings or assign workload labels.
 
 Every rendered identity must include:
 
@@ -51,6 +52,13 @@ Every rendered identity must include:
 Within one namespace and service account, different SPIFFE IDs are structurally
 exclusive only when they use the same boundary label key with different values.
 Duplicate SPIFFE IDs, reused values, and different boundary keys fail closed.
+The controller withdraws managed output for every member of a conflict group and
+confirms it is absent before reporting the conflict as settled. A deleting peer
+remains a competitor until its output is confirmed absent.
+
+Structural exclusivity assumes that cluster admission restricts reserved
+boundary labels to platform-controlled actors and keeps them immutable for each
+Pod lifetime. See [Identity Boundary Admission Policy](/install/#identity-boundary-admission-policy).
 
 ## See Also
 

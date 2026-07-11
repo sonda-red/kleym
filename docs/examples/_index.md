@@ -20,6 +20,7 @@ These examples assume:
 - Gateway API Inference Extension (GAIE) CRDs are installed for [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/)
 - SPIFFE Runtime Environment (SPIRE) Controller Manager is installed with the [`ClusterSPIFFEID` CRD](https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md)
 - `kleym-operator` is running
+- the required [identity-boundary admission policy](/install/#identity-boundary-admission-policy) controls reserved labels and makes them immutable for each Pod lifetime
 
 The manifests show the GAIE fields `kleym-operator` consumes. For full GAIE
 object shape and additional optional fields, use the [GAIE API types index](https://gateway-api-inference-extension.sigs.k8s.io/api-types/).
@@ -29,7 +30,7 @@ For SPIFFE and SPIRE background, see [SPIFFE overview](https://spiffe.io/docs/la
 
 | Example | Use it when | Outcome |
 | --- | --- | --- |
-| [Basic Binding](/examples/basic-binding/) | You need one identity per serving pool. | One managed `ClusterSPIFFEID` for the referenced pool. |
+| [Basic Binding](/examples/basic-binding/) | You need one identity for a service account and label-defined pool variant. | One managed `ClusterSPIFFEID` for the declared variant. |
 
 ## Recommended Reading Order
 

@@ -33,14 +33,14 @@ The in-cluster `kleym-operator` watches `InferencePool` workload intent, then co
 ## Where kleym fits
 
 - The [Gateway API Inference Extension](https://gateway-api-inference-extension.sigs.k8s.io/) describes inference workloads in Kubernetes.
-- `kleym-operator` turns that intent into workload identity registrations with tenant-safe selectors.
-- SPIRE Controller Manager applies those registrations so SPIRE can issue identities to the matching workloads.
+- `kleym-operator` turns that intent into workload identity registrations constrained by namespace, service account, pool, and a reserved identity-boundary label.
+- SPIRE Controller Manager translates managed `ClusterSPIFFEID` resources into SPIRE registration entries; SPIRE Server issues SVIDs, while SPIRE Agent attests workloads and delivers credentials.
 
 ## Why kleym
 
-- Derives stable SPIFFE identities from Gateway API Inference Extension resources instead of ad hoc labels.
-- Keeps selector rendering tenant-safe by intersecting namespace, service account, and pool-derived selectors.
-- Delegates identity issuance and rotation to SPIRE Controller Manager instead of writing SPIRE entries directly.
+- Derives stable SPIFFE identities from declared pool, service-account, and workload-variant intent.
+- Keeps selector rendering workload-constrained with mandatory namespace, service account, pool-derived, and identity-boundary selectors.
+- Writes `ClusterSPIFFEID` intent for SPIRE Controller Manager instead of writing SPIRE registration entries or issuing credentials.
 
 ## Scope boundary
 
@@ -50,8 +50,9 @@ Kleym stops at identity registration. `kleym-operator` does not deploy inference
 
 - `InferenceIdentityBinding` declares identity intent and a reserved label boundary for one `InferencePool` workload variant.
 - `kleym-operator` resolves the pool to an internal inference target anchored as `pool/<pool-name>`.
-- The controller combines that target with the binding namespace, service account, and identity boundary to render deterministic selectors and variant SPIFFE IDs.
-- Managed `ClusterSPIFFEID` resources are reconciled for SPIRE Controller Manager.
+- The controller combines that target with the binding namespace, service account, and mandatory identity boundary to render deterministic selectors and variant SPIFFE IDs.
+- Peer bindings are evaluated for structural exclusivity before managed output is created or updated.
+- Conflicting or duplicate identity claims have their managed `ClusterSPIFFEID` output withdrawn; absence is confirmed before the conflict is reported as settled and before peers may recreate output.
 
 ## Quickstart
 
@@ -62,6 +63,7 @@ Prerequisites:
 - `kubectl`
 - Access to a Kubernetes cluster with the Gateway API Inference Extension [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) CRD
 - SPIRE Controller Manager with the `ClusterSPIFFEID` CRD
+- Cluster admission policy that controls assignment of `identity.kleym.sonda.red/*` Pod labels and prevents changing them during a Pod's lifetime; see [`docs/install.md`](docs/install.md#identity-boundary-admission-policy)
 - Docker for Kind-backed e2e; the e2e targets bootstrap `kind` and Chainsaw under `bin/`
 
 Run the controller locally:
@@ -131,7 +133,9 @@ flowchart TD
         D1Y["Clean up ClusterSPIFFEIDs\nRemove finalizer"]
         F["Ensure finalizer"]
         RESOLVE["Resolve poolRef → Pool"]
-        RENDER["Derive selectors from pool\nValidate safety selectors\nRender SPIFFE ID"]
+        RENDER["Derive selectors from pool\nValidate mandatory boundary + selectors\nRender SPIFFE ID"]
+        PEERS{"Exclusive from peers?"}
+        WITHDRAW["Withdraw conflict output\nConfirm absence"]
         APPLY["Reconcile ClusterSPIFFEID"]
         STATUS["Patch status + emit events"]
     end
@@ -146,7 +150,9 @@ flowchart TD
     D1 -->|yes| D1Y
     D1 -->|no| F --> RESOLVE
     P --> RESOLVE
-    RESOLVE --> RENDER --> APPLY --> STATUS
+    RESOLVE --> RENDER --> PEERS
+    PEERS -->|yes| APPLY --> STATUS
+    PEERS -->|no| WITHDRAW --> STATUS
     APPLY --> CS --> SCM --> SR
     STATUS --> B
 
@@ -161,7 +167,8 @@ flowchart TD
     class B binding
     class P gaie
     class D1 gate
-    class D1Y,F,RESOLVE,RENDER,APPLY controller
+    class D1Y,F,RESOLVE,RENDER,APPLY,WITHDRAW controller
+    class PEERS gate
     class STATUS status
     class CS,SCM,SR spire
 ```
