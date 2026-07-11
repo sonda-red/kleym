@@ -51,10 +51,11 @@ type InferenceIdentityBindingSpec struct {
 	// +required
 	PoolRef InferencePoolTargetRef `json:"poolRef"`
 
-	// serviceAccountName is the Kubernetes service account required in every rendered identity selector set.
+	// serviceAccountName is the DNS-1123 subdomain Kubernetes service account required in every rendered identity selector set.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
 	ServiceAccountName string `json:"serviceAccountName"`
 }
 

@@ -44,7 +44,7 @@ When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be c
 `InferenceIdentityBinding` is namespaced. Pool references stay in that namespace.
 
 1. `poolRef` references one [`InferencePool`][gaie-inferencepool]. The pool is the required workload anchor and selector provenance source.
-2. `serviceAccountName` is required. It scopes both the SPIFFE ID path and the mandatory `k8s:sa:<serviceAccountName>` selector.
+2. `serviceAccountName` is required and admission-validated as a DNS-1123 subdomain with a maximum length of 253 characters. It scopes both the SPIFFE ID path and the mandatory `k8s:sa:<serviceAccountName>` selector.
 3. `identityBoundary.labelKey` and `identityBoundary.labelValue` are required. `labelKey` must be a valid Kubernetes label key and use the reserved `identity.kleym.sonda.red/` prefix. `labelValue` must be a valid, nonempty Kubernetes label value. Bindings declare both values; the referenced pool does not repeat them.
 4. SPIFFE IDs are deterministic under the configured trust domain: `spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/pool/<pool-name>/variant/<labelValue>`.
 5. Status records operator configuration, validated identity-boundary state, rendered output, conflicts, and conditions. The status rules are defined in [Status Contract](#status-contract).

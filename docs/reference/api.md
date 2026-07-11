@@ -33,13 +33,13 @@ External SPIFFE/SPIRE references:
 | --- | --- | --- |
 | `poolRef.name` | Yes | References an `InferencePool` in the same namespace. |
 | `poolRef.group` | No | Constrains pool resolution to `inference.networking.k8s.io`. |
-| `serviceAccountName` | Yes | Kubernetes service account required in every rendered identity selector set. |
+| `serviceAccountName` | Yes | Admission-validated DNS-1123 subdomain Kubernetes service account required in every rendered identity selector set. |
 
 Current validation rules enforced by the CRD:
 
 - `poolRef.name` is required.
 - `poolRef.group`, when set, must be `inference.networking.k8s.io`.
-- `serviceAccountName` is required.
+- `serviceAccountName` is required and admission-validated as a DNS-1123 subdomain with a maximum length of 253 characters.
 
 ## Status Fields
 
