@@ -52,7 +52,7 @@ func TestPlanIdentityUsesServiceAccountScopedInferenceTargetSPIFFEID(t *testing.
 		t.Fatalf("PlanIdentity returned error: %v", err)
 	}
 
-	expectedSPIFFEID := "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a"
+	expectedSPIFFEID := "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill"
 	if identity.SpiffeID != expectedSPIFFEID {
 		t.Fatalf("spiffeID = %q, want %q", identity.SpiffeID, expectedSPIFFEID)
 	}
@@ -60,6 +60,7 @@ func TestPlanIdentityUsesServiceAccountScopedInferenceTargetSPIFFEID(t *testing.
 		"k8s:ns:default",
 		"k8s:sa:inference-sa",
 		"k8s:pod-label:app:model-server",
+		"k8s:pod-label:identity.kleym.sonda.red/variant:prefill",
 	} {
 		if !containsString(identity.Selectors, expectedSelector) {
 			t.Fatalf("expected selector %q, selectors: %v", expectedSelector, identity.Selectors)
@@ -99,6 +100,7 @@ func TestPlanIdentityCanonicalizesRenderedSelectors(t *testing.T) {
 		"k8s:pod-label:z:last",
 		"k8s:pod-label:app:model-server",
 		"k8s:pod-label:app:model-server",
+		"k8s:pod-label:identity.kleym.sonda.red/variant:prefill",
 		"k8s:sa:inference-sa",
 		"k8s:pod-label:team:ml",
 	}
@@ -111,6 +113,7 @@ func TestPlanIdentityCanonicalizesRenderedSelectors(t *testing.T) {
 	wantSelectors := []string{
 		"k8s:ns:default",
 		"k8s:pod-label:app:model-server",
+		"k8s:pod-label:identity.kleym.sonda.red/variant:prefill",
 		"k8s:pod-label:team:ml",
 		"k8s:pod-label:z:last",
 		"k8s:sa:inference-sa",
@@ -264,6 +267,10 @@ func testBinding() *kleymv1alpha1.InferenceIdentityBinding {
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
 			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-a"},
 			ServiceAccountName: "inference-sa",
+			IdentityBoundary: kleymv1alpha1.IdentityBoundary{
+				LabelKey:   "identity.kleym.sonda.red/variant",
+				LabelValue: "prefill",
+			},
 		},
 	}
 }
@@ -276,6 +283,10 @@ func testPlanInput(
 		Namespace:          binding.Namespace,
 		ServiceAccountName: binding.Spec.ServiceAccountName,
 		TrustDomain:        "example.org",
+		Boundary: Boundary{
+			LabelKey:   binding.Spec.IdentityBoundary.LabelKey,
+			LabelValue: binding.Spec.IdentityBoundary.LabelValue,
+		},
 		Target: ResolvedInferenceTarget{
 			IdentityAnchor: IdentityAnchor{Kind: "pool", Name: poolName},
 			PodSelector:    map[string]any{"matchLabels": map[string]any{"app": "model-server"}},

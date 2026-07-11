@@ -25,8 +25,9 @@ import (
 )
 
 // listBindingsByField looks up bindings using a controller-runtime field index.
-// If the index is not available, the lookup falls back to listing all bindings
-// in the namespace and filtering in memory.
+// If namespace is empty, the lookup spans all namespaces for cluster-scoped
+// inputs. If the index is not available, the lookup falls back to listing
+// bindings and filtering in memory.
 func (r *InferenceIdentityBindingReconciler) listBindingsByField(
 	ctx context.Context,
 	namespace string,
@@ -38,12 +39,11 @@ func (r *InferenceIdentityBindingReconciler) listBindingsByField(
 	}
 
 	bindingList := &kleymv1alpha1.InferenceIdentityBindingList{}
-	if err := r.List(
-		ctx,
-		bindingList,
-		client.InNamespace(namespace),
-		client.MatchingFields{field: value},
-	); err != nil {
+	listOptions := []client.ListOption{client.MatchingFields{field: value}}
+	if namespace != "" {
+		listOptions = append(listOptions, client.InNamespace(namespace))
+	}
+	if err := r.List(ctx, bindingList, listOptions...); err != nil {
 		if !isFieldLookupUnsupported(err) {
 			return nil, err
 		}
@@ -65,7 +65,11 @@ func (r *InferenceIdentityBindingReconciler) listBindingsByFieldFallback(
 	value string,
 ) ([]*kleymv1alpha1.InferenceIdentityBinding, error) {
 	bindingList := &kleymv1alpha1.InferenceIdentityBindingList{}
-	if err := r.List(ctx, bindingList, client.InNamespace(namespace)); err != nil {
+	listOptions := []client.ListOption{}
+	if namespace != "" {
+		listOptions = append(listOptions, client.InNamespace(namespace))
+	}
+	if err := r.List(ctx, bindingList, listOptions...); err != nil {
 		return nil, err
 	}
 
@@ -88,6 +92,13 @@ func bindingMatchesField(
 	switch field {
 	case fieldIndexPoolRefName:
 		return strings.TrimSpace(binding.Spec.PoolRef.Name) == value
+	case fieldIndexManagedClusterSPIFFEIDName:
+		for _, recordedName := range bindingClusterSPIFFEIDNameIndexValues(binding) {
+			if recordedName == value {
+				return true
+			}
+		}
+		return false
 	default:
 		return false
 	}

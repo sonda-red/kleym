@@ -71,6 +71,9 @@ func TestReconcileConditionTaxonomySuccess(t *testing.T) {
 	if current.Status.RenderedClusterSPIFFEID.SelectorFingerprint == "" {
 		t.Fatalf("renderedClusterSPIFFEID.selectorFingerprint was not populated")
 	}
+	if current.Status.OwnedClusterSPIFFEIDName != current.Status.RenderedClusterSPIFFEID.Name {
+		t.Fatalf("ownedClusterSPIFFEIDName = %q, want %q", current.Status.OwnedClusterSPIFFEIDName, current.Status.RenderedClusterSPIFFEID.Name)
+	}
 }
 
 func TestReconcileManagedOutputApplyFailureSetsFailureStatus(t *testing.T) {
@@ -81,15 +84,15 @@ func TestReconcileManagedOutputApplyFailureSetsFailureStatus(t *testing.T) {
 	binding := newPoolOnlyBinding("binding-managed-output-apply-failure", "")
 	binding.Status = kleymv1alpha1.InferenceIdentityBindingStatus{
 		ComputedSpiffeIDs: []kleymv1alpha1.ComputedSpiffeIDStatus{{
-			SpiffeID: "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old",
+			SpiffeID: "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old/variant/prefill",
 		}},
 		RenderedSelectors: []kleymv1alpha1.RenderedSelectorStatus{{
-			SpiffeID:  "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old",
+			SpiffeID:  "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old/variant/prefill",
 			Selectors: []string{"k8s:ns:default", "k8s:sa:old"},
 		}},
 		RenderedClusterSPIFFEID: &kleymv1alpha1.RenderedClusterSPIFFEIDStatus{
 			Name:                "stale",
-			SpiffeID:            "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old",
+			SpiffeID:            "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old/variant/prefill",
 			SelectorFingerprint: "sha256:stale",
 		},
 		Conditions: []metav1.Condition{{
@@ -146,6 +149,12 @@ func TestReconcileManagedOutputApplyFailureSetsFailureStatus(t *testing.T) {
 	if current.Status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v, want cleared on managed-output apply failure", current.Status.RenderedClusterSPIFFEID)
 	}
+	if current.Status.OwnedClusterSPIFFEIDName != "" {
+		t.Fatalf("ownedClusterSPIFFEIDName = %q, want empty after failed create", current.Status.OwnedClusterSPIFFEIDName)
+	}
+	if current.Status.PendingClusterSPIFFEIDName == "" {
+		t.Fatal("pendingClusterSPIFFEIDName is empty after ambiguous create failure")
+	}
 }
 
 func TestReconcileFailureCleanupApplyFailureSetsManagedOutputFailureStatus(t *testing.T) {
@@ -156,16 +165,17 @@ func TestReconcileFailureCleanupApplyFailureSetsManagedOutputFailureStatus(t *te
 	binding := newPoolOnlyBinding("binding-managed-output-cleanup-failure", "")
 	binding.Spec.PoolRef.Name = "missing-pool"
 	binding.Status = kleymv1alpha1.InferenceIdentityBindingStatus{
+		OwnedClusterSPIFFEIDName: "stale",
 		ComputedSpiffeIDs: []kleymv1alpha1.ComputedSpiffeIDStatus{{
-			SpiffeID: "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old",
+			SpiffeID: "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old/variant/prefill",
 		}},
 		RenderedSelectors: []kleymv1alpha1.RenderedSelectorStatus{{
-			SpiffeID:  "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old",
+			SpiffeID:  "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old/variant/prefill",
 			Selectors: []string{"k8s:ns:default", "k8s:sa:old"},
 		}},
 		RenderedClusterSPIFFEID: &kleymv1alpha1.RenderedClusterSPIFFEIDStatus{
 			Name:                "stale",
-			SpiffeID:            "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old",
+			SpiffeID:            "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old/variant/prefill",
 			SelectorFingerprint: "sha256:stale",
 		},
 		Conditions: []metav1.Condition{{
@@ -183,17 +193,17 @@ func TestReconcileFailureCleanupApplyFailureSetsManagedOutputFailureStatus(t *te
 		WithObjects(binding).
 		Build()
 	k8sClient := interceptor.NewClient(baseClient, interceptor.Funcs{
-		List: func(
+		Get: func(
 			ctx context.Context,
 			k8sClient client.WithWatch,
-			list client.ObjectList,
-			opts ...client.ListOption,
+			key client.ObjectKey,
+			obj client.Object,
+			opts ...client.GetOption,
 		) error {
-			clusterSPIFFEIDListGVK := clusterSPIFFEIDGVK.GroupVersion().WithKind(clusterSPIFFEIDGVK.Kind + "List")
-			if list.GetObjectKind().GroupVersionKind() == clusterSPIFFEIDListGVK {
+			if obj.GetObjectKind().GroupVersionKind() == clusterSPIFFEIDGVK {
 				return cleanupErr
 			}
-			return k8sClient.List(ctx, list, opts...)
+			return k8sClient.Get(ctx, key, obj, opts...)
 		},
 	})
 	reconciler := &InferenceIdentityBindingReconciler{
@@ -222,6 +232,9 @@ func TestReconcileFailureCleanupApplyFailureSetsManagedOutputFailureStatus(t *te
 	}
 	if current.Status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v, want cleared on cleanup failure", current.Status.RenderedClusterSPIFFEID)
+	}
+	if current.Status.OwnedClusterSPIFFEIDName != "stale" {
+		t.Fatalf("ownedClusterSPIFFEIDName = %q, want retained after cleanup failure", current.Status.OwnedClusterSPIFFEIDName)
 	}
 }
 
@@ -265,6 +278,16 @@ func TestReconcileConditionTaxonomyFailures(t *testing.T) {
 			wantCondition: conditionTypeRenderFailure,
 			wantReason:    identity.ReasonInvalidServiceAccountName,
 		},
+		"invalid-identity-boundary": {
+			binding: func() *kleymv1alpha1.InferenceIdentityBinding {
+				binding := newPoolOnlyBinding("binding-invalid-boundary-taxonomy", "")
+				binding.Spec.IdentityBoundary.LabelKey = "example.com/variant"
+				return binding
+			}(),
+			objects:       []client.Object{newTestPool()},
+			wantCondition: conditionTypeUnsafeSelector,
+			wantReason:    identity.ReasonInvalidIdentityBoundary,
+		},
 		"missing-trust-domain": {
 			binding:       newPoolOnlyBinding("binding-missing-trust-domain-taxonomy", ""),
 			config:        &OperatorConfig{},
@@ -291,8 +314,8 @@ func TestReconcileConditionTaxonomyFailures(t *testing.T) {
 			},
 			wrapClient: func(base client.Client) client.Client {
 				return noMatchClient{
-					Client:         base,
-					listNoMatchGVK: clusterSPIFFEIDGVK.GroupVersion().WithKind(clusterSPIFFEIDGVK.Kind + "List"),
+					Client:        base,
+					getNoMatchGVK: clusterSPIFFEIDGVK,
 				}
 			},
 			wantResult:    ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter},
@@ -366,6 +389,7 @@ func TestConditionTaxonomyAllowedReasonStrings(t *testing.T) {
 		"target-pool-not-found":        {got: gaie.ReasonTargetPoolNotFound, want: "TargetPoolNotFound"},
 		"inferencepool-crd-missing":    {got: gaie.ReasonInferencePoolCRDMissing, want: "InferencePoolCRDMissing"},
 		"invalid-pool-selector":        {got: identity.ReasonInvalidPoolSelector, want: "InvalidPoolSelector"},
+		"invalid-identity-boundary":    {got: identity.ReasonInvalidIdentityBoundary, want: "InvalidIdentityBoundary"},
 		"unsafe-selector":              {got: identity.ReasonUnsafeSelector, want: "UnsafeSelector"},
 		"missing-trust-domain":         {got: identity.ReasonMissingTrustDomain, want: "MissingTrustDomain"},
 		"invalid-service-account-name": {got: identity.ReasonInvalidServiceAccountName, want: "InvalidServiceAccountName"},
@@ -391,6 +415,7 @@ func assertSuccessConditionSet(t *testing.T, binding *kleymv1alpha1.InferenceIde
 	assertConditionStatusOnBinding(t, binding, conditionTypeReady, metav1.ConditionTrue, conditionReasonReconciled)
 	assertConditionStatusOnBinding(t, binding, conditionTypeInvalidRef, metav1.ConditionFalse, conditionReasonResolved)
 	assertConditionStatusOnBinding(t, binding, conditionTypeUnsafeSelector, metav1.ConditionFalse, conditionReasonResolved)
+	assertConditionStatusOnBinding(t, binding, conditionTypeConflict, metav1.ConditionFalse, conditionReasonResolved)
 	assertConditionStatusOnBinding(t, binding, conditionTypeRenderFailure, metav1.ConditionFalse, conditionReasonResolved)
 }
 
@@ -414,7 +439,7 @@ func assertPrimaryFailureCondition(
 		t.Fatalf("Ready message = %q, want primary failure message %q", ready.Message, primary.Message)
 	}
 
-	for _, candidate := range []string{conditionTypeInvalidRef, conditionTypeUnsafeSelector, conditionTypeRenderFailure} {
+	for _, candidate := range []string{conditionTypeInvalidRef, conditionTypeUnsafeSelector, conditionTypeConflict, conditionTypeRenderFailure} {
 		condition := meta.FindStatusCondition(binding.Status.Conditions, candidate)
 		if condition == nil {
 			t.Fatalf("missing condition %q", candidate)

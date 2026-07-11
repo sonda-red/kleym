@@ -17,11 +17,16 @@ func TestDesiredClusterSPIFFEIDIncludesHintAndFallback(t *testing.T) {
 	binding := &kleymv1alpha1.InferenceIdentityBinding{}
 	binding.Name = "binding-a"
 	binding.Namespace = "default"
+	binding.Spec.IdentityBoundary = kleymv1alpha1.IdentityBoundary{
+		LabelKey:   "identity.kleym.sonda.red/variant",
+		LabelValue: "prefill",
+	}
 	plan := identity.Plan{
-		SpiffeID:       "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a",
+		SpiffeID:       "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill",
 		PodSelector:    map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
-		Selectors:      []string{"k8s:ns:default", "k8s:sa:inference-sa", "k8s:pod-label:app:model-server"},
+		Selectors:      []string{"k8s:ns:default", "k8s:sa:inference-sa", "k8s:pod-label:app:model-server", "k8s:pod-label:identity.kleym.sonda.red/variant:prefill"},
 		IdentityAnchor: identity.IdentityAnchor{Kind: "pool", Name: "pool-a"},
+		Boundary:       identity.Boundary{LabelKey: "identity.kleym.sonda.red/variant", LabelValue: "prefill"},
 	}
 
 	desired := DesiredClusterSPIFFEID(binding, plan, "")
@@ -47,10 +52,18 @@ func TestDesiredClusterSPIFFEIDUsesCanonicalSelectorTemplates(t *testing.T) {
 	binding.Name = "binding-a"
 	binding.Namespace = "default"
 	binding.Spec.ServiceAccountName = "inference-sa"
+	binding.Spec.IdentityBoundary = kleymv1alpha1.IdentityBoundary{
+		LabelKey:   "identity.kleym.sonda.red/variant",
+		LabelValue: "prefill",
+	}
 	plan, err := identity.PlanIdentity(identity.PlanInput{
 		Namespace:          binding.Namespace,
 		ServiceAccountName: binding.Spec.ServiceAccountName,
 		TrustDomain:        "example.org",
+		Boundary: identity.Boundary{
+			LabelKey:   "identity.kleym.sonda.red/variant",
+			LabelValue: "prefill",
+		},
 		Target: identity.ResolvedInferenceTarget{
 			IdentityAnchor: identity.IdentityAnchor{Kind: "pool", Name: "pool-a"},
 			PodSelector:    map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
@@ -81,6 +94,7 @@ func TestDesiredClusterSPIFFEIDUsesCanonicalSelectorTemplates(t *testing.T) {
 	wantSelectors := []string{
 		"k8s:ns:default",
 		"k8s:pod-label:app:model-server",
+		"k8s:pod-label:identity.kleym.sonda.red/variant:prefill",
 		"k8s:pod-label:team:ml",
 		"k8s:sa:inference-sa",
 	}
@@ -95,11 +109,16 @@ func TestDesiredClusterSPIFFEIDClassName(t *testing.T) {
 	binding := &kleymv1alpha1.InferenceIdentityBinding{}
 	binding.Name = "binding-a"
 	binding.Namespace = "default"
+	binding.Spec.IdentityBoundary = kleymv1alpha1.IdentityBoundary{
+		LabelKey:   "identity.kleym.sonda.red/variant",
+		LabelValue: "prefill",
+	}
 	plan := identity.Plan{
-		SpiffeID:       "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a",
+		SpiffeID:       "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill",
 		PodSelector:    map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
-		Selectors:      []string{"k8s:ns:default", "k8s:sa:inference-sa", "k8s:pod-label:app:model-server"},
+		Selectors:      []string{"k8s:ns:default", "k8s:sa:inference-sa", "k8s:pod-label:app:model-server", "k8s:pod-label:identity.kleym.sonda.red/variant:prefill"},
 		IdentityAnchor: identity.IdentityAnchor{Kind: "pool", Name: "pool-a"},
+		Boundary:       identity.Boundary{LabelKey: "identity.kleym.sonda.red/variant", LabelValue: "prefill"},
 	}
 
 	classless := DesiredClusterSPIFFEID(binding, plan, "")
@@ -128,9 +147,9 @@ func TestBuildClusterSPIFFEIDNameUsesServiceAccountScopedIdentityHash(t *testing
 		"kleym-reference-inference",
 		"binding",
 		"pool",
-		"spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool",
+		"spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool/variant/reference",
 	)
-	want := "kleym-kleym-reference-inference-binding-pool-e1a1f353"
+	want := "kleym-kleym-reference-inference-binding-pool-18b7ab03"
 	if got != want {
 		t.Fatalf("BuildClusterSPIFFEIDName = %q, want %q", got, want)
 	}
@@ -157,7 +176,7 @@ func TestBuildClusterSPIFFEIDNameFallsBackForEmptyAnchorKind(t *testing.T) {
 		"default",
 		"binding",
 		" ",
-		"spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a",
+		"spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill",
 	)
 	if wantSegment := "-identity-"; !strings.Contains(got, wantSegment) {
 		t.Fatalf("BuildClusterSPIFFEIDName = %q, want fallback anchor kind segment %q", got, wantSegment)

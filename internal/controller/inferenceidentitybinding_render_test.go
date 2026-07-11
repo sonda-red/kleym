@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 
@@ -55,16 +56,21 @@ func TestRenderIdentityPassesValidGAIESelectorIntoIdentityPlan(t *testing.T) {
 		"k8s:ns:default",
 		"k8s:sa:inference-sa",
 		"k8s:pod-label:app:model-server",
+		"k8s:pod-label:identity.kleym.sonda.red/variant:prefill",
 		"k8s:pod-label:inference.networking.k8s.io/role:decode.v1",
 	} {
 		if !slices.Contains(identity.Selectors, expectedSelector) {
 			t.Fatalf("expected selector %q, selectors: %v", expectedSelector, identity.Selectors)
 		}
 	}
-	if identity.PodSelector["matchLabels"] == nil {
-		t.Fatalf("expected GAIE matchLabels selector to be passed into identity plan, got %v", identity.PodSelector)
+	wantPodSelector := map[string]any{"matchLabels": map[string]any{
+		"app":                              "model-server",
+		"inference.networking.k8s.io/role": "decode.v1",
+	}}
+	if !reflect.DeepEqual(identity.PodSelector, wantPodSelector) {
+		t.Fatalf("podSelector = %#v, want preserved normalized pool selector %#v", identity.PodSelector, wantPodSelector)
 	}
-	if identity.SpiffeID != "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-valid-selector" {
+	if identity.SpiffeID != "spiffe://kleym.sonda.red/ns/default/sa/inference-sa/inference/pool/pool-valid-selector/variant/prefill" {
 		t.Fatalf("spiffeID = %q, want service-account-scoped pool target identity", identity.SpiffeID)
 	}
 }
@@ -111,6 +117,7 @@ func testRenderBinding(name, poolName string) *kleymv1alpha1.InferenceIdentityBi
 		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
 			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: poolName},
 			ServiceAccountName: "inference-sa",
+			IdentityBoundary:   testIdentityBoundary,
 		},
 	}
 }

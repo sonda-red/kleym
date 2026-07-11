@@ -82,6 +82,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 							Name: "example-pool",
 						},
 						ServiceAccountName: "inference-sa",
+						IdentityBoundary:   testIdentityBoundary,
 					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
@@ -184,7 +185,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 	Context("When validating pool-only API schema behavior", func() {
 		ctx := context.Background()
 
-		It("should allow a binding with only poolRef and serviceAccountName", func() {
+		It("should allow a binding with the required identity boundary", func() {
 			resource := &kleymv1alpha1.InferenceIdentityBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-resource-pool-only-schema",
@@ -195,6 +196,7 @@ var _ = Describe("InferenceIdentityBinding Controller", func() {
 						Name: "example-pool",
 					},
 					ServiceAccountName: "inference-sa",
+					IdentityBoundary:   testIdentityBoundary,
 				},
 			}
 

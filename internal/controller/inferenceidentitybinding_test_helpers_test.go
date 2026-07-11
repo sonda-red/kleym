@@ -17,6 +17,11 @@ import (
 
 const testNamespace = "default"
 
+var testIdentityBoundary = kleymv1alpha1.IdentityBoundary{
+	LabelKey:   "identity.kleym.sonda.red/variant",
+	LabelValue: "prefill",
+}
+
 func newControllerTestScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 
@@ -73,6 +78,7 @@ func newPoolBindingWithServiceAccount(
 				Name: "pool-a",
 			},
 			ServiceAccountName: serviceAccount,
+			IdentityBoundary:   testIdentityBoundary,
 		},
 	}
 }

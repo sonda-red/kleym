@@ -41,6 +41,7 @@ const (
 var failureOutcomeConditionOrder = []string{
 	conditionTypeInvalidRef,
 	conditionTypeUnsafeSelector,
+	conditionTypeConflict,
 	conditionTypeRenderFailure,
 }
 

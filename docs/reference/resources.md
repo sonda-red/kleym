@@ -18,7 +18,7 @@ resources in `spire.spiffe.io`.
 | --- | --- |
 | `spec.spiffeIDTemplate` | Fully rendered SPIFFE ID. |
 | `spec.podSelector` | Validated pool selector from the referenced pool, normalized to `matchLabels` when the compatibility flat string-map form is used. |
-| `spec.workloadSelectorTemplates` | Canonical selector set: internally rendered namespace and service-account selectors plus pool-derived `k8s:pod-label` selectors, de-duplicated and sorted. |
+| `spec.workloadSelectorTemplates` | Canonical selector set: namespace, service account, complete pool-derived labels, and exactly one boundary-label selector, de-duplicated and sorted. |
 | `spec.className` | Rendered only when `kleym-operator` is configured with `--clusterspiffeid-class-name`. When omitted, SPIRE Controller Manager must watch classless resources. |
 | `spec.fallback` | `false` for all managed identities. |
 | `spec.hint` | Originating binding reference in the form `<namespace>/<binding-name>`. |
@@ -37,6 +37,20 @@ Managed `ClusterSPIFFEID` objects are labeled with:
 The controller also uses the finalizer
 `kleym.sonda.red/inferenceidentitybinding-finalizer` to clean up managed
 `ClusterSPIFFEID` objects on deletion.
+
+The persisted `status.pendingClusterSPIFFEIDName` and
+`status.ownedClusterSPIFFEIDName` fields form the durable ownership protocol for
+managed-output reads, drift correction, and cleanup. The pending name is
+reserved before `Create`; the owned name is set only after creation is
+confirmed. Rendered output status and managed-by or binding labels are
+descriptive and never prove ownership. A deterministic-name object absent from
+both fields is foreign, even when it carries the exact managed labels, and is
+refused without update or deletion. Ownership survives transient managed-output
+API failures and pending cleanup. It is cleared only after output absence is
+confirmed; deletion remains finalizer-protected until that confirmation. If an
+identity change produces a new deterministic name, the controller confirms the
+recorded old output is absent before it reserves, creates, and confirms the
+replacement.
 
 ## Naming
 
@@ -62,10 +76,11 @@ managed output after a successful reconcile:
 | `selectorFingerprint` | `sha256:<hex>` fingerprint of the canonical selector set rendered into `spec.workloadSelectorTemplates`. |
 | `observedGeneration` | Observed managed `ClusterSPIFFEID` generation when Kubernetes reports a persisted generation. Omitted when no persisted generation has been reported. |
 
-Generic managed `ClusterSPIFFEID` list, create, update, or delete API failures
+Generic managed `ClusterSPIFFEID` read, create, update, or delete API failures
 report `RenderFailure=True` with reason `ManagedOutputApplyFailed` and clear
 `computedSpiffeIDs`, `renderedSelectors`, and `renderedClusterSPIFFEID` so
-status-only clients do not read stale rendered output.
+status-only clients do not read stale rendered output. These failures preserve
+pending or confirmed ownership so retry and cleanup retain durable authority.
 
 ## Other Resources Touched
 
@@ -80,4 +95,5 @@ status-only clients do not read stale rendered output.
 The controller:
 
 - watches `InferenceIdentityBinding`
-- watches supported `InferencePool` objects and maps them back to bindings whose `spec.poolRef.name` references those pools
+- watches supported `InferencePool` objects and requeues referencing bindings plus affected namespace peers
+- requeues namespace peers for binding creation, update, and deletion so exclusivity converges without in-memory state

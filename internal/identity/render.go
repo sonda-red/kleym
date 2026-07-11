@@ -35,11 +35,15 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 			"trustDomain must be configured before Kleym can render SPIFFE IDs",
 		)
 	}
+	if err := ValidateBoundary(input.Boundary); err != nil {
+		return Plan{}, err
+	}
 
 	templateData := renderTemplateData{
 		Namespace:          input.Namespace,
 		ServiceAccountName: input.ServiceAccountName,
 		IdentityAnchor:     input.Target.IdentityAnchor,
+		Boundary:           input.Boundary,
 	}
 
 	renderedSelectors, err := renderSafetySelectors(input.Namespace, input.ServiceAccountName)
@@ -59,6 +63,11 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 	}
 
 	selectors := append(renderedSelectors, input.Target.DerivedSelectors...)
+	selectors = append(selectors, fmt.Sprintf(
+		"k8s:pod-label:%s:%s",
+		input.Boundary.LabelKey,
+		input.Boundary.LabelValue,
+	))
 	selectors = UniqueAndSorted(selectors)
 	if err := validateRenderedSafetySelectors(input.Namespace, input.ServiceAccountName, selectors); err != nil {
 		return Plan{}, newStateError(
@@ -82,6 +91,7 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 		Selectors:      selectors,
 		PodSelector:    input.Target.PodSelector,
 		IdentityAnchor: input.Target.IdentityAnchor,
+		Boundary:       input.Boundary,
 	}, nil
 }
 
@@ -119,12 +129,13 @@ func validateIdentityAnchor(anchor IdentityAnchor) error {
 // renderInferenceTargetSPIFFEID computes the resolved-target SPIFFE ID form from docs/spec/operator.md.
 func renderInferenceTargetSPIFFEID(trustDomain string, data renderTemplateData) string {
 	return fmt.Sprintf(
-		"spiffe://%s/ns/%s/sa/%s/inference/%s/%s",
+		"spiffe://%s/ns/%s/sa/%s/inference/%s/%s/variant/%s",
 		trustDomain,
 		data.Namespace,
 		data.ServiceAccountName,
 		data.IdentityAnchor.Kind,
 		data.IdentityAnchor.Name,
+		data.Boundary.LabelValue,
 	)
 }
 

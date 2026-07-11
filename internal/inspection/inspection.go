@@ -342,7 +342,11 @@ func (i *bindingInspector) inspectRenderedIdentity(
 		Namespace:          binding.Namespace,
 		ServiceAccountName: binding.Spec.ServiceAccountName,
 		TrustDomain:        identityConfig.trustDomain,
-		Target:             target,
+		Boundary: identity.Boundary{
+			LabelKey:   binding.Spec.IdentityBoundary.LabelKey,
+			LabelValue: binding.Spec.IdentityBoundary.LabelValue,
+		},
+		Target: target,
 	})
 	if err != nil {
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull

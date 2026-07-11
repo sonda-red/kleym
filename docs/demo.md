@@ -72,6 +72,9 @@ spec:
   poolRef:
     name: reference-pool
   serviceAccountName: reference-inference
+  identityBoundary:
+    labelKey: identity.kleym.sonda.red/variant
+    labelValue: reference
 EOF
 ```
 
@@ -99,6 +102,7 @@ Expected observation:
 Ready=True Reconciled
 InvalidRef=False Resolved
 UnsafeSelector=False Resolved
+Conflict=False Resolved
 RenderFailure=False Resolved
 ```
 
@@ -114,9 +118,10 @@ kubectl get clusterspiffeids.spire.spiffe.io \
 
 Expected observation: exactly one managed `ClusterSPIFFEID` exists. Its
 `spec.spiffeIDTemplate` is
-`spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool`,
+`spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool/variant/reference`,
 its pod selector matches the reference pool selector, and its workload selectors
-include the reference namespace, service account, and pool labels.
+include the reference namespace, service account, pool labels, and canonical
+identity-boundary selector.
 
 ## Check Stable Reconcile
 

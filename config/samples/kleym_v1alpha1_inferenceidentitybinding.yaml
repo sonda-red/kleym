@@ -9,3 +9,6 @@ spec:
   poolRef:
     name: inferencepool-sample
   serviceAccountName: sample-sa
+  identityBoundary:
+    labelKey: identity.kleym.sonda.red/variant
+    labelValue: sample

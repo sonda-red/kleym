@@ -36,7 +36,9 @@ import (
 // (like a database index) without scanning every object in the namespace.
 //
 // The poolRef.name index lets mapPoolToBindings requeue only bindings anchored
-// to a changed InferencePool.
+// to a changed InferencePool. The managed-output name index lets
+// mapClusterSPIFFEIDToBindings requeue only bindings that durably recorded the
+// changed ClusterSPIFFEID as pending or owned output.
 func (r *InferenceIdentityBindingReconciler) setupFieldIndexes(mgr ctrl.Manager) error {
 	indexer := mgr.GetFieldIndexer()
 
@@ -49,6 +51,17 @@ func (r *InferenceIdentityBindingReconciler) setupFieldIndexes(mgr ctrl.Manager)
 		},
 	); err != nil {
 		return fmt.Errorf("failed to index InferenceIdentityBinding poolRef.name: %w", err)
+	}
+
+	if err := indexer.IndexField(
+		context.Background(),
+		&kleymv1alpha1.InferenceIdentityBinding{},
+		fieldIndexManagedClusterSPIFFEIDName,
+		func(rawObj client.Object) []string {
+			return bindingClusterSPIFFEIDNameIndexValues(rawObj)
+		},
+	); err != nil {
+		return fmt.Errorf("failed to index InferenceIdentityBinding managed ClusterSPIFFEID name: %w", err)
 	}
 
 	return nil
@@ -66,6 +79,41 @@ func bindingPoolRefNameIndexValue(rawObj client.Object) []string {
 	}
 
 	return []string{poolName}
+}
+
+// bindingClusterSPIFFEIDNameIndexValues projects the durable managed-output
+// ownership fields used by the controller watch; labels are intentionally
+// excluded because docs/spec/operator.md defines pending/owned status names as
+// the ownership protocol.
+func bindingClusterSPIFFEIDNameIndexValues(rawObj client.Object) []string {
+	binding, ok := rawObj.(*kleymv1alpha1.InferenceIdentityBinding)
+	if !ok {
+		return nil
+	}
+
+	return compactIndexValues(
+		binding.Status.PendingClusterSPIFFEIDName,
+		binding.Status.OwnedClusterSPIFFEIDName,
+	)
+}
+
+// compactIndexValues keeps field-index keys deterministic when legacy or
+// partially patched status happens to contain duplicate or empty names.
+func compactIndexValues(values ...string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }
 
 // reconcileWatchPredicate filters watch events to reduce unnecessary reconciliations.
@@ -127,7 +175,41 @@ func (r *InferenceIdentityBindingReconciler) mapPoolToBindings(
 		}
 		filtered = append(filtered, binding)
 	}
-	return requestsForBindings(filtered)
+	if len(filtered) == 0 {
+		return nil
+	}
+	peers := &kleymv1alpha1.InferenceIdentityBindingList{}
+	if err := r.List(ctx, peers, client.InNamespace(object.GetNamespace())); err != nil {
+		return nil
+	}
+	return requestsForBindingItems(peers.Items)
+}
+
+// mapBindingToPeers requeues namespace peers because any binding lifecycle or
+// boundary change can change the structural exclusivity result for those peers.
+func (r *InferenceIdentityBindingReconciler) mapBindingToPeers(
+	ctx context.Context,
+	object client.Object,
+) []reconcile.Request {
+	peers := &kleymv1alpha1.InferenceIdentityBindingList{}
+	if err := r.List(ctx, peers, client.InNamespace(object.GetNamespace())); err != nil {
+		return nil
+	}
+	return requestsForBindingItems(peers.Items)
+}
+
+// mapClusterSPIFFEIDToBindings requeues only bindings whose durable managed
+// output status records the changed ClusterSPIFFEID name. Labels on the
+// ClusterSPIFFEID are traceability metadata, not ownership proof.
+func (r *InferenceIdentityBindingReconciler) mapClusterSPIFFEIDToBindings(
+	ctx context.Context,
+	object client.Object,
+) []reconcile.Request {
+	bindings, err := r.listBindingsByManagedClusterSPIFFEIDName(ctx, object.GetName())
+	if err != nil {
+		return nil
+	}
+	return requestsForBindings(bindings)
 }
 
 func (r *InferenceIdentityBindingReconciler) listBindingsReferencingPool(
@@ -136,6 +218,15 @@ func (r *InferenceIdentityBindingReconciler) listBindingsReferencingPool(
 	poolName string,
 ) ([]*kleymv1alpha1.InferenceIdentityBinding, error) {
 	return r.listBindingsByField(ctx, namespace, fieldIndexPoolRefName, poolName)
+}
+
+// listBindingsByManagedClusterSPIFFEIDName performs the cluster-scoped reverse
+// lookup needed for managed ClusterSPIFFEID watch events.
+func (r *InferenceIdentityBindingReconciler) listBindingsByManagedClusterSPIFFEIDName(
+	ctx context.Context,
+	name string,
+) ([]*kleymv1alpha1.InferenceIdentityBinding, error) {
+	return r.listBindingsByField(ctx, "", fieldIndexManagedClusterSPIFFEIDName, name)
 }
 
 func requestsForBindings(bindings []*kleymv1alpha1.InferenceIdentityBinding) []reconcile.Request {
@@ -155,4 +246,13 @@ func requestsForBindings(bindings []*kleymv1alpha1.InferenceIdentityBinding) []r
 	})
 
 	return requests
+}
+
+// requestsForBindingItems adapts listed API values to the shared sorted request helper.
+func requestsForBindingItems(bindings []kleymv1alpha1.InferenceIdentityBinding) []reconcile.Request {
+	pointers := make([]*kleymv1alpha1.InferenceIdentityBinding, 0, len(bindings))
+	for index := range bindings {
+		pointers = append(pointers, bindings[index].DeepCopy())
+	}
+	return requestsForBindings(pointers)
 }

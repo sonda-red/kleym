@@ -11,8 +11,8 @@ import (
 const (
 	referenceNamespace       = "kleym-reference-inference"
 	referenceBinding         = "binding"
-	referenceSPIFFEID        = "spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool"
-	referenceClusterSPIFFEID = "kleym-kleym-reference-inference-binding-pool-e1a1f353"
+	referenceSPIFFEID        = "spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool/variant/reference"
+	referenceClusterSPIFFEID = "kleym-kleym-reference-inference-binding-pool-18b7ab03"
 )
 
 func main() {
