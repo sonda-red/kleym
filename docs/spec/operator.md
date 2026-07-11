@@ -45,7 +45,7 @@ When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be c
 
 1. `poolRef` references one [`InferencePool`][gaie-inferencepool]. The pool is the required workload anchor and selector provenance source.
 2. `serviceAccountName` is required. It scopes both the SPIFFE ID path and the mandatory `k8s:sa:<serviceAccountName>` selector.
-3. `identityBoundary.labelKey` is required and must be a valid Kubernetes label key. Its value is resolved from the referenced pool's normalized exact label map; bindings do not repeat that value.
+3. `identityBoundary.labelKey` is required, must be a valid Kubernetes label key, and must use the reserved `identity.kleym.sonda.red/` prefix. Its value is resolved from the referenced pool's normalized exact label map; bindings do not repeat that value.
 4. SPIFFE IDs are deterministic under the configured trust domain: `spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/pool/<pool-name>`.
 5. Status records operator configuration, resolved boundary state, rendered output, conflicts, and conditions. The status rules are defined in [Status Contract](#status-contract).
 6. The CRD exposes printer columns for `POOL`, `BOUNDARY`, `READY`, `REASON`, and `SPIFFE ID` so `kubectl get inferenceidentitybindings.kleym.sonda.red -A` is the primary binding list view.
@@ -198,7 +198,7 @@ If a managed resource cannot be listed, created, updated, or deleted because the
 
 An identity boundary label is security-sensitive metadata. Permission to assign the boundary label or selected service account is therefore identity registration authority.
 
-`identity.kleym.sonda.red/*` is reserved for platform-controlled boundary labels. Application authors must not directly set or mutate reserved labels. A boundary label is immutable for the lifetime of a Pod; boundary changes use replacement Pods.
+`identity.kleym.sonda.red/*` is reserved for platform-controlled boundary labels. Cluster admission policy must restrict assignment and mutation of reserved labels to platform-controlled actors. Boundary labels are immutable for the lifetime of a Pod; boundary changes use replacement Pods.
 
 Kleym does not mutate workloads, pools, or Pods.
 
