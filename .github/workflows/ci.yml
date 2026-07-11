@@ -19,6 +19,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     env:
       GOFLAGS: -buildvcs=false -p=2
       GOMAXPROCS: "2"
@@ -44,6 +45,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     env:
       GOFLAGS: -buildvcs=false -p=2
       GOMAXPROCS: "2"
