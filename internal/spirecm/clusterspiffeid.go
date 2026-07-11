@@ -18,7 +18,6 @@ package spirecm
 import (
 	"crypto/sha1"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -53,13 +52,6 @@ var clusterSPIFFEIDGVK = schema.GroupVersionKind{
 	Group:   "spire.spiffe.io",
 	Version: "v1alpha1",
 	Kind:    "ClusterSPIFFEID",
-}
-
-// DriftEntry summarizes one desired-versus-observed ClusterSPIFFEID mismatch.
-type DriftEntry struct {
-	Field    string
-	Desired  string
-	Observed string
 }
 
 // ClusterSPIFFEIDGVK returns the SPIRE Controller Manager ClusterSPIFFEID GVK.
@@ -192,39 +184,6 @@ func MergeDesiredClusterSPIFFEID(current *unstructured.Unstructured, desired *un
 	current.SetLabels(labels)
 }
 
-// DriftEntries compares desired and observed ClusterSPIFFEID fields relevant to Kleym.
-func DriftEntries(desired *unstructured.Unstructured, observed *unstructured.Unstructured) []DriftEntry {
-	entries := []DriftEntry{}
-	if desired.GetName() != observed.GetName() {
-		entries = append(entries, DriftEntry{
-			Field:    "metadata.name",
-			Desired:  desired.GetName(),
-			Observed: observed.GetName(),
-		})
-	}
-
-	desiredSpec, _, _ := unstructured.NestedMap(desired.Object, "spec")
-	observedSpec, _, _ := unstructured.NestedMap(observed.Object, "spec")
-	for _, field := range []string{
-		"spiffeIDTemplate",
-		"podSelector",
-		"workloadSelectorTemplates",
-		"hint",
-		"fallback",
-		"className",
-	} {
-		if reflect.DeepEqual(desiredSpec[field], observedSpec[field]) {
-			continue
-		}
-		entries = append(entries, DriftEntry{
-			Field:    "spec." + field,
-			Desired:  stableValueString(desiredSpec[field]),
-			Observed: stableValueString(observedSpec[field]),
-		})
-	}
-	return entries
-}
-
 func sanitizeDNSLabel(input string) string {
 	lower := strings.ToLower(strings.TrimSpace(input))
 	if lower == "" {
@@ -252,25 +211,4 @@ func sanitizeDNSLabel(input string) string {
 	}
 
 	return sanitized
-}
-
-func stableValueString(value any) string {
-	if value == nil {
-		return ""
-	}
-	switch typed := value.(type) {
-	case string:
-		return typed
-	case bool:
-		if typed {
-			return "true"
-		}
-		return "false"
-	default:
-		data, err := json.Marshal(typed)
-		if err != nil {
-			return fmt.Sprint(typed)
-		}
-		return string(data)
-	}
 }

@@ -41,7 +41,6 @@ func TestReconcileDeleteWaitsForManagedClusterSPIFFEIDsToDisappear(t *testing.T)
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
 			WithObjects(binding, managed).
 			Build(),
-		Scheme: scheme,
 	}
 
 	fetchedBinding := &kleymv1alpha1.InferenceIdentityBinding{}
@@ -125,7 +124,6 @@ func TestCleanupDoesNotDeleteForeignOutputWithManagedLabels(t *testing.T) {
 	reconciler := &InferenceIdentityBindingReconciler{
 		Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(binding, recorded, foreign).Build(),
-		Scheme: scheme,
 	}
 
 	if err := reconciler.cleanupManagedClusterSPIFFEIDs(ctx, binding); err != nil {
@@ -263,7 +261,7 @@ func TestChangedOutputNameDeleteFailureRetainsRecordedOutput(t *testing.T) {
 			return cli.Delete(ctx, object, opts...)
 		},
 	})
-	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped, Scheme: base.Scheme}
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped}
 	if _, err := reconciler.Reconcile(ctx, bindingRequest(binding.Name)); !errors.Is(err, deleteErr) {
 		t.Fatalf("Reconcile error = %v, want %v", err, deleteErr)
 	}
@@ -323,7 +321,7 @@ func TestChangedOutputNameStatusFailureRetainsReplacementClaim(t *testing.T) {
 			return cli.SubResource(subResourceName).Patch(ctx, object, patch, opts...)
 		},
 	})
-	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped, Scheme: base.Scheme}
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped}
 
 	if _, err := reconciler.Reconcile(ctx, bindingRequest(binding.Name)); !errors.Is(err, statusErr) {
 		t.Fatalf("replacement Reconcile error = %v, want %v", err, statusErr)
@@ -392,7 +390,7 @@ func TestRecordedOutputUpdateFailureRetainsOwnershipAndRetries(t *testing.T) {
 			return cli.Update(ctx, object, opts...)
 		},
 	})
-	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped, Scheme: base.Scheme}
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped}
 
 	if _, err := reconciler.Reconcile(ctx, bindingRequest(binding.Name)); !errors.Is(err, updateErr) {
 		t.Fatalf("first Reconcile error = %v, want %v", err, updateErr)
@@ -451,7 +449,7 @@ func TestCreateStatusPatchFailureRetainsPendingClaimAndRetries(t *testing.T) {
 			return cli.SubResource(subResourceName).Patch(ctx, object, patch, opts...)
 		},
 	})
-	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped, Scheme: base.Scheme}
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped}
 
 	if _, err := reconciler.Reconcile(ctx, bindingRequest("binding-create-status-retry")); !errors.Is(err, statusErr) {
 		t.Fatalf("first Reconcile error = %v, want %v", err, statusErr)
@@ -514,7 +512,7 @@ func TestReservationStatusPatchFailureDoesNotCreateOrPersistClaim(t *testing.T) 
 			return cli.SubResource(subResourceName).Patch(ctx, object, patch, opts...)
 		},
 	})
-	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped, Scheme: base.Scheme}
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped}
 
 	if _, err := reconciler.Reconcile(ctx, bindingRequest("binding-reservation-status-failure")); !errors.Is(err, statusErr) {
 		t.Fatalf("Reconcile error = %v, want %v", err, statusErr)
@@ -585,7 +583,6 @@ func TestFinalizationNoMatchPreservesOwnershipAndFinalizer(t *testing.T) {
 	reconciler := &InferenceIdentityBindingReconciler{
 		Config: testOperatorConfig(),
 		Client: noMatchClient{Client: base, getNoMatchGVK: clusterSPIFFEIDGVK},
-		Scheme: scheme,
 	}
 
 	fetched := fetchBinding(t, ctx, reconciler.Client, binding.Name)
@@ -621,7 +618,6 @@ func TestValidationCleanupNoMatchPreservesOwnershipAndRetries(t *testing.T) {
 	reconciler := &InferenceIdentityBindingReconciler{
 		Config: testOperatorConfig(),
 		Client: noMatchClient{Client: base, getNoMatchGVK: clusterSPIFFEIDGVK},
-		Scheme: scheme,
 	}
 
 	if _, err := reconciler.Reconcile(ctx, bindingRequest(binding.Name)); !meta.IsNoMatchError(err) {
@@ -666,7 +662,7 @@ func TestFinalizerCleanupUsesOwnershipRetainedAfterUpdateFailure(t *testing.T) {
 			return cli.Update(ctx, object, opts...)
 		},
 	})
-	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped, Scheme: base.Scheme}
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped}
 	if _, err := reconciler.Reconcile(ctx, bindingRequest(binding.Name)); !errors.Is(err, updateErr) {
 		t.Fatalf("failure Reconcile error = %v, want %v", err, updateErr)
 	}
@@ -708,7 +704,6 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 				binding,
 			).
 			Build(),
-		Scheme: scheme,
 	}
 
 	request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: binding.Name}}

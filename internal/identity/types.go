@@ -100,9 +100,6 @@ type Plan struct {
 	Boundary       Boundary
 }
 
-// RenderedIdentity is kept as a compatibility alias for callers during the package split.
-type RenderedIdentity = Plan
-
 type renderTemplateData struct {
 	Namespace          string
 	ServiceAccountName string

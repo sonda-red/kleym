@@ -26,7 +26,6 @@ func TestReconcileSetsInvalidRefWhenPoolCannotBeResolved(t *testing.T) {
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
 			WithObjects(binding).
 			Build(),
-		Scheme: scheme,
 	}
 
 	_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -53,7 +52,6 @@ func TestReconcilePoolOnlyDoesNotRequireObjective(t *testing.T) {
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
 			WithObjects(newTestPool(), binding).
 			Build(),
-		Scheme: scheme,
 	}
 
 	_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -83,7 +81,6 @@ func TestReconcileUsesOperatorConfigForRenderedOutput(t *testing.T) {
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
 			WithObjects(newTestPool(), binding).
 			Build(),
-		Scheme: scheme,
 	}
 
 	_, err := reconciler.Reconcile(ctx, reconcile.Request{

@@ -139,7 +139,7 @@ func TestConflictOutputDeletionFailureReturnsAndDoesNotSettleConflict(t *testing
 			return cli.Delete(ctx, object, opts...)
 		},
 	})
-	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped, Scheme: base.Scheme}
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped}
 	_, err := reconciler.Reconcile(ctx, bindingRequest(second.Name))
 	if !errors.Is(err, deleteErr) {
 		t.Fatalf("Reconcile error = %v, want %v", err, deleteErr)
@@ -182,7 +182,7 @@ func TestConflictCleanupUsesOwnershipRetainedAfterUpdateFailure(t *testing.T) {
 			return cli.Update(ctx, object, opts...)
 		},
 	})
-	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped, Scheme: base.Scheme}
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: wrapped}
 	if _, err := reconciler.Reconcile(ctx, bindingRequest(first.Name)); !errors.Is(err, updateErr) {
 		t.Fatalf("failure Reconcile error = %v, want %v", err, updateErr)
 	}
@@ -313,7 +313,6 @@ func newConflictTestReconciler(t *testing.T, objects ...client.Object) *Inferenc
 			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexManagedClusterSPIFFEIDName, bindingClusterSPIFFEIDNameIndexValues).
 			WithObjects(objects...).
 			Build(),
-		Scheme: scheme,
 	}
 }
 

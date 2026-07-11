@@ -310,12 +310,12 @@ func (i *bindingInspector) inspectRenderedIdentity(
 	availablePoolGVKs []schema.GroupVersionKind,
 	identityConfig resolvedIdentityConfig,
 	report *BindingInspectionReport,
-) (identity.RenderedIdentity, bool) {
+) (identity.Plan, bool) {
 	poolRef, err := gaie.BindingPoolRef(binding)
 	if err != nil {
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
 		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), findingInvalidRef)
-		return identity.RenderedIdentity{}, false
+		return identity.Plan{}, false
 	}
 	report.Resolved.PoolRef = poolRefToReportRef(poolRef, schema.GroupVersionKind{Kind: "InferencePool"})
 
@@ -323,7 +323,7 @@ func (i *bindingInspector) inspectRenderedIdentity(
 	if err != nil {
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityPartial
 		i.addFindingForError(report, err, *report.Resolved.PoolRef, "")
-		return identity.RenderedIdentity{}, false
+		return identity.Plan{}, false
 	}
 	report.Resolved.PoolRef = poolRefToReportRef(poolRef, pool.GroupVersionKind())
 
@@ -335,7 +335,7 @@ func (i *bindingInspector) inspectRenderedIdentity(
 			Reason:        identity.ReasonInvalidPoolSelector,
 			Message:       err.Error(),
 		}, *report.Resolved.PoolRef, "")
-		return identity.RenderedIdentity{}, false
+		return identity.Plan{}, false
 	}
 
 	rendered, err := identity.PlanIdentity(identity.PlanInput{
@@ -351,7 +351,7 @@ func (i *bindingInspector) inspectRenderedIdentity(
 	if err != nil {
 		report.Capabilities.GAIEResources = BindingInspectionCapabilityFull
 		i.addFindingForError(report, err, bindingInspectionBindingTargetRef(binding), "")
-		return identity.RenderedIdentity{}, false
+		return identity.Plan{}, false
 	}
 
 	provenance := selectorProvenance(rendered, target.DerivedSelectors)
@@ -388,7 +388,7 @@ func (i *bindingInspector) inspectRenderedIdentity(
 func (i *bindingInspector) inspectMatchedPods(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
-	rendered identity.RenderedIdentity,
+	rendered identity.Plan,
 	renderedReady bool,
 	report *BindingInspectionReport,
 ) {
@@ -442,7 +442,7 @@ func (i *bindingInspector) inspectMatchedPods(
 func (i *bindingInspector) listMatchingPods(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
-	rendered identity.RenderedIdentity,
+	rendered identity.Plan,
 ) ([]corev1.Pod, error) {
 	matchLabels, err := podSelectorMatchLabels(rendered.PodSelector)
 	if err != nil {
@@ -792,7 +792,7 @@ func bindingInspectionGVKs(gvks []schema.GroupVersionKind) []BindingInspectionGV
 }
 
 func selectorProvenance(
-	rendered identity.RenderedIdentity,
+	rendered identity.Plan,
 	poolDerivedSelectors []string,
 ) BindingInspectionSelectorProvenance {
 	poolDerived := setFromStrings(poolDerivedSelectors)

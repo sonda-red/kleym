@@ -214,7 +214,6 @@ func newIndexedWatchTestReconciler(t *testing.T, objects ...client.Object) *Infe
 			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexManagedClusterSPIFFEIDName, bindingClusterSPIFFEIDNameIndexValues).
 			WithObjects(objects...).
 			Build(),
-		Scheme: scheme,
 	}
 }
 

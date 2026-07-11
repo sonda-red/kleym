@@ -34,7 +34,6 @@ func TestReconcileConditionTaxonomySuccess(t *testing.T) {
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
 			WithObjects(newTestPool(), binding).
 			Build(),
-		Scheme: scheme,
 	}
 
 	result, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -125,7 +124,6 @@ func TestReconcileManagedOutputApplyFailureSetsFailureStatus(t *testing.T) {
 	reconciler := &InferenceIdentityBindingReconciler{
 		Config: testOperatorConfig(),
 		Client: k8sClient,
-		Scheme: scheme,
 	}
 
 	result, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -209,7 +207,6 @@ func TestReconcileFailureCleanupApplyFailureSetsManagedOutputFailureStatus(t *te
 	reconciler := &InferenceIdentityBindingReconciler{
 		Config: testOperatorConfig(),
 		Client: k8sClient,
-		Scheme: scheme,
 	}
 
 	result, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -347,7 +344,6 @@ func TestReconcileConditionTaxonomyFailures(t *testing.T) {
 			reconciler := &InferenceIdentityBindingReconciler{
 				Config: config,
 				Client: k8sClient,
-				Scheme: scheme,
 			}
 
 			result, err := reconciler.Reconcile(ctx, reconcile.Request{

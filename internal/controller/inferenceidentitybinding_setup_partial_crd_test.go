@@ -86,7 +86,6 @@ func TestSetupWithManagerStartsAndReconcilesWithCurrentPoolCRD(t *testing.T) {
 
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
 	}
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		t.Fatalf("setup controller with partial CRDs: %v", err)
@@ -232,7 +231,6 @@ func TestSetupWithManagerSkipsClusterSPIFFEIDWatchWhenCRDMissing(t *testing.T) {
 
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
 	}
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		t.Fatalf("setup controller without ClusterSPIFFEID CRD: %v", err)
@@ -350,7 +348,6 @@ func TestSetupWithManagerFailsWithoutAnySupportedGAIEGVKs(t *testing.T) {
 
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
 	}
 	setupErr := reconciler.SetupWithManager(mgr)
 	if setupErr == nil {
