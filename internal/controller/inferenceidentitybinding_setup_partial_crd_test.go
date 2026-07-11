@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -75,9 +76,13 @@ func TestSetupWithManagerStartsAndReconcilesWithCurrentPoolCRD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create manager: %v", err)
 	}
-	assertLegacyPoolGroupRejectedByCRD(t, context.Background(), mgr.GetClient())
-	assertServiceAccountNameValidationAtCRDAdmission(t, context.Background(), mgr.GetClient())
-	assertIdentityBoundaryValidationAtCRDAdmission(t, context.Background(), mgr.GetClient())
+	apiClient, err := client.New(cfg, client.Options{Scheme: testScheme})
+	if err != nil {
+		t.Fatalf("create direct API client: %v", err)
+	}
+	assertLegacyPoolGroupRejectedByCRD(t, context.Background(), apiClient)
+	assertServiceAccountNameValidationAtCRDAdmission(t, context.Background(), apiClient)
+	assertIdentityBoundaryValidationAtCRDAdmission(t, context.Background(), apiClient)
 
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: mgr.GetClient(),
@@ -123,7 +128,7 @@ func TestSetupWithManagerStartsAndReconcilesWithCurrentPoolCRD(t *testing.T) {
 	pool.SetGroupVersionKind(inferencePoolGVKs[0])
 	pool.SetNamespace(testNamespace)
 	pool.SetName(poolName)
-	if err := mgr.GetClient().Create(ctx, pool); err != nil {
+	if err := apiClient.Create(ctx, pool); err != nil {
 		t.Fatalf("create pool: %v", err)
 	}
 
@@ -138,11 +143,162 @@ func TestSetupWithManagerStartsAndReconcilesWithCurrentPoolCRD(t *testing.T) {
 			IdentityBoundary:   testIdentityBoundary,
 		},
 	}
-	if err := mgr.GetClient().Create(ctx, binding); err != nil {
+	if err := apiClient.Create(ctx, binding); err != nil {
 		t.Fatalf("create binding: %v", err)
 	}
 
-	waitForBindingReady(t, ctx, mgr.GetClient(), types.NamespacedName{Namespace: testNamespace, Name: bindingName})
+	ready := waitForBindingReady(t, ctx, mgr.GetClient(), types.NamespacedName{Namespace: testNamespace, Name: bindingName})
+	recordedName := ready.Status.OwnedClusterSPIFFEIDName
+	if recordedName == "" {
+		t.Fatal("ownedClusterSPIFFEIDName was not recorded")
+	}
+
+	created := fetchClusterSPIFFEID(t, ctx, apiClient, recordedName)
+	if err := apiClient.Delete(ctx, created); err != nil {
+		t.Fatalf("delete recorded ClusterSPIFFEID: %v", err)
+	}
+
+	recreated := waitForClusterSPIFFEIDRecreated(t, ctx, apiClient, recordedName, created.GetUID())
+	waitForBindingReady(t, ctx, apiClient, types.NamespacedName{Namespace: testNamespace, Name: bindingName})
+
+	desiredSpec, _, err := unstructured.NestedMap(recreated.Object, "spec")
+	if err != nil {
+		t.Fatalf("read recreated ClusterSPIFFEID spec: %v", err)
+	}
+	drifted := recreated.DeepCopy()
+	drifted.Object["spec"] = map[string]any{
+		"spiffeIDTemplate":          "spiffe://drifted.example/workload",
+		"podSelector":               map[string]any{"matchLabels": map[string]any{"app": "drifted"}},
+		"workloadSelectorTemplates": []any{"k8s:ns:default", "k8s:sa:drifted"},
+	}
+	if err := apiClient.Update(ctx, drifted); err != nil {
+		t.Fatalf("mutate recorded ClusterSPIFFEID spec: %v", err)
+	}
+
+	waitForClusterSPIFFEIDSpec(t, ctx, apiClient, recordedName, desiredSpec)
+	waitForBindingReady(t, ctx, apiClient, types.NamespacedName{Namespace: testNamespace, Name: bindingName})
+}
+
+func TestSetupWithManagerSkipsClusterSPIFFEIDWatchWhenCRDMissing(t *testing.T) {
+	t.Helper()
+
+	testScheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(testScheme); err != nil {
+		t.Fatalf("add client-go scheme: %v", err)
+	}
+	if err := kleymv1alpha1.AddToScheme(testScheme); err != nil {
+		t.Fatalf("add kleym scheme: %v", err)
+	}
+	registerEnvtestUnstructuredGVK(testScheme, clusterSPIFFEIDGVK)
+	for _, gvk := range inferencePoolGVKs {
+		registerEnvtestUnstructuredGVK(testScheme, gvk)
+	}
+
+	crdDir := t.TempDir()
+	copyCRDFile(t, filepath.Join("testdata", "crds", "inference.networking.k8s.io_inferencepools.yaml"), crdDir)
+
+	testEnvironment := &envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "config", "crd", "bases"),
+			crdDir,
+		},
+		ErrorIfCRDPathMissing: true,
+	}
+	if binDir := getFirstFoundEnvTestBinaryDir(); binDir != "" {
+		testEnvironment.BinaryAssetsDirectory = binDir
+	}
+
+	cfg, err := testEnvironment.Start()
+	if err != nil {
+		t.Fatalf("start envtest: %v", err)
+	}
+	t.Cleanup(func() {
+		if stopErr := testEnvironment.Stop(); stopErr != nil {
+			t.Fatalf("stop envtest: %v", stopErr)
+		}
+	})
+
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme:                 testScheme,
+		Metrics:                server.Options{BindAddress: "0"},
+		HealthProbeBindAddress: "0",
+		Controller: config.Controller{
+			SkipNameValidation: ptr.To(true),
+		},
+	})
+	if err != nil {
+		t.Fatalf("create manager: %v", err)
+	}
+
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}
+	if err := reconciler.SetupWithManager(mgr); err != nil {
+		t.Fatalf("setup controller without ClusterSPIFFEID CRD: %v", err)
+	}
+
+	apiClient, err := client.New(cfg, client.Options{Scheme: testScheme})
+	if err != nil {
+		t.Fatalf("create direct API client: %v", err)
+	}
+
+	pool := newTestPool()
+	pool.SetName("pool-without-managed-crd")
+	if err := apiClient.Create(context.Background(), pool); err != nil {
+		t.Fatalf("create pool: %v", err)
+	}
+
+	binding := &kleymv1alpha1.InferenceIdentityBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: testNamespace,
+			Name:      "binding-without-managed-crd",
+		},
+		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: pool.GetName(), Group: "inference.networking.k8s.io"},
+			ServiceAccountName: "inference-sa",
+			IdentityBoundary:   testIdentityBoundary,
+		},
+	}
+	if err := apiClient.Create(context.Background(), binding); err != nil {
+		t.Fatalf("create binding: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- mgr.Start(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case runErr := <-errCh:
+			if runErr != nil {
+				t.Fatalf("manager returned error: %v", runErr)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for manager shutdown")
+		}
+	})
+	if !mgr.GetCache().WaitForCacheSync(ctx) {
+		t.Fatalf("timed out waiting for manager cache sync")
+	}
+
+	result, err := reconciler.Reconcile(ctx, ctrl.Request{
+		NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: binding.Name},
+	})
+	if err != nil {
+		t.Fatalf("reconcile without ClusterSPIFFEID CRD returned error: %v", err)
+	}
+	if result.RequeueAfter != infraNotReadyRequeueAfter {
+		t.Fatalf("requeueAfter = %s, want %s", result.RequeueAfter, infraNotReadyRequeueAfter)
+	}
+
+	current := &kleymv1alpha1.InferenceIdentityBinding{}
+	if err := apiClient.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: binding.Name}, current); err != nil {
+		t.Fatalf("fetch binding after transient managed-output failure: %v", err)
+	}
+	assertPrimaryFailureCondition(t, current, conditionTypeRenderFailure, conditionReasonClusterSPIFFEIDCRDMissing)
 }
 
 func TestSetupWithManagerFailsWithoutAnySupportedGAIEGVKs(t *testing.T) {
@@ -326,7 +482,7 @@ func waitForBindingReady(
 	ctx context.Context,
 	k8sClient client.Client,
 	key types.NamespacedName,
-) {
+) *kleymv1alpha1.InferenceIdentityBinding {
 	t.Helper()
 
 	deadline := time.Now().Add(15 * time.Second)
@@ -335,7 +491,7 @@ func waitForBindingReady(
 		if err := k8sClient.Get(ctx, key, current); err == nil {
 			ready := findCondition(current.Status.Conditions, conditionTypeReady)
 			if ready != nil && ready.Status == metav1.ConditionTrue {
-				return
+				return current
 			}
 			if time.Now().After(deadline) {
 				t.Fatalf("timed out waiting for Ready=True, last conditions=%v", current.Status.Conditions)
@@ -347,6 +503,93 @@ func waitForBindingReady(
 		select {
 		case <-ctx.Done():
 			t.Fatalf("context canceled before binding became ready: %v", ctx.Err())
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+}
+
+func fetchClusterSPIFFEID(
+	t *testing.T,
+	ctx context.Context,
+	k8sClient client.Client,
+	name string,
+) *unstructured.Unstructured {
+	t.Helper()
+
+	current := &unstructured.Unstructured{}
+	current.SetGroupVersionKind(clusterSPIFFEIDGVK)
+	if err := k8sClient.Get(ctx, types.NamespacedName{Name: name}, current); err != nil {
+		t.Fatalf("fetch ClusterSPIFFEID %q: %v", name, err)
+	}
+	return current
+}
+
+func waitForClusterSPIFFEIDRecreated(
+	t *testing.T,
+	ctx context.Context,
+	k8sClient client.Client,
+	name string,
+	deletedUID types.UID,
+) *unstructured.Unstructured {
+	t.Helper()
+
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		current := &unstructured.Unstructured{}
+		current.SetGroupVersionKind(clusterSPIFFEIDGVK)
+		err := k8sClient.Get(ctx, types.NamespacedName{Name: name}, current)
+		if err == nil && current.GetUID() != deletedUID {
+			return current
+		}
+		if err != nil && !apierrors.IsNotFound(err) {
+			t.Fatalf("wait for ClusterSPIFFEID %q recreation: %v", name, err)
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for ClusterSPIFFEID %q recreation", name)
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("context canceled before ClusterSPIFFEID recreation: %v", ctx.Err())
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+}
+
+func waitForClusterSPIFFEIDSpec(
+	t *testing.T,
+	ctx context.Context,
+	k8sClient client.Client,
+	name string,
+	want map[string]any,
+) {
+	t.Helper()
+
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		current := &unstructured.Unstructured{}
+		current.SetGroupVersionKind(clusterSPIFFEIDGVK)
+		err := k8sClient.Get(ctx, types.NamespacedName{Name: name}, current)
+		if err == nil {
+			got, _, nestedErr := unstructured.NestedMap(current.Object, "spec")
+			if nestedErr != nil {
+				t.Fatalf("read ClusterSPIFFEID %q spec: %v", name, nestedErr)
+			}
+			if reflect.DeepEqual(got, want) {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("timed out waiting for ClusterSPIFFEID %q spec correction: got %#v want %#v", name, got, want)
+			}
+		} else if !apierrors.IsNotFound(err) {
+			t.Fatalf("wait for ClusterSPIFFEID %q spec correction: %v", name, err)
+		} else if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for ClusterSPIFFEID %q spec correction: %v", name, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("context canceled before ClusterSPIFFEID spec correction: %v", ctx.Err())
 		case <-time.After(200 * time.Millisecond):
 		}
 	}

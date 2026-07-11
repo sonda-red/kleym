@@ -57,9 +57,10 @@ const (
 	conditionReasonIdentityBoundaryConflict  = "IdentityBoundaryConflict"
 	conditionReasonDuplicateIdentityBinding  = "DuplicateIdentityBinding"
 
-	fieldIndexPoolRefName          = "spec.poolRef.name"
-	infraNotReadyRequeueAfter      = 30 * time.Second
-	deleteVerificationRequeueAfter = 2 * time.Second
+	fieldIndexPoolRefName                = "spec.poolRef.name"
+	fieldIndexManagedClusterSPIFFEIDName = "status.clusterSPIFFEIDName"
+	infraNotReadyRequeueAfter            = 30 * time.Second
+	deleteVerificationRequeueAfter       = 2 * time.Second
 
 	logKeyBinding         = "binding"
 	logKeyNamespace       = "namespace"
@@ -358,6 +359,24 @@ func (r *InferenceIdentityBindingReconciler) SetupWithManager(mgr ctrl.Manager) 
 		controllerBuilder = controllerBuilder.Watches(
 			pool,
 			handler.EnqueueRequestsFromMapFunc(r.mapPoolToBindings),
+			builder.WithPredicates(watchPredicate),
+		)
+	}
+
+	availableClusterSPIFFEIDGVKs, err := filterAvailableGVKs(
+		mgr.GetRESTMapper(),
+		[]schema.GroupVersionKind{clusterSPIFFEIDGVK},
+		setupLogger.WithValues("resourceKind", "ClusterSPIFFEID"),
+	)
+	if err != nil {
+		return err
+	}
+	for _, gvk := range availableClusterSPIFFEIDGVKs {
+		managedOutput := &unstructured.Unstructured{}
+		managedOutput.SetGroupVersionKind(gvk)
+		controllerBuilder = controllerBuilder.Watches(
+			managedOutput,
+			handler.EnqueueRequestsFromMapFunc(r.mapClusterSPIFFEIDToBindings),
 			builder.WithPredicates(watchPredicate),
 		)
 	}
