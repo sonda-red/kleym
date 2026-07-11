@@ -45,9 +45,9 @@ When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be c
 
 1. `poolRef` references one [`InferencePool`][gaie-inferencepool]. The pool is the required workload anchor and selector provenance source.
 2. `serviceAccountName` is required. It scopes both the SPIFFE ID path and the mandatory `k8s:sa:<serviceAccountName>` selector.
-3. `identityBoundary.labelKey` is required, must be a valid Kubernetes label key, and must use the reserved `identity.kleym.sonda.red/` prefix. Its value is resolved from the referenced pool's normalized exact label map; bindings do not repeat that value.
-4. SPIFFE IDs are deterministic under the configured trust domain: `spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/pool/<pool-name>`.
-5. Status records operator configuration, resolved boundary state, rendered output, conflicts, and conditions. The status rules are defined in [Status Contract](#status-contract).
+3. `identityBoundary.labelKey` and `identityBoundary.labelValue` are required. `labelKey` must be a valid Kubernetes label key and use the reserved `identity.kleym.sonda.red/` prefix. `labelValue` must be a valid, nonempty Kubernetes label value. Bindings declare both values; the referenced pool does not repeat them.
+4. SPIFFE IDs are deterministic under the configured trust domain: `spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/pool/<pool-name>/variant/<labelValue>`.
+5. Status records operator configuration, validated identity-boundary state, rendered output, conflicts, and conditions. The status rules are defined in [Status Contract](#status-contract).
 6. The CRD exposes printer columns for `POOL`, `BOUNDARY`, `READY`, `REASON`, and `SPIFFE ID` so `kubectl get inferenceidentitybindings.kleym.sonda.red -A` is the primary binding list view.
 
 [API Reference][api-reference] and [Conditions Reference][conditions-reference] document implemented API and condition surfaces. Follow-on API, controller, and CLI work must update those references before these boundary fields and reasons are shipped.
@@ -58,6 +58,8 @@ Identity and selector rendering consume a resolved inference target after the re
 
 The canonical SPIFFE ID contains the binding namespace, required service account, and resolved identity anchor. Source provenance such as the raw source group, version, or kind and the `InferenceIdentityBinding` name remains outside the SPIFFE ID. Two bindings for the same namespace and pool but different service accounts therefore render different SPIFFE IDs.
 
+An `InferencePool` is the broad model-serving group. Each `InferenceIdentityBinding` claims one label-defined workload variant within that pool, such as `prefill` or `decode`. A variant is a workload subset, not a separate resource or caller authorization model.
+
 ## Rendered Selector Contract
 
 A binding accepts `spec.poolRef`, `spec.serviceAccountName`, and `spec.identityBoundary`; it does not accept user-supplied selector lists or selector source modes.
@@ -67,6 +69,7 @@ Every rendered identity selector set is assembled from these sources:
 1. Mandatory namespace selector rendered internally from the binding namespace: `k8s:ns:<binding namespace>`.
 2. Mandatory service-account selector rendered internally from `spec.serviceAccountName`: `k8s:sa:<serviceAccountName>`.
 3. Pool-derived selectors rendered from the referenced `InferencePool` `spec.selector.matchLabels`.
+4. Mandatory boundary selector rendered from `spec.identityBoundary`: `k8s:pod-label:<labelKey>:<labelValue>`.
 
 The only pool selector compatibility form is an existing flat string map under `spec.selector`; Kleym normalizes it to `matchLabels` before rendering. Pool labels render directly to `k8s:pod-label:<key>:<value>` workload selectors.
 
@@ -82,13 +85,13 @@ Unsupported pool selector input is refused, including:
 
 Rendered selector sets are canonical. Kleym removes duplicate selector strings and sorts the remaining strings lexicographically before writing `status.renderedSelectors`, managed `ClusterSPIFFEID` `spec.workloadSelectorTemplates`, or the rendered selector fingerprint in `status.renderedClusterSPIFFEID.selectorFingerprint`.
 
-The complete normalized pool selector remains the workload match. The identity boundary label proves exclusivity; it does not replace other pool labels in `ClusterSPIFFEID.spec.podSelector` or `spec.workloadSelectorTemplates`.
+The complete normalized pool selector remains the workload match. Kleym adds the declared identity-boundary selector to select one variant within that pool. The boundary label proves exclusivity; it does not replace other pool labels in `ClusterSPIFFEID.spec.podSelector` or `spec.workloadSelectorTemplates`.
 
 Malformed or unsupported pool selector input fails reconciliation with `UnsafeSelector=True` reason `InvalidPoolSelector`. A selector set that would omit or escape the mandatory namespace or service-account boundary fails with `UnsafeSelector=True` reason `UnsafeSelector`. Selector failures produce no managed output and clear rendered output status.
 
 ## Identity Boundary and Exclusivity
 
-After pool selector normalization, Kleym resolves `spec.identityBoundary.labelKey` from the exact label map. The resolved boundary is:
+The binding declares an identity boundary. The resolved boundary is:
 
 ```text
 namespace
@@ -97,7 +100,7 @@ boundary label key
 boundary label value
 ```
 
-The label must be present and have a nonempty value. A missing label produces `UnsafeSelector=True` with reason `MissingIdentityBoundaryLabel`; an empty value produces `UnsafeSelector=True` with reason `EmptyIdentityBoundaryValue`.
+The declared key and value are rendered as a mandatory Pod-label selector. Invalid boundary input is refused with `UnsafeSelector=True` reason `InvalidIdentityBoundary`.
 
 For any two bindings with different rendered SPIFFE IDs, exclusivity is proven only when at least one condition is true:
 
@@ -115,7 +118,7 @@ Two bindings that render the same SPIFFE ID are duplicate identity claims. They 
 
 ## Conflict Behavior
 
-Kleym evaluates potentially conflicting bindings from declared binding and pool state. A conflict group contains every visible binding with a resolved boundary that is either not deleting or still has managed output whose absence has not been confirmed. A deleting binding remains a competitor until its managed output is confirmed absent; peers must not recreate output while that deletion is pending.
+Kleym evaluates potentially conflicting bindings from declared binding and pool state. It forms a conflict group only from bindings that fail the pairwise exclusivity invariant; bindings already proven exclusive are not members. A deleting binding remains a competitor until its managed output is confirmed absent; peers must not recreate output while that deletion is pending.
 
 A conflict member has:
 
@@ -124,7 +127,7 @@ Ready=False
 Conflict=True
 managed ClusterSPIFFEID absent
 rendered output status cleared
-resolved boundary and conflict references populated
+identity boundary and conflict references populated
 ```
 
 Kleym removes every managed `ClusterSPIFFEID` owned by conflict members and confirms absence before settling the conflict state. If output deletion fails, reconciliation reports the API error and retries; it must not report a settled conflict state that implies output absence.
@@ -135,7 +138,7 @@ Kleym removes registration intent. It does not claim immediate invalidation of a
 
 ## Status Contract
 
-On successful resolution, `status.resolvedIdentityBoundary` records the boundary label key and resolved value. It remains available for conflict diagnosis.
+On successful validation, `status.identityBoundary` records the boundary label key and value. It remains available for conflict diagnosis.
 
 `status.conflicts` is present only when `Conflict=True`. Each item describes one peer and one precise cause:
 
@@ -163,7 +166,7 @@ Allowed condition types and reasons:
 | `Ready` | `False` | The same primary failure reason used by the active failure condition. |
 | `Ready` | `Unknown` | `Initializing` |
 | `InvalidRef` | `True` | `InvalidPoolRef`, `TargetPoolNotFound`, `InferencePoolCRDMissing` |
-| `UnsafeSelector` | `True` | `InvalidPoolSelector`, `UnsafeSelector`, `MissingIdentityBoundaryLabel`, `EmptyIdentityBoundaryValue` |
+| `UnsafeSelector` | `True` | `InvalidPoolSelector`, `UnsafeSelector`, `InvalidIdentityBoundary` |
 | `Conflict` | `True` | `IdentityBoundaryConflict`, `DuplicateIdentityBinding` |
 | `RenderFailure` | `True` | `MissingTrustDomain`, `InvalidServiceAccountName`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing`, `ManagedOutputApplyFailed` |
 | `InvalidRef` | `False` | `Resolved` |
@@ -187,7 +190,7 @@ If a managed resource cannot be listed, created, updated, or deleted because the
 1. Discover the supported GAIE pool GVK served by the cluster and watch it.
 2. Fail startup when the supported `InferencePool` GVK is not available.
 3. Resolve `poolRef` only to documented supported GAIE groups.
-4. Normalize the referenced pool selector, resolve the declared identity boundary, and preserve the complete selector for rendering.
+4. Normalize the referenced pool selector, validate the declared identity boundary, and preserve the complete selector plus mandatory boundary selector for rendering.
 5. Evaluate boundary exclusivity before managed output creation or update.
 6. Refuse selector failures and conflicts. Both states produce no managed output.
 7. Render the SPIFFE ID and managed `ClusterSPIFFEID` shape deterministically when the binding is exclusive.
@@ -204,7 +207,7 @@ Kleym does not mutate workloads, pools, or Pods.
 
 ## CLI Impact
 
-The CLI remains read only. Follow-on CLI work must expose the configured boundary key, resolved boundary value, full normalized pool selector, conflict peers and causes, and managed output state. It must consume the operator's boundary and conflict status rather than implement a separate exclusivity model. This issue does not change the current CLI specification or report format.
+The CLI remains read only. Follow-on CLI work must expose the declared boundary key and value, full normalized pool selector, conflict peers and causes, and managed output state. It must consume the operator's boundary and conflict status rather than implement a separate exclusivity model. This issue does not change the current CLI specification or report format.
 
 ## Safety Invariants
 
