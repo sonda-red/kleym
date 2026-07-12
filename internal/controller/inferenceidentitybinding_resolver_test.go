@@ -47,11 +47,11 @@ func TestReconcilePoolOnlyDoesNotRequireObjective(t *testing.T) {
 
 	binding := newPoolOnlyBinding("binding-pool-only", "")
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
-		Client: fake.NewClientBuilder().
+		Client: withFakeClusterSPIFFEIDUIDs(fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
 			WithObjects(newTestPool(), binding).
-			Build(),
+			Build()),
 	}
 
 	_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -76,11 +76,11 @@ func TestReconcileUsesOperatorConfigForRenderedOutput(t *testing.T) {
 		TrustDomain:              "example.org",
 		ClusterSPIFFEIDClassName: "kleym",
 	},
-		Client: fake.NewClientBuilder().
+		Client: withFakeClusterSPIFFEIDUIDs(fake.NewClientBuilder().
 			WithScheme(scheme).
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
 			WithObjects(newTestPool(), binding).
-			Build(),
+			Build()),
 	}
 
 	_, err := reconciler.Reconcile(ctx, reconcile.Request{

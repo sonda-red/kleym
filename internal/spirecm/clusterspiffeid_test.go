@@ -140,6 +140,27 @@ func TestDesiredClusterSPIFFEIDClassName(t *testing.T) {
 	}
 }
 
+func TestOwnershipClaimAnnotationIsCreateProvenance(t *testing.T) {
+	t.Parallel()
+
+	current := &unstructured.Unstructured{}
+	current.SetAnnotations(map[string]string{"example.test/preserved": "true"})
+	SetClusterSPIFFEIDOwnershipClaim(current, "claim-created")
+	if got := ClusterSPIFFEIDOwnershipClaim(current); got != "claim-created" {
+		t.Fatalf("ownership claim = %q, want claim-created", got)
+	}
+
+	desired := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"spiffeIDTemplate": "spiffe://example.org/workload"}}}
+	desired.SetAnnotations(map[string]string{OwnershipClaimIDAnnotationKey: "claim-replacement"})
+	MergeDesiredClusterSPIFFEID(current, desired)
+	if got := ClusterSPIFFEIDOwnershipClaim(current); got != "claim-created" {
+		t.Fatalf("ownership claim after desired merge = %q, want immutable claim-created", got)
+	}
+	if current.GetAnnotations()["example.test/preserved"] != "true" {
+		t.Fatalf("unrelated annotation was not preserved: %v", current.GetAnnotations())
+	}
+}
+
 func TestBuildClusterSPIFFEIDNameUsesServiceAccountScopedIdentityHash(t *testing.T) {
 	t.Parallel()
 

@@ -252,17 +252,45 @@ spec:
                 - labelKey
                 - labelValue
                 type: object
-              ownedClusterSPIFFEIDName:
+              ownedClusterSPIFFEID:
                 description: |-
-                  ownedClusterSPIFFEIDName is the deterministic name of the managed ClusterSPIFFEID
-                  whose creation has been confirmed for this binding.
-                type: string
-              pendingClusterSPIFFEIDName:
+                  ownedClusterSPIFFEID records the name and Kubernetes UID of the exact managed
+                  ClusterSPIFFEID incarnation whose ownership has been confirmed for this binding.
+                properties:
+                  name:
+                    description: name is the deterministic name of the confirmed managed
+                      ClusterSPIFFEID.
+                    minLength: 1
+                    type: string
+                  uid:
+                    description: uid is the Kubernetes UID of the confirmed managed
+                      ClusterSPIFFEID incarnation.
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                - uid
+                type: object
+              pendingClusterSPIFFEID:
                 description: |-
-                  pendingClusterSPIFFEIDName is the deterministic name reserved before creating
-                  a managed ClusterSPIFFEID. It remains set until creation is confirmed or
-                  absence is confirmed during cleanup.
-                type: string
+                  pendingClusterSPIFFEID records the name and unique claim ID persisted before
+                  creating a managed ClusterSPIFFEID. A matching claim annotation correlates
+                  create-success recovery with the exact object created for this binding.
+                properties:
+                  claimID:
+                    description: claimID is the controller-generated correlation token
+                      carried by the created object.
+                    minLength: 1
+                    type: string
+                  name:
+                    description: name is the deterministic managed ClusterSPIFFEID
+                      name reserved by this claim.
+                    minLength: 1
+                    type: string
+                required:
+                - claimID
+                - name
+                type: object
               renderedClusterSPIFFEID:
                 description: renderedClusterSPIFFEID shows the core rendered managed
                   ClusterSPIFFEID output.
@@ -317,6 +345,10 @@ spec:
                   the latest status.
                 type: string
             type: object
+            x-kubernetes-validations:
+            - message: pendingClusterSPIFFEID and ownedClusterSPIFFEID are mutually
+                exclusive
+              rule: '!(has(self.pendingClusterSPIFFEID) && has(self.ownedClusterSPIFFEID))'
         required:
         - spec
         type: object

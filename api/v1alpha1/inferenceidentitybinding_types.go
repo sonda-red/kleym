@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // -------------------------------------------------------------------------
@@ -124,6 +125,35 @@ type RenderedClusterSPIFFEIDStatus struct {
 	ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
 }
 
+// PendingClusterSPIFFEIDStatus records a durable create claim before the
+// corresponding ClusterSPIFFEID is submitted to the Kubernetes API.
+type PendingClusterSPIFFEIDStatus struct {
+	// name is the deterministic managed ClusterSPIFFEID name reserved by this claim.
+	// +required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// claimID is the controller-generated correlation token carried by the created object.
+	// +required
+	// +kubebuilder:validation:MinLength=1
+	ClaimID string `json:"claimID"`
+}
+
+// OwnedClusterSPIFFEIDStatus records the exact managed ClusterSPIFFEID
+// incarnation that this binding may update or delete.
+type OwnedClusterSPIFFEIDStatus struct {
+	// name is the deterministic name of the confirmed managed ClusterSPIFFEID.
+	// +required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// uid is the Kubernetes UID of the confirmed managed ClusterSPIFFEID incarnation.
+	// +required
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:MinLength=1
+	UID types.UID `json:"uid"`
+}
+
 // IdentityBoundaryStatus records the validated boundary used for identity rendering.
 type IdentityBoundaryStatus struct {
 	// labelKey is the validated Kubernetes label key.
@@ -175,6 +205,7 @@ type IdentityBoundaryConflictStatus struct {
 // -------------------------------------------------------------------------
 
 // InferenceIdentityBindingStatus defines the observed state of InferenceIdentityBinding.
+// +kubebuilder:validation:XValidation:rule="!(has(self.pendingClusterSPIFFEID) && has(self.ownedClusterSPIFFEID))",message="pendingClusterSPIFFEID and ownedClusterSPIFFEID are mutually exclusive"
 type InferenceIdentityBindingStatus struct {
 
 	// conditions represent the latest available observations of the binding's state.
@@ -215,16 +246,16 @@ type InferenceIdentityBindingStatus struct {
 	// +optional
 	RenderedSelectors []RenderedSelectorStatus `json:"renderedSelectors,omitempty"`
 
-	// pendingClusterSPIFFEIDName is the deterministic name reserved before creating
-	// a managed ClusterSPIFFEID. It remains set until creation is confirmed or
-	// absence is confirmed during cleanup.
+	// pendingClusterSPIFFEID records the name and unique claim ID persisted before
+	// creating a managed ClusterSPIFFEID. A matching claim annotation correlates
+	// create-success recovery with the exact object created for this binding.
 	// +optional
-	PendingClusterSPIFFEIDName string `json:"pendingClusterSPIFFEIDName,omitempty"`
+	PendingClusterSPIFFEID *PendingClusterSPIFFEIDStatus `json:"pendingClusterSPIFFEID,omitempty"`
 
-	// ownedClusterSPIFFEIDName is the deterministic name of the managed ClusterSPIFFEID
-	// whose creation has been confirmed for this binding.
+	// ownedClusterSPIFFEID records the name and Kubernetes UID of the exact managed
+	// ClusterSPIFFEID incarnation whose ownership has been confirmed for this binding.
 	// +optional
-	OwnedClusterSPIFFEIDName string `json:"ownedClusterSPIFFEIDName,omitempty"`
+	OwnedClusterSPIFFEID *OwnedClusterSPIFFEIDStatus `json:"ownedClusterSPIFFEID,omitempty"`
 
 	// renderedClusterSPIFFEID shows the core rendered managed ClusterSPIFFEID output.
 	// +optional

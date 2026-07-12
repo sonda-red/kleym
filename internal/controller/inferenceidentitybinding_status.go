@@ -22,6 +22,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
@@ -106,8 +107,6 @@ func applySuccessStatus(
 	if len(managedStatuses) > 0 {
 		rendered := managedStatuses[0]
 		status.RenderedClusterSPIFFEID = &rendered
-		status.PendingClusterSPIFFEIDName = ""
-		status.OwnedClusterSPIFFEIDName = rendered.Name
 	}
 
 	setCondition(status, generation, conditionTypeReady, metav1.ConditionTrue, conditionReasonReconciled, "Binding reconciled")
@@ -127,8 +126,6 @@ func applyConflictStatus(
 	status.ComputedSpiffeIDs = nil
 	status.RenderedSelectors = nil
 	status.RenderedClusterSPIFFEID = nil
-	status.PendingClusterSPIFFEIDName = ""
-	status.OwnedClusterSPIFFEIDName = ""
 	status.Conflicts = make([]kleymv1alpha1.IdentityBoundaryConflictStatus, 0, len(conflicts))
 	reason := conditionReasonIdentityBoundaryConflict
 	for _, conflict := range conflicts {
@@ -154,18 +151,16 @@ func applyConflictStatus(
 	setCondition(status, generation, conditionTypeRenderFailure, metav1.ConditionFalse, conditionReasonResolved, "Rendering is healthy")
 }
 
-// applyPendingManagedOutputClaimStatus persists the deterministic name before
-// Create so a retry can identify output created before the success status patch.
-func applyPendingManagedOutputClaimStatus(
+// applyPendingManagedOutputStatus reports that a durable create claim is
+// waiting for API-server confirmation without changing ownership itself.
+func applyPendingManagedOutputStatus(
 	status *kleymv1alpha1.InferenceIdentityBindingStatus,
 	generation int64,
-	name string,
 ) {
 	status.ComputedSpiffeIDs = nil
 	status.RenderedSelectors = nil
 	status.RenderedClusterSPIFFEID = nil
 	status.Conflicts = nil
-	status.PendingClusterSPIFFEIDName = name
 	message := "Waiting to confirm managed output creation"
 	setCondition(status, generation, conditionTypeReady, metav1.ConditionUnknown, conditionReasonInitializing, message)
 	setCondition(status, generation, conditionTypeInvalidRef, metav1.ConditionFalse, conditionReasonResolved, "References are valid")
@@ -236,15 +231,35 @@ func applyFailureStatus(
 	}
 }
 
-func (r *InferenceIdentityBindingReconciler) patchStatusFromBase(
+// patchStatus rebases ordinary status changes onto the latest persisted
+// ownership and retries resource-version conflicts. Ownership transitions use
+// patchOwnershipStatus instead.
+func (r *InferenceIdentityBindingReconciler) patchStatus(
 	ctx context.Context,
-	base *kleymv1alpha1.InferenceIdentityBinding,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 ) error {
-	if reflect.DeepEqual(base.Status, binding.Status) {
+	desiredStatus := binding.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		latest := &kleymv1alpha1.InferenceIdentityBinding{}
+		if err := r.Get(ctx, client.ObjectKeyFromObject(binding), latest); err != nil {
+			return err
+		}
+
+		target := latest.DeepCopy()
+		target.Status = desiredStatus
+		target.Status.PendingClusterSPIFFEID = latest.Status.PendingClusterSPIFFEID.DeepCopy()
+		target.Status.OwnedClusterSPIFFEID = latest.Status.OwnedClusterSPIFFEID.DeepCopy()
+		if !reflect.DeepEqual(latest.Status, target.Status) {
+			patch := client.MergeFromWithOptions(latest, client.MergeFromWithOptimisticLock{})
+			if err := r.Status().Patch(ctx, target, patch); err != nil {
+				return err
+			}
+		}
+
+		binding.Status = target.Status
+		binding.SetResourceVersion(target.GetResourceVersion())
 		return nil
-	}
-	return r.Status().Patch(ctx, binding, client.MergeFrom(base))
+	})
 }
 
 func setCondition(

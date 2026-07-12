@@ -34,71 +34,143 @@ func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEIDs(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	identities []renderedIdentity,
 ) ([]kleymv1alpha1.RenderedClusterSPIFFEIDStatus, error) {
-	logger := logf.FromContext(ctx)
-	existing, err := r.listManagedClusterSPIFFEIDs(ctx, binding)
-	if err != nil {
-		return nil, err
-	}
-	logger.V(1).Info("listed managed ClusterSPIFFEIDs", "count", len(existing))
-
-	existingByName := make(map[string]*unstructured.Unstructured, len(existing))
-	for _, item := range existing {
-		existingByName[item.GetName()] = item
-	}
-
 	statuses := make([]kleymv1alpha1.RenderedClusterSPIFFEIDStatus, 0, len(identities))
 	for _, identity := range identities {
 		desired := spirecm.DesiredClusterSPIFFEID(binding, identity, r.Config.ClusterSPIFFEIDClassName)
-		desiredName := desired.GetName()
-
-		current, exists := existingByName[desiredName]
-		if !exists {
-			if err := r.reserveClusterSPIFFEIDName(ctx, binding, desiredName); err != nil {
-				return nil, err
-			}
+		status, err := r.reconcileClusterSPIFFEID(ctx, binding, identity, desired)
+		if err != nil {
+			return nil, err
 		}
-		if !exists {
-			logger.Info(
-				"creating managed ClusterSPIFFEID",
-				logKeyClusterSPIFFEID, desiredName,
-				logKeySpiffeID, identity.SpiffeID,
-			)
-			if err := r.Create(ctx, desired); err != nil {
-				if apierrors.IsAlreadyExists(err) {
-					return nil, fmt.Errorf(
-						"refusing ClusterSPIFFEID %q not recorded in binding status: %w",
-						desiredName,
-						err,
-					)
-				}
-				return nil, err
-			}
-			statuses = append(statuses, renderedClusterSPIFFEIDStatus(identity, desired))
-			continue
-		}
-
-		if !spirecm.ClusterSPIFFEIDInSync(current, desired) {
-			logger.Info(
-				"updating drifted managed ClusterSPIFFEID",
-				logKeyClusterSPIFFEID, desiredName,
-				logKeySpiffeID, identity.SpiffeID,
-			)
-			spirecm.MergeDesiredClusterSPIFFEID(current, desired)
-			if err := r.Update(ctx, current); err != nil {
-				return nil, err
-			}
-			statuses = append(statuses, renderedClusterSPIFFEIDStatus(identity, current))
-			continue
-		}
-		logger.V(1).Info(
-			"managed ClusterSPIFFEID already in sync",
-			logKeyClusterSPIFFEID, desiredName,
-			logKeySpiffeID, identity.SpiffeID,
-		)
-		statuses = append(statuses, renderedClusterSPIFFEIDStatus(identity, current))
+		statuses = append(statuses, status)
 	}
 
 	return statuses, nil
+}
+
+// reconcileClusterSPIFFEID applies one desired object only after the shared
+// ownership classifier authorizes its exact claim or Kubernetes UID.
+func (r *InferenceIdentityBindingReconciler) reconcileClusterSPIFFEID(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	identity renderedIdentity,
+	desired *unstructured.Unstructured,
+) (kleymv1alpha1.RenderedClusterSPIFFEIDStatus, error) {
+	observation, err := r.observeManagedClusterSPIFFEID(ctx, binding, desired.GetName())
+	if err != nil {
+		return kleymv1alpha1.RenderedClusterSPIFFEIDStatus{}, err
+	}
+
+	current, err := r.authorizeManagedOutputApply(ctx, binding, desired, observation)
+	if err != nil {
+		return kleymv1alpha1.RenderedClusterSPIFFEIDStatus{}, err
+	}
+	if current == nil {
+		return r.createManagedClusterSPIFFEID(ctx, binding, identity, desired, observation)
+	}
+	return r.updateManagedClusterSPIFFEID(ctx, identity, current, desired)
+}
+
+// authorizeManagedOutputApply converts an ownership observation into either an
+// exact live object that may be reconciled or an absent slot that may be created.
+func (r *InferenceIdentityBindingReconciler) authorizeManagedOutputApply(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	desired *unstructured.Unstructured,
+	observation managedOutputObservation,
+) (*unstructured.Unstructured, error) {
+	switch observation.kind {
+	case unclaimedOutputAbsent, pendingOutputAbsent:
+		return nil, nil
+	case pendingOutputMatched:
+		if err := r.confirmClusterSPIFFEIDOwnership(ctx, binding, observation.object.GetName(), observation.object.GetUID()); err != nil {
+			return nil, err
+		}
+		return observation.object, nil
+	case confirmedOutputMatched:
+		return observation.object, nil
+	case confirmedOutputAbsent:
+		if err := r.clearClusterSPIFFEIDOwnership(ctx, binding); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	case unclaimedOutputForeign, pendingOutputForeign, confirmedOutputForeign:
+		if observation.kind != unclaimedOutputForeign {
+			if err := r.clearClusterSPIFFEIDOwnership(ctx, binding); err != nil {
+				return nil, err
+			}
+		}
+		return nil, foreignManagedOutputError(desired.GetName(), observation)
+	default:
+		return nil, fmt.Errorf("unknown ClusterSPIFFEID ownership observation for %q", desired.GetName())
+	}
+}
+
+// createManagedClusterSPIFFEID carries the durable pending claim onto Create
+// and confirms the API-assigned UID before returning rendered success.
+func (r *InferenceIdentityBindingReconciler) createManagedClusterSPIFFEID(
+	ctx context.Context,
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	identity renderedIdentity,
+	desired *unstructured.Unstructured,
+	observation managedOutputObservation,
+) (kleymv1alpha1.RenderedClusterSPIFFEIDStatus, error) {
+	claimID := observation.record.claimID
+	if observation.kind != pendingOutputAbsent {
+		var err error
+		claimID, err = r.reserveClusterSPIFFEIDClaim(ctx, binding, desired.GetName())
+		if err != nil {
+			return kleymv1alpha1.RenderedClusterSPIFFEIDStatus{}, err
+		}
+	}
+	spirecm.SetClusterSPIFFEIDOwnershipClaim(desired, claimID)
+	logf.FromContext(ctx).Info("creating managed ClusterSPIFFEID", logKeyClusterSPIFFEID, desired.GetName(), logKeySpiffeID, identity.SpiffeID)
+	if err := r.Create(ctx, desired); err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			return kleymv1alpha1.RenderedClusterSPIFFEIDStatus{}, fmt.Errorf("refusing same-name ClusterSPIFFEID %q after create race: %w", desired.GetName(), err)
+		}
+		return kleymv1alpha1.RenderedClusterSPIFFEIDStatus{}, err
+	}
+	if desired.GetUID() == "" {
+		return kleymv1alpha1.RenderedClusterSPIFFEIDStatus{}, fmt.Errorf("created ClusterSPIFFEID %q has no Kubernetes UID", desired.GetName())
+	}
+	if err := r.confirmClusterSPIFFEIDOwnership(ctx, binding, desired.GetName(), desired.GetUID()); err != nil {
+		return kleymv1alpha1.RenderedClusterSPIFFEIDStatus{}, err
+	}
+	return renderedClusterSPIFFEIDStatus(identity, desired), nil
+}
+
+// updateManagedClusterSPIFFEID corrects drift only for an object whose UID was
+// authorized by confirmed status in authorizeManagedOutputApply.
+func (r *InferenceIdentityBindingReconciler) updateManagedClusterSPIFFEID(
+	ctx context.Context,
+	identity renderedIdentity,
+	current *unstructured.Unstructured,
+	desired *unstructured.Unstructured,
+) (kleymv1alpha1.RenderedClusterSPIFFEIDStatus, error) {
+	logger := logf.FromContext(ctx)
+	if !spirecm.ClusterSPIFFEIDInSync(current, desired) {
+		logger.Info("updating drifted managed ClusterSPIFFEID", logKeyClusterSPIFFEID, desired.GetName(), logKeySpiffeID, identity.SpiffeID)
+		spirecm.MergeDesiredClusterSPIFFEID(current, desired)
+		if err := r.Update(ctx, current); err != nil {
+			return kleymv1alpha1.RenderedClusterSPIFFEIDStatus{}, err
+		}
+	} else {
+		logger.V(1).Info("managed ClusterSPIFFEID already in sync", logKeyClusterSPIFFEID, desired.GetName(), logKeySpiffeID, identity.SpiffeID)
+	}
+	return renderedClusterSPIFFEIDStatus(identity, current), nil
+}
+
+// foreignManagedOutputError explains the exact ownership proof that failed
+// while preserving the existing ManagedOutputApplyFailed public taxonomy.
+func foreignManagedOutputError(name string, observation managedOutputObservation) error {
+	switch observation.kind {
+	case pendingOutputForeign:
+		return fmt.Errorf("refusing same-name ClusterSPIFFEID %q: live ownership claim does not match the durable pending claim", name)
+	case confirmedOutputForeign:
+		return fmt.Errorf("refusing same-name ClusterSPIFFEID %q: live UID %q does not match confirmed UID %q", name, observation.object.GetUID(), observation.record.uid)
+	default:
+		return fmt.Errorf("refusing pre-existing ClusterSPIFFEID %q without durable ownership status", name)
+	}
 }
 
 // cleanupChangedClusterSPIFFEIDName prevents a desired-name change from
@@ -127,14 +199,9 @@ func (r *InferenceIdentityBindingReconciler) cleanupChangedClusterSPIFFEIDName(
 	}
 	if len(remaining) == 0 {
 		if recordedClusterSPIFFEIDName(binding) != "" {
-			statusBase := binding.DeepCopy()
-			clearClusterSPIFFEIDOwnership(&binding.Status)
-			clearedStatus := binding.DeepCopy().Status
-			if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
-				binding.Status = statusBase.Status
+			if err := r.clearClusterSPIFFEIDOwnership(ctx, binding); err != nil {
 				return false, err
 			}
-			binding.Status = clearedStatus
 		}
 		return false, nil
 	}
@@ -145,47 +212,6 @@ func (r *InferenceIdentityBindingReconciler) cleanupChangedClusterSPIFFEIDName(
 		logKeyRequeueAfter, deleteVerificationRequeueAfter,
 	)
 	return true, nil
-}
-
-// reserveClusterSPIFFEIDName durably claims an absent deterministic name before
-// Create. A retry may trust an existing object only when this claim was stored.
-func (r *InferenceIdentityBindingReconciler) reserveClusterSPIFFEIDName(
-	ctx context.Context,
-	binding *kleymv1alpha1.InferenceIdentityBinding,
-	desiredName string,
-) error {
-	if recordedClusterSPIFFEIDName(binding) == desiredName {
-		return nil
-	}
-	if recordedName := recordedClusterSPIFFEIDName(binding); recordedName != "" {
-		return fmt.Errorf("cannot reserve ClusterSPIFFEID %q while %q is recorded", desiredName, recordedName)
-	}
-
-	current := &unstructured.Unstructured{}
-	current.SetGroupVersionKind(clusterSPIFFEIDGVK)
-	getErr := r.Get(ctx, client.ObjectKey{Name: desiredName}, current)
-	switch {
-	case getErr == nil:
-		return fmt.Errorf(
-			"refusing pre-existing ClusterSPIFFEID %q not recorded in binding status",
-			desiredName,
-		)
-	case !apierrors.IsNotFound(getErr):
-		return getErr
-	}
-
-	statusBase := binding.DeepCopy()
-	applyPendingManagedOutputClaimStatus(&binding.Status, binding.Generation, desiredName)
-	claimedStatus := binding.DeepCopy().Status
-	if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
-		binding.Status = statusBase.Status
-		return err
-	}
-	// Status().Patch updates binding from the API response, which does not include
-	// evaluation fields that this intermediate merge did not persist. Keep the
-	// complete in-memory evaluation for the final status patch in this reconcile.
-	binding.Status = claimedStatus
-	return nil
 }
 
 func renderedClusterSPIFFEIDStatus(
@@ -212,34 +238,24 @@ func (r *InferenceIdentityBindingReconciler) listManagedClusterSPIFFEIDs(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 ) ([]*unstructured.Unstructured, error) {
-	name := recordedClusterSPIFFEIDName(binding)
-	if name == "" {
-		return nil, nil
-	}
-
-	object := &unstructured.Unstructured{}
-	object.SetGroupVersionKind(clusterSPIFFEIDGVK)
-	if err := r.Get(ctx, client.ObjectKey{Name: name}, object); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, nil
-		}
+	observation, err := r.observeManagedClusterSPIFFEID(ctx, binding, "")
+	if err != nil {
 		return nil, err
 	}
-	return []*unstructured.Unstructured{object}, nil
-}
-
-// recordedClusterSPIFFEIDName returns the durable pending or confirmed name
-// that authorizes managed-output reconciliation and cleanup.
-func recordedClusterSPIFFEIDName(binding *kleymv1alpha1.InferenceIdentityBinding) string {
-	if binding.Status.OwnedClusterSPIFFEIDName != "" {
-		return binding.Status.OwnedClusterSPIFFEIDName
+	switch observation.kind {
+	case pendingOutputMatched:
+		if err := r.confirmClusterSPIFFEIDOwnership(ctx, binding, observation.object.GetName(), observation.object.GetUID()); err != nil {
+			return nil, err
+		}
+		return []*unstructured.Unstructured{observation.object}, nil
+	case confirmedOutputMatched:
+		return []*unstructured.Unstructured{observation.object}, nil
+	case pendingOutputAbsent, pendingOutputForeign, confirmedOutputAbsent, confirmedOutputForeign:
+		if err := r.clearClusterSPIFFEIDOwnership(ctx, binding); err != nil {
+			return nil, err
+		}
 	}
-	return binding.Status.PendingClusterSPIFFEIDName
-}
-
-func clearClusterSPIFFEIDOwnership(status *kleymv1alpha1.InferenceIdentityBindingStatus) {
-	status.PendingClusterSPIFFEIDName = ""
-	status.OwnedClusterSPIFFEIDName = ""
+	return nil, nil
 }
 
 func (r *InferenceIdentityBindingReconciler) cleanupManagedClusterSPIFFEIDs(
@@ -256,7 +272,8 @@ func (r *InferenceIdentityBindingReconciler) cleanupManagedClusterSPIFFEIDs(
 	}
 	for _, object := range objects {
 		logger.Info("deleting managed ClusterSPIFFEID during cleanup", logKeyClusterSPIFFEID, object.GetName())
-		if err := r.Delete(ctx, object); err != nil && !apierrors.IsNotFound(err) {
+		uid := object.GetUID()
+		if err := r.Delete(ctx, object, client.Preconditions{UID: &uid}); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	}

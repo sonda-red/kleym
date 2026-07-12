@@ -21,11 +21,11 @@ func TestClusterSPIFFEIDWatchMapsOnlyPersistedManagedOutputNames(t *testing.T) {
 
 	ctx := context.Background()
 	owned := newPoolOnlyBinding("binding-watch-owned", "")
-	owned.Status.OwnedClusterSPIFFEIDName = "recorded-output"
+	setConfirmedClusterSPIFFEID(owned, "recorded-output", "recorded-output-uid")
 	pending := newPoolOnlyBinding("binding-watch-pending", "")
-	pending.Status.PendingClusterSPIFFEIDName = "pending-output"
+	pending.Status.PendingClusterSPIFFEID = &kleymv1alpha1.PendingClusterSPIFFEIDStatus{Name: "pending-output", ClaimID: "pending-claim"}
 	labelOnly := newPoolOnlyBinding("binding-watch-label-only", "")
-	labelOnly.Status.OwnedClusterSPIFFEIDName = "different-output"
+	setConfirmedClusterSPIFFEID(labelOnly, "different-output", "different-output-uid")
 	reconciler := newIndexedWatchTestReconciler(t, owned, pending, labelOnly)
 
 	ownedEvent := managedEventObject("recorded-output")
@@ -52,9 +52,12 @@ func TestReverseBindingLookupsUseConfiguredFieldIndexes(t *testing.T) {
 	unrelatedPool := newPoolOnlyBinding("binding-pool-other", "")
 	unrelatedPool.Spec.PoolRef.Name = "pool-other"
 	matchingOutput := newPoolOnlyBinding("binding-output-match", "")
-	matchingOutput.Status.OwnedClusterSPIFFEIDName = "recorded-output"
+	setConfirmedClusterSPIFFEID(matchingOutput, "recorded-output", "recorded-output-uid")
 	unrelatedOutput := newPoolOnlyBinding("binding-output-other", "")
-	unrelatedOutput.Status.PendingClusterSPIFFEIDName = "other-output"
+	unrelatedOutput.Status.PendingClusterSPIFFEID = &kleymv1alpha1.PendingClusterSPIFFEIDStatus{
+		Name:    "other-output",
+		ClaimID: "other-output-claim",
+	}
 	reconciler := newIndexedWatchTestReconciler(t, matchingPool, unrelatedPool, matchingOutput, unrelatedOutput)
 
 	poolBindings, err := reconciler.listBindingsReferencingPool(ctx, testNamespace, "pool-a")
@@ -75,7 +78,7 @@ func TestReverseBindingLookupsReturnMissingIndexErrors(t *testing.T) {
 
 	ctx := context.Background()
 	binding := newPoolOnlyBinding("binding-missing-index", "")
-	binding.Status.OwnedClusterSPIFFEIDName = "recorded-output"
+	setConfirmedClusterSPIFFEID(binding, "recorded-output", "recorded-output-uid")
 	scheme := newControllerTestScheme(t)
 	reconciler := &InferenceIdentityBindingReconciler{
 		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(binding).Build(),
@@ -99,9 +102,9 @@ func TestClusterSPIFFEIDWatchDeletionRequeuesRecordedBindingAndRestoresReady(t *
 
 	ready := fetchBinding(t, ctx, reconciler.Client, binding.Name)
 	assertSuccessConditionSet(t, ready)
-	recordedName := ready.Status.OwnedClusterSPIFFEIDName
+	recordedName := confirmedClusterSPIFFEIDName(ready)
 	if recordedName == "" {
-		t.Fatal("ownedClusterSPIFFEIDName was not recorded")
+		t.Fatal("ownedClusterSPIFFEID name was not recorded")
 	}
 
 	deleted := &unstructured.Unstructured{}
@@ -121,8 +124,8 @@ func TestClusterSPIFFEIDWatchDeletionRequeuesRecordedBindingAndRestoresReady(t *
 
 	recovered := fetchBinding(t, ctx, reconciler.Client, binding.Name)
 	assertSuccessConditionSet(t, recovered)
-	if recovered.Status.OwnedClusterSPIFFEIDName != recordedName {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q, want %q", recovered.Status.OwnedClusterSPIFFEIDName, recordedName)
+	if confirmedClusterSPIFFEIDName(recovered) != recordedName {
+		t.Fatalf("ownedClusterSPIFFEID.name = %q, want %q", confirmedClusterSPIFFEIDName(recovered), recordedName)
 	}
 	if recovered.Status.RenderedClusterSPIFFEID == nil {
 		t.Fatal("renderedClusterSPIFFEID was not restored")
@@ -145,9 +148,9 @@ func TestClusterSPIFFEIDWatchSpecDriftRequeuesRecordedBindingAndRestoresReady(t 
 
 	ready := fetchBinding(t, ctx, reconciler.Client, binding.Name)
 	assertSuccessConditionSet(t, ready)
-	recordedName := ready.Status.OwnedClusterSPIFFEIDName
+	recordedName := confirmedClusterSPIFFEIDName(ready)
 	if recordedName == "" {
-		t.Fatal("ownedClusterSPIFFEIDName was not recorded")
+		t.Fatal("ownedClusterSPIFFEID name was not recorded")
 	}
 
 	current := &unstructured.Unstructured{}
@@ -204,15 +207,16 @@ func newIndexedWatchTestReconciler(t *testing.T, objects ...client.Object) *Infe
 	t.Helper()
 
 	scheme := newControllerTestScheme(t)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+		WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexPoolRefName, bindingPoolRefNameIndexValue).
+		WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexManagedClusterSPIFFEIDName, bindingClusterSPIFFEIDNameIndexValues).
+		WithObjects(objects...).
+		Build()
 	return &InferenceIdentityBindingReconciler{
 		Config: testOperatorConfig(),
-		Client: fake.NewClientBuilder().
-			WithScheme(scheme).
-			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
-			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexPoolRefName, bindingPoolRefNameIndexValue).
-			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexManagedClusterSPIFFEIDName, bindingClusterSPIFFEIDNameIndexValues).
-			WithObjects(objects...).
-			Build(),
+		Client: withFakeClusterSPIFFEIDUIDs(fakeClient),
 	}
 }
 

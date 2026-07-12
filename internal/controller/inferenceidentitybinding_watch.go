@@ -82,23 +82,27 @@ func bindingPoolRefNameIndexValue(rawObj client.Object) []string {
 }
 
 // bindingClusterSPIFFEIDNameIndexValues projects the durable managed-output
-// ownership fields used by the controller watch; labels are intentionally
-// excluded because docs/spec/operator.md defines pending/owned status names as
-// the ownership protocol.
+// ownership records used by the controller watch; labels are intentionally
+// excluded because docs/spec/operator.md defines durable status as the
+// ownership protocol.
 func bindingClusterSPIFFEIDNameIndexValues(rawObj client.Object) []string {
 	binding, ok := rawObj.(*kleymv1alpha1.InferenceIdentityBinding)
 	if !ok {
 		return nil
 	}
 
-	return compactIndexValues(
-		binding.Status.PendingClusterSPIFFEIDName,
-		binding.Status.OwnedClusterSPIFFEIDName,
-	)
+	values := make([]string, 0, 2)
+	if binding.Status.PendingClusterSPIFFEID != nil {
+		values = append(values, binding.Status.PendingClusterSPIFFEID.Name)
+	}
+	if binding.Status.OwnedClusterSPIFFEID != nil {
+		values = append(values, binding.Status.OwnedClusterSPIFFEID.Name)
+	}
+	return compactIndexValues(values...)
 }
 
-// compactIndexValues keeps field-index keys deterministic when legacy or
-// partially patched status happens to contain duplicate or empty names.
+// compactIndexValues keeps field-index keys deterministic if partially patched
+// status happens to contain duplicate or empty names.
 func compactIndexValues(values ...string) []string {
 	result := make([]string, 0, len(values))
 	seen := make(map[string]struct{}, len(values))

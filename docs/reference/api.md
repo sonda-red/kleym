@@ -55,8 +55,10 @@ Current validation rules enforced by the CRD:
 | `conflicts` | Deterministically sorted peer binding references, causes, SPIFFE IDs, and resolved peer boundary data. Present only for `Conflict=True`. |
 | `computedSpiffeIDs` | Computed SPIFFE IDs produced from the pool binding. |
 | `renderedSelectors` | Final selector set used for each rendered identity. |
-| `pendingClusterSPIFFEIDName` | Deterministic managed-output name durably reserved before `Create`. It lets retry converge an output created before confirmation status could be stored. |
-| `ownedClusterSPIFFEIDName` | Deterministic managed-output name whose creation has been confirmed. It remains independent of rendered output status. |
+| `pendingClusterSPIFFEID.name` | Deterministic managed-output name durably reserved before `Create`. |
+| `pendingClusterSPIFFEID.claimID` | Controller-generated correlation token copied to the new object's `kleym.sonda.red/ownership-claim-id` annotation for safe ambiguous-create recovery. |
+| `ownedClusterSPIFFEID.name` | Deterministic name of the confirmed managed-output incarnation. |
+| `ownedClusterSPIFFEID.uid` | Kubernetes UID of the exact confirmed incarnation authorized for update or deletion. |
 | `renderedClusterSPIFFEID.name` | Deterministic managed `ClusterSPIFFEID` name rendered for the binding. |
 | `renderedClusterSPIFFEID.spiffeID` | Rendered SPIFFE ID written to the managed `ClusterSPIFFEID`. This matches the SPIFFE ID in `computedSpiffeIDs`. |
 | `renderedClusterSPIFFEID.selectorFingerprint` | `sha256:<hex>` fingerprint of the canonical rendered selector set. |
@@ -68,7 +70,9 @@ API failure, the operator clears `computedSpiffeIDs`, `renderedSelectors`, and
 rendered output. Generic managed `ClusterSPIFFEID` read, create, update, or
 delete API failures report `RenderFailure=True` with reason
 `ManagedOutputApplyFailed`. Pending and confirmed ownership survive transient
-API failures and are cleared only after the recorded output is confirmed absent.
+API failures. NotFound clears a recorded incarnation; a missing or different
+pending claim or confirmed UID marks a live same-name object foreign and leaves
+it untouched.
 
 ## Kubectl Columns
 

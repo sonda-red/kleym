@@ -40,6 +40,8 @@ const (
 	BindingNameLabelKey = "kleym.sonda.red/binding-name"
 	// BindingNamespaceLabelKey records the source InferenceIdentityBinding namespace.
 	BindingNamespaceLabelKey = "kleym.sonda.red/binding-namespace"
+	// OwnershipClaimIDAnnotationKey records the pending-create claim that produced an object.
+	OwnershipClaimIDAnnotationKey = "kleym.sonda.red/ownership-claim-id"
 
 	// maxDNSLabelLength is the maximum length of a single DNS label per RFC 1123.
 	maxDNSLabelLength = 63
@@ -52,6 +54,23 @@ var clusterSPIFFEIDGVK = schema.GroupVersionKind{
 	Group:   "spire.spiffe.io",
 	Version: "v1alpha1",
 	Kind:    "ClusterSPIFFEID",
+}
+
+// SetClusterSPIFFEIDOwnershipClaim records immutable create provenance on a
+// newly rendered ClusterSPIFFEID. Reconciliation intentionally does not merge
+// this annotation onto existing objects.
+func SetClusterSPIFFEIDOwnershipClaim(object *unstructured.Unstructured, claimID string) {
+	annotations := object.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[OwnershipClaimIDAnnotationKey] = claimID
+	object.SetAnnotations(annotations)
+}
+
+// ClusterSPIFFEIDOwnershipClaim returns the create claim carried by an object.
+func ClusterSPIFFEIDOwnershipClaim(object *unstructured.Unstructured) string {
+	return object.GetAnnotations()[OwnershipClaimIDAnnotationKey]
 }
 
 // ClusterSPIFFEIDGVK returns the SPIRE Controller Manager ClusterSPIFFEID GVK.

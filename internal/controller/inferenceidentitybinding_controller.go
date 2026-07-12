@@ -113,7 +113,8 @@ type InferenceIdentityBindingReconciler struct {
 //  5. Apply — reconcile ClusterSPIFFEID, patch status, emit events.
 //
 // Only one phase runs per invocation. Each phase either returns early or falls
-// through to the next. Status is patched exactly once near the end of each path.
+// through to the next. Ownership transitions are persisted before ordinary
+// condition and rendered-output status updates.
 //
 // See docs/design/reconciliation.md for the full flow diagram.
 func (r *InferenceIdentityBindingReconciler) Reconcile(
@@ -168,7 +169,6 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 	}
 
 	// Phase 4: Compute desired state — resolve pool → identity.
-	statusBase := binding.DeepCopy()
 	initializeConditions(&binding.Status, binding.Generation)
 	applyOperatorConfig(&binding.Status, r.Config)
 
@@ -193,12 +193,12 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 			return ctrl.Result{}, err
 		}
 		if err := r.applyStateError(ctx, binding, stateErr); err != nil {
-			if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+			if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, binding, err); statusErr != nil {
 				return ctrl.Result{}, statusErr
 			}
 			return ctrl.Result{}, err
 		}
-		if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
+		if err := r.patchStatus(ctx, binding); err != nil {
 			return ctrl.Result{}, err
 		}
 		r.recordTerminalOutcome(binding)
@@ -222,7 +222,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 		return ctrl.Result{}, nil
 	}
 
-	if handled, result, err := r.reconcileConflictState(ctx, statusBase, binding, desiredState.identities[0]); handled || err != nil {
+	if handled, result, err := r.reconcileConflictState(ctx, binding, desiredState.identities[0]); handled || err != nil {
 		return result, err
 	}
 
@@ -233,13 +233,13 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 		r.Config.ClusterSPIFFEIDClassName,
 	).GetName()
 	if pending, err := r.cleanupChangedClusterSPIFFEIDName(ctx, binding, primaryClusterSPIFFEIDName); err != nil {
-		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, binding, err); statusErr != nil {
 			return ctrl.Result{}, statusErr
 		}
 		return ctrl.Result{}, err
 	} else if pending {
 		applyPendingManagedOutputReplacementStatus(&binding.Status, binding.Generation)
-		if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
+		if err := r.patchStatus(ctx, binding); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{RequeueAfter: deleteVerificationRequeueAfter}, nil
@@ -251,12 +251,12 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 		if meta.IsNoMatchError(err) {
 			stateErr := newClusterSPIFFEIDCRDMissingStateError()
 			if err := r.applyStateError(ctx, binding, stateErr); err != nil {
-				if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+				if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, binding, err); statusErr != nil {
 					return ctrl.Result{}, statusErr
 				}
 				return ctrl.Result{}, err
 			}
-			if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
+			if err := r.patchStatus(ctx, binding); err != nil {
 				return ctrl.Result{}, err
 			}
 			r.recordTerminalOutcome(binding)
@@ -273,14 +273,14 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 			)
 			return ctrl.Result{RequeueAfter: infraNotReadyRequeueAfter}, nil
 		}
-		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, binding, err); statusErr != nil {
 			return ctrl.Result{}, statusErr
 		}
 		return ctrl.Result{}, err
 	}
 
 	applySuccessStatus(&binding.Status, binding.Generation, desiredState.identities, managedStatuses)
-	if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
+	if err := r.patchStatus(ctx, binding); err != nil {
 		return ctrl.Result{}, err
 	}
 	r.recordTerminalOutcome(binding)
@@ -410,9 +410,8 @@ func (r *InferenceIdentityBindingReconciler) reconcileDelete(
 		return ctrl.Result{}, nil
 	}
 
-	statusBase := binding.DeepCopy()
 	if err := r.cleanupManagedClusterSPIFFEIDs(ctx, binding); err != nil {
-		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, binding, err); statusErr != nil {
 			return ctrl.Result{}, statusErr
 		}
 		return ctrl.Result{}, err
@@ -420,7 +419,7 @@ func (r *InferenceIdentityBindingReconciler) reconcileDelete(
 
 	remaining, err := r.listManagedClusterSPIFFEIDs(ctx, binding)
 	if err != nil {
-		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, binding, err); statusErr != nil {
 			return ctrl.Result{}, statusErr
 		}
 		return ctrl.Result{}, err
@@ -435,9 +434,7 @@ func (r *InferenceIdentityBindingReconciler) reconcileDelete(
 	}
 
 	if recordedClusterSPIFFEIDName(binding) != "" {
-		statusBase := binding.DeepCopy()
-		clearClusterSPIFFEIDOwnership(&binding.Status)
-		if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
+		if err := r.clearClusterSPIFFEIDOwnership(ctx, binding); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -519,7 +516,9 @@ func (r *InferenceIdentityBindingReconciler) applyStateError(
 			return err
 		}
 		if len(remaining) == 0 {
-			clearClusterSPIFFEIDOwnership(&binding.Status)
+			if err := r.clearClusterSPIFFEIDOwnership(ctx, binding); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -529,13 +528,12 @@ func (r *InferenceIdentityBindingReconciler) applyStateError(
 
 func (r *InferenceIdentityBindingReconciler) patchManagedOutputApplyFailureStatus(
 	ctx context.Context,
-	statusBase *kleymv1alpha1.InferenceIdentityBinding,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	applyErr error,
 ) error {
 	stateErr := newManagedOutputApplyFailedStateError(applyErr)
 	applyFailureStatus(&binding.Status, binding.Generation, stateErr)
-	if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
+	if err := r.patchStatus(ctx, binding); err != nil {
 		return err
 	}
 	r.recordTerminalOutcome(binding)

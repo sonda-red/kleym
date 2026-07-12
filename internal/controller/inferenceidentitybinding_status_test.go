@@ -16,7 +16,10 @@ func TestInitializeConditionsEnsuresCanonicalSetForCurrentGeneration(t *testing.
 	t.Parallel()
 
 	status := kleymv1alpha1.InferenceIdentityBindingStatus{
-		OwnedClusterSPIFFEIDName: "kleym-default-binding-pool-34c1d5c4",
+		OwnedClusterSPIFFEID: &kleymv1alpha1.OwnedClusterSPIFFEIDStatus{
+			Name: "kleym-default-binding-pool-34c1d5c4",
+			UID:  "managed-uid",
+		},
 		Conditions: []metav1.Condition{
 			{
 				Type:               conditionTypeReady,
@@ -109,7 +112,10 @@ func TestApplySuccessStatusRecordsRenderedSelectors(t *testing.T) {
 	t.Parallel()
 
 	status := kleymv1alpha1.InferenceIdentityBindingStatus{
-		PendingClusterSPIFFEIDName: "kleym-default-binding-pool-34c1d5c4",
+		OwnedClusterSPIFFEID: &kleymv1alpha1.OwnedClusterSPIFFEIDStatus{
+			Name: "kleym-default-binding-pool-34c1d5c4",
+			UID:  "managed-uid",
+		},
 	}
 	wantSelectors := []string{
 		"k8s:ns:default",
@@ -152,11 +158,11 @@ func TestApplySuccessStatusRecordsRenderedSelectors(t *testing.T) {
 	if status.RenderedClusterSPIFFEID.SelectorFingerprint != identity.SelectorFingerprint(wantSelectors) {
 		t.Fatalf("selectorFingerprint = %q, want sha256 fingerprint", status.RenderedClusterSPIFFEID.SelectorFingerprint)
 	}
-	if status.OwnedClusterSPIFFEIDName != status.RenderedClusterSPIFFEID.Name {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q, want %q", status.OwnedClusterSPIFFEIDName, status.RenderedClusterSPIFFEID.Name)
+	if status.OwnedClusterSPIFFEID == nil || status.OwnedClusterSPIFFEID.Name != status.RenderedClusterSPIFFEID.Name || status.OwnedClusterSPIFFEID.UID != "managed-uid" {
+		t.Fatalf("ownedClusterSPIFFEID = %#v, want name %q and UID managed-uid", status.OwnedClusterSPIFFEID, status.RenderedClusterSPIFFEID.Name)
 	}
-	if status.PendingClusterSPIFFEIDName != "" {
-		t.Fatalf("pendingClusterSPIFFEIDName = %q after confirmation, want empty", status.PendingClusterSPIFFEIDName)
+	if status.PendingClusterSPIFFEID != nil {
+		t.Fatalf("pendingClusterSPIFFEID = %#v, want nil", status.PendingClusterSPIFFEID)
 	}
 }
 
@@ -165,8 +171,10 @@ func TestApplyFailureStatusClearsRenderedManagedStatus(t *testing.T) {
 
 	generation := int64(3)
 	status := kleymv1alpha1.InferenceIdentityBindingStatus{
-		PendingClusterSPIFFEIDName: "pending-output",
-		OwnedClusterSPIFFEIDName:   "kleym-default-binding-pool-34c1d5c4",
+		OwnedClusterSPIFFEID: &kleymv1alpha1.OwnedClusterSPIFFEIDStatus{
+			Name: "kleym-default-binding-pool-34c1d5c4",
+			UID:  "managed-uid",
+		},
 		ComputedSpiffeIDs: []kleymv1alpha1.ComputedSpiffeIDStatus{{
 			SpiffeID: "spiffe://example.org/ns/default/sa/inference-sa/inference/pool/pool-a/variant/prefill",
 		}},
@@ -193,11 +201,11 @@ func TestApplyFailureStatusClearsRenderedManagedStatus(t *testing.T) {
 	if status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v, want cleared", status.RenderedClusterSPIFFEID)
 	}
-	if status.OwnedClusterSPIFFEIDName != "kleym-default-binding-pool-34c1d5c4" {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q, want retained", status.OwnedClusterSPIFFEIDName)
+	if status.OwnedClusterSPIFFEID == nil || status.OwnedClusterSPIFFEID.Name != "kleym-default-binding-pool-34c1d5c4" || status.OwnedClusterSPIFFEID.UID != "managed-uid" {
+		t.Fatalf("ownedClusterSPIFFEID = %#v, want retained", status.OwnedClusterSPIFFEID)
 	}
-	if status.PendingClusterSPIFFEIDName != "pending-output" {
-		t.Fatalf("pendingClusterSPIFFEIDName = %q, want retained", status.PendingClusterSPIFFEIDName)
+	if status.PendingClusterSPIFFEID != nil {
+		t.Fatalf("pendingClusterSPIFFEID = %#v, want nil", status.PendingClusterSPIFFEID)
 	}
 }
 
