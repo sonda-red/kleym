@@ -50,7 +50,7 @@ func newStateError(conditionType, reason, message string) *reconcileStateError {
 	}
 }
 
-type renderedIdentity = identity.RenderedIdentity
+type renderedIdentity = identity.Plan
 
 type desiredBindingState struct {
 	identities []renderedIdentity

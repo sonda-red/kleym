@@ -79,7 +79,6 @@ func TestReverseBindingLookupsReturnMissingIndexErrors(t *testing.T) {
 	scheme := newControllerTestScheme(t)
 	reconciler := &InferenceIdentityBindingReconciler{
 		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(binding).Build(),
-		Scheme: scheme,
 	}
 
 	if _, err := reconciler.listBindingsReferencingPool(ctx, testNamespace, "pool-a"); err == nil {
@@ -214,7 +213,6 @@ func newIndexedWatchTestReconciler(t *testing.T, objects ...client.Object) *Infe
 			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexManagedClusterSPIFFEIDName, bindingClusterSPIFFEIDNameIndexValues).
 			WithObjects(objects...).
 			Build(),
-		Scheme: scheme,
 	}
 }
 

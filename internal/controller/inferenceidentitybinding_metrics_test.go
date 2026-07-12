@@ -119,7 +119,6 @@ func TestReconcileRecordsSuccessfulTerminalOutcomeAfterStatusPatch(t *testing.T)
 
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client:          k8sClient,
-		Scheme:          scheme,
 		MetricsRecorder: recorder,
 	}
 
@@ -160,7 +159,6 @@ func TestReconcileResolvesStaleConflictCondition(t *testing.T) {
 	reconciler := &InferenceIdentityBindingReconciler{
 		Config: testOperatorConfig(),
 		Client: k8sClient,
-		Scheme: scheme,
 	}
 	key := types.NamespacedName{Namespace: testNamespace, Name: binding.Name}
 
@@ -198,7 +196,6 @@ func TestReconcileRecordsFailureTerminalOutcomeAfterStatusPatch(t *testing.T) {
 
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client:          k8sClient,
-		Scheme:          scheme,
 		MetricsRecorder: recorder,
 	}
 

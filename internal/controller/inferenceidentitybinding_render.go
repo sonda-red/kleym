@@ -28,10 +28,10 @@ import (
 func (r *InferenceIdentityBindingReconciler) renderIdentity(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	pool *unstructured.Unstructured,
-) (identity.RenderedIdentity, error) {
+) (identity.Plan, error) {
 	target, err := gaie.ResolveInferenceTarget(pool)
 	if err != nil {
-		return identity.RenderedIdentity{}, &identity.StateError{
+		return identity.Plan{}, &identity.StateError{
 			ConditionType: identity.ConditionTypeUnsafeSelector,
 			Reason:        identity.ReasonInvalidPoolSelector,
 			Message:       err.Error(),
@@ -66,15 +66,15 @@ func bindingIdentityBoundary(binding *kleymv1alpha1.InferenceIdentityBinding) (i
 func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(
 	ctx context.Context,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
-) (identity.RenderedIdentity, error) {
+) (identity.Plan, error) {
 	poolRef, err := gaie.BindingPoolRef(binding)
 	if err != nil {
-		return identity.RenderedIdentity{}, err
+		return identity.Plan{}, err
 	}
 
 	pool, err := r.resolveInferencePool(ctx, poolRef)
 	if err != nil {
-		return identity.RenderedIdentity{}, err
+		return identity.Plan{}, err
 	}
 
 	return r.renderIdentity(binding, pool)

@@ -32,7 +32,6 @@ func TestReconcileLogsStructuredSuccessPath(t *testing.T) {
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
 			WithObjects(newTestPool(), binding).
 			Build(),
-		Scheme: scheme,
 	}
 
 	_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -82,7 +81,6 @@ func TestReconcileLogsFailureStatus(t *testing.T) {
 			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
 			WithObjects(newTestPool(), binding).
 			Build(),
-		Scheme: scheme,
 	}
 
 	_, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -140,7 +138,6 @@ func TestReconcileClusterSPIFFEIDsLogsApplyDecisions(t *testing.T) {
 			WithScheme(scheme).
 			WithObjects(binding, drifted).
 			Build(),
-		Scheme: scheme,
 	}
 
 	if _, err := reconciler.reconcileClusterSPIFFEIDs(ctx, binding, []renderedIdentity{identity}); err != nil {

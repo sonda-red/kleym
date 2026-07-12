@@ -179,7 +179,6 @@ func main() {
 
 	if err := (&controller.InferenceIdentityBindingReconciler{
 		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
 		Config: operatorConfig,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "InferenceIdentityBinding")

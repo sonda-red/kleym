@@ -65,7 +65,7 @@ func TestObservedGenerationAdvancesAfterBindingSpecChange(t *testing.T) {
 			t.Errorf("delete binding: %v", err)
 			return
 		}
-		reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: k8sClient, Scheme: k8sClient.Scheme()}
+		reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: k8sClient}
 		deadline := time.Now().Add(5 * time.Second)
 		for {
 			if _, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: key}); err != nil {
@@ -86,7 +86,7 @@ func TestObservedGenerationAdvancesAfterBindingSpecChange(t *testing.T) {
 		}
 	})
 
-	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: k8sClient, Scheme: k8sClient.Scheme()}
+	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(), Client: k8sClient}
 	if _, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: key}); err != nil {
 		t.Fatalf("initial reconcile: %v", err)
 	}
