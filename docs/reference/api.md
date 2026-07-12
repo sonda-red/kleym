@@ -34,15 +34,14 @@ External SPIFFE/SPIRE references:
 | `poolRef.name` | Yes | References an `InferencePool` in the same namespace. |
 | `poolRef.group` | No | Constrains pool resolution to `inference.networking.k8s.io`. |
 | `serviceAccountName` | Yes | Admission-validated DNS-1123 subdomain Kubernetes service account required in every rendered identity selector set. |
-| `identityBoundary.labelKey` | Yes | Valid Kubernetes label key under the reserved `identity.kleym.sonda.red/` prefix. |
-| `identityBoundary.labelValue` | Yes | Valid, nonempty Kubernetes label value identifying the workload variant. |
+| `identityBoundary.variant` | Yes | Valid, nonempty Kubernetes label value rendered under the fixed `identity.kleym.sonda.red/variant` key. |
 
 Current validation rules enforced by the CRD:
 
 - `poolRef.name` is required.
 - `poolRef.group`, when set, must be `inference.networking.k8s.io`.
 - `serviceAccountName` is required and admission-validated as a DNS-1123 subdomain with a maximum length of 253 characters.
-- both identity-boundary fields are required; the key must use the reserved prefix and the value must be a nonempty Kubernetes label value.
+- `identityBoundary.variant` is required and must be a nonempty Kubernetes label value.
 
 ## Status Fields
 
@@ -51,8 +50,7 @@ Current validation rules enforced by the CRD:
 | `conditions` | Latest controller observations. |
 | `trustDomain` | Operator trust domain used for the latest status update. |
 | `clusterSPIFFEIDClassName` | Optional operator `ClusterSPIFFEID` class name used for the latest status update. Empty means classless output. |
-| `identityBoundary` | Validated boundary label key and value retained for diagnosis. |
-| `conflicts` | Deterministically sorted peer binding references, causes, SPIFFE IDs, and resolved peer boundary data. Present only for `Conflict=True`. |
+| `conflicts` | Deterministically sorted peer binding names, causes, SPIFFE IDs, and variants. Present only for `Conflict=True`. |
 | `computedSpiffeIDs` | Computed SPIFFE IDs produced from the pool binding. |
 | `renderedSelectors` | Final selector set used for each rendered identity. |
 | `pendingClusterSPIFFEID.name` | Deterministic managed-output name durably reserved before `Create`. |
@@ -82,13 +80,14 @@ columns for compact binding overviews:
 | Column | Source |
 | --- | --- |
 | `POOL` | `spec.poolRef.name` |
-| `BOUNDARY` | `status.identityBoundary.labelValue` |
+| `BOUNDARY` | `spec.identityBoundary.variant` |
 | `READY` | `status.conditions[Ready].status` |
 | `REASON` | `status.conditions[Ready].reason` |
 | `SPIFFE ID` | `status.computedSpiffeIDs[0].spiffeID` |
 
-Use `-A` to list bindings across namespaces. Status-derived columns are empty
-until the operator has reconciled the binding and written status.
+Use `-A` to list bindings across namespaces. The `BOUNDARY` column is available
+from spec before reconciliation; other status-derived columns remain empty until
+the operator has reconciled the binding and written status.
 
 ## Current Defaults
 
@@ -96,11 +95,11 @@ The controller always renders deterministic service-account-scoped inference
 target SPIFFE IDs under its configured trust domain:
 
 ```text
-spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/pool/<pool-name>/variant/<labelValue>
+spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/pool/<pool-name>/variant/<variant>
 ```
 
-The boundary label value is part of the identity path; the label key remains
-selector and exclusivity-proof material.
+The variant is part of the identity path and is rendered under the fixed
+`identity.kleym.sonda.red/variant` selector key.
 
 ## External Objects Resolved
 

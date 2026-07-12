@@ -31,7 +31,7 @@ Use a Kubernetes cluster with these dependencies already installed:
 - Gateway API Inference Extension CRD for the reference `InferencePool`
 - SPIRE Controller Manager with the `ClusterSPIFFEID` CRD
 - `kleym-operator` installed and running
-- [identity-boundary admission policy](/install/#identity-boundary-admission-policy) that controls `identity.kleym.sonda.red/*` labels and prevents mutation during a Pod's lifetime
+- [identity-boundary admission policy](/install/#identity-boundary-admission-policy) that controls the `identity.kleym.sonda.red/variant` label and prevents mutation during a Pod's lifetime
 
 Confirm the external CRDs and controller are present:
 
@@ -78,8 +78,7 @@ spec:
     name: reference-pool
   serviceAccountName: reference-inference
   identityBoundary:
-    labelKey: identity.kleym.sonda.red/variant
-    labelValue: reference
+    variant: reference
 EOF
 ```
 

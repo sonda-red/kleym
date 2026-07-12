@@ -27,14 +27,14 @@ Kleym renders one identity for the required service account and resolved
 inference target. The SPIFFE ID form is:
 
 ```text
-spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/pool/<pool-name>/variant/<labelValue>
+spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/pool/<pool-name>/variant/<variant>
 ```
 
 The current GAIE `InferencePool` source resolves to anchor kind `pool` and an
 anchor name equal to the pool name. The source GVK and binding name remain
 provenance rather than identity path material. The same pool rendered for two
 different service accounts therefore produces two distinct SPIFFE IDs. The
-boundary label value identifies the variant within the pool.
+declared variant identifies the workload subset within the pool.
 
 ## Safety Selectors
 
@@ -46,12 +46,12 @@ Every rendered identity must include:
 - the binding namespace selector
 - the workload service account selector
 - selectors derived from the referenced pool
-- exactly one canonical `k8s:pod-label:<labelKey>:<labelValue>` boundary selector
+- exactly one canonical `k8s:pod-label:identity.kleym.sonda.red/variant:<variant>` boundary selector
 
 `kleym-operator` refuses to reconcile when it cannot prove those constraints.
 Within one namespace and service account, different SPIFFE IDs are structurally
-exclusive only when they use the same boundary label key with different values.
-Duplicate SPIFFE IDs, reused values, and different boundary keys fail closed.
+exclusive only when they declare different variants under the fixed boundary key.
+Duplicate SPIFFE IDs and reused variants fail closed.
 The controller withdraws managed output for every member of a conflict group and
 confirms it is absent before reporting the conflict as settled. A deleting peer
 remains a competitor until its output is confirmed absent.

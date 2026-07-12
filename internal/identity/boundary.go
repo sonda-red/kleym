@@ -25,152 +25,130 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
-const reservedBoundaryLabelPrefix = "identity.kleym.sonda.red/"
+const (
+	// VariantLabelKey is the operator-owned Pod label key used for every identity boundary.
+	VariantLabelKey = "identity.kleym.sonda.red/variant"
+)
 
-// ConflictCause identifies why two identity boundaries are not exclusive.
+// ConflictCause identifies why two workload variants are not exclusive.
 type ConflictCause string
 
 const (
-	// CauseBoundaryValueReuse reports equal boundaries that render distinct SPIFFE IDs.
-	CauseBoundaryValueReuse ConflictCause = "BoundaryValueReuse"
-	// CauseBoundaryKeyMismatch reports different boundary keys in one namespace and service account.
-	CauseBoundaryKeyMismatch ConflictCause = "BoundaryKeyMismatch"
+	// CauseVariantReuse reports equal variants that render distinct SPIFFE IDs.
+	CauseVariantReuse ConflictCause = "VariantReuse"
 	// CauseDuplicateSPIFFEID reports two bindings that render the same SPIFFE ID.
 	CauseDuplicateSPIFFEID ConflictCause = "DuplicateSPIFFEID"
 )
 
-// BoundaryRecord is validated, resolved identity-boundary state used for exclusivity evaluation.
-// BindingRef.Namespace is the boundary namespace. SpiffeID must be a nonempty rendered SPIFFE ID.
+// VariantRecord is validated, resolved variant state used for exclusivity evaluation.
+// BindingRef.Namespace is the variant namespace. SpiffeID must be a nonempty rendered SPIFFE ID.
 // Pool selectors are intentionally absent because they do not prove boundary exclusivity.
-type BoundaryRecord struct {
+type VariantRecord struct {
 	BindingRef         types.NamespacedName
 	ServiceAccountName string
-	LabelKey           string
-	LabelValue         string
+	Variant            string
 	SpiffeID           string
 }
 
-// BoundaryConflict describes one binding's conflict with a peer boundary.
+// VariantConflict describes one binding's conflict with a peer variant.
 // The directional shape lets callers group records without coupling evaluation to API status types;
 // peer fields contain only the data needed to project that binding's conflict status.
-type BoundaryConflict struct {
+type VariantConflict struct {
 	BindingRef     types.NamespacedName
 	PeerBindingRef types.NamespacedName
 	Cause          ConflictCause
 	PeerSpiffeID   string
-	PeerLabelKey   string
-	PeerLabelValue string
+	PeerVariant    string
 }
 
-// ValidateBoundary defensively enforces the admission contract before a boundary
+// ValidateVariant defensively enforces the admission contract before a variant
 // can enter a SPIFFE ID or selector; see docs/spec/operator.md.
-func ValidateBoundary(boundary Boundary) error {
-	if boundary.LabelKey != strings.TrimSpace(boundary.LabelKey) ||
-		boundary.LabelValue != strings.TrimSpace(boundary.LabelValue) {
+func ValidateVariant(variant string) error {
+	if variant != strings.TrimSpace(variant) {
 		return newStateError(
 			ConditionTypeUnsafeSelector,
 			ReasonInvalidIdentityBoundary,
-			"identityBoundary label key and value must not include leading or trailing whitespace",
+			"identityBoundary.variant must not include leading or trailing whitespace",
 		)
 	}
-	if !strings.HasPrefix(boundary.LabelKey, reservedBoundaryLabelPrefix) {
+	if variant == "" {
 		return newStateError(
 			ConditionTypeUnsafeSelector,
 			ReasonInvalidIdentityBoundary,
-			fmt.Sprintf("identityBoundary.labelKey %q must use reserved prefix %q", boundary.LabelKey, reservedBoundaryLabelPrefix),
+			"identityBoundary.variant must not be empty",
 		)
 	}
-	if errs := validation.IsQualifiedName(boundary.LabelKey); len(errs) > 0 {
+	if errs := validation.IsValidLabelValue(variant); len(errs) > 0 {
 		return newStateError(
 			ConditionTypeUnsafeSelector,
 			ReasonInvalidIdentityBoundary,
-			fmt.Sprintf("identityBoundary.labelKey %q is invalid: %s", boundary.LabelKey, strings.Join(errs, "; ")),
-		)
-	}
-	if boundary.LabelValue == "" {
-		return newStateError(
-			ConditionTypeUnsafeSelector,
-			ReasonInvalidIdentityBoundary,
-			"identityBoundary.labelValue must not be empty",
-		)
-	}
-	if errs := validation.IsValidLabelValue(boundary.LabelValue); len(errs) > 0 {
-		return newStateError(
-			ConditionTypeUnsafeSelector,
-			ReasonInvalidIdentityBoundary,
-			fmt.Sprintf("identityBoundary.labelValue %q is invalid: %s", boundary.LabelValue, strings.Join(errs, "; ")),
+			fmt.Sprintf("identityBoundary.variant %q is invalid: %s", variant, strings.Join(errs, "; ")),
 		)
 	}
 	return nil
 }
 
-// EvaluateBoundaryConflicts returns both directional records for every non-exclusive pair.
+// EvaluateVariantConflicts returns both directional records for every non-exclusive pair.
 // Callers must exclude invalid or unresolved bindings before evaluation. Every input record
 // must have a nonempty rendered SPIFFE ID.
 // Results are ordered by binding namespace and name, then by the peer namespace, peer name, cause,
-// peer label key, and peer label value specified for status in docs/spec/operator.md. Peer SPIFFE ID
-// provides a final deterministic tie-breaker.
-func EvaluateBoundaryConflicts(boundaries []BoundaryRecord) []BoundaryConflict {
-	var conflicts []BoundaryConflict
-	for leftIndex := range boundaries {
-		for rightIndex := leftIndex + 1; rightIndex < len(boundaries); rightIndex++ {
-			left := boundaries[leftIndex]
-			right := boundaries[rightIndex]
-			cause, conflict := evaluateBoundaryPair(left, right)
+// peer SPIFFE ID, and peer variant specified for status in docs/spec/operator.md.
+func EvaluateVariantConflicts(variants []VariantRecord) []VariantConflict {
+	var conflicts []VariantConflict
+	for leftIndex := range variants {
+		for rightIndex := leftIndex + 1; rightIndex < len(variants); rightIndex++ {
+			left := variants[leftIndex]
+			right := variants[rightIndex]
+			cause, conflict := evaluateVariantPair(left, right)
 			if !conflict {
 				continue
 			}
 
 			conflicts = append(conflicts,
-				boundaryConflict(left.BindingRef, right, cause),
-				boundaryConflict(right.BindingRef, left, cause),
+				variantConflict(left.BindingRef, right, cause),
+				variantConflict(right.BindingRef, left, cause),
 			)
 		}
 	}
 
-	slices.SortFunc(conflicts, compareBoundaryConflicts)
+	slices.SortFunc(conflicts, compareVariantConflicts)
 	return conflicts
 }
 
-// boundaryConflict projects only the peer fields required by binding conflict status.
-func boundaryConflict(bindingRef types.NamespacedName, peer BoundaryRecord, cause ConflictCause) BoundaryConflict {
-	return BoundaryConflict{
+// variantConflict projects only the peer fields required by binding conflict status.
+func variantConflict(bindingRef types.NamespacedName, peer VariantRecord, cause ConflictCause) VariantConflict {
+	return VariantConflict{
 		BindingRef:     bindingRef,
 		PeerBindingRef: peer.BindingRef,
 		Cause:          cause,
 		PeerSpiffeID:   peer.SpiffeID,
-		PeerLabelKey:   peer.LabelKey,
-		PeerLabelValue: peer.LabelValue,
+		PeerVariant:    peer.Variant,
 	}
 }
 
-// evaluateBoundaryPair applies only the structural exclusivity proofs from the operator spec.
-func evaluateBoundaryPair(left, right BoundaryRecord) (ConflictCause, bool) {
+// evaluateVariantPair applies only the structural exclusivity proofs from the operator spec.
+func evaluateVariantPair(left, right VariantRecord) (ConflictCause, bool) {
 	if left.SpiffeID == right.SpiffeID {
 		return CauseDuplicateSPIFFEID, true
 	}
 	if left.BindingRef.Namespace != right.BindingRef.Namespace || left.ServiceAccountName != right.ServiceAccountName {
 		return "", false
 	}
-	if left.LabelKey == right.LabelKey {
-		if left.LabelValue != right.LabelValue {
-			return "", false
-		}
-		return CauseBoundaryValueReuse, true
+	if left.Variant != right.Variant {
+		return "", false
 	}
-	return CauseBoundaryKeyMismatch, true
+	return CauseVariantReuse, true
 }
 
-// compareBoundaryConflicts provides a total order while keeping the documented status fields primary.
-func compareBoundaryConflicts(left, right BoundaryConflict) int {
+// compareVariantConflicts provides a total order while keeping the documented status fields primary.
+func compareVariantConflicts(left, right VariantConflict) int {
 	return cmp.Or(
 		cmp.Compare(left.BindingRef.Namespace, right.BindingRef.Namespace),
 		cmp.Compare(left.BindingRef.Name, right.BindingRef.Name),
 		cmp.Compare(left.PeerBindingRef.Namespace, right.PeerBindingRef.Namespace),
 		cmp.Compare(left.PeerBindingRef.Name, right.PeerBindingRef.Name),
 		cmp.Compare(left.Cause, right.Cause),
-		cmp.Compare(left.PeerLabelKey, right.PeerLabelKey),
-		cmp.Compare(left.PeerLabelValue, right.PeerLabelValue),
 		cmp.Compare(left.PeerSpiffeID, right.PeerSpiffeID),
+		cmp.Compare(left.PeerVariant, right.PeerVariant),
 	)
 }

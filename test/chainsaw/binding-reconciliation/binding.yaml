@@ -8,5 +8,4 @@ spec:
     name: reference-pool
   serviceAccountName: reference-inference
   identityBoundary:
-    labelKey: identity.kleym.sonda.red/variant
-    labelValue: reference
+    variant: reference

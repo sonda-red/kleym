@@ -18,7 +18,7 @@ spec:
     - jsonPath: .spec.poolRef.name
       name: POOL
       type: string
-    - jsonPath: .status.identityBoundary.labelValue
+    - jsonPath: .spec.identityBoundary.variant
       name: BOUNDARY
       type: string
     - jsonPath: .status.conditions[?(@.type=="Ready")].status
@@ -60,22 +60,16 @@ spec:
                 description: identityBoundary declares the required platform-controlled
                   label boundary for this workload variant.
                 properties:
-                  labelKey:
-                    description: labelKey is the reserved Kubernetes label key used
-                      as the structural exclusivity boundary.
-                    maxLength: 88
-                    minLength: 26
-                    pattern: ^identity\.kleym\.sonda\.red/[A-Za-z0-9]([A-Za-z0-9_.-]*[A-Za-z0-9])?$
-                    type: string
-                  labelValue:
-                    description: labelValue identifies this binding's workload variant.
+                  variant:
+                    description: |-
+                      variant identifies this binding's workload variant and is rendered under
+                      the operator-owned identity.kleym.sonda.red/variant Pod label key.
                     maxLength: 63
                     minLength: 1
                     pattern: ^[A-Za-z0-9]([A-Za-z0-9_.-]*[A-Za-z0-9])?$
                     type: string
                 required:
-                - labelKey
-                - labelValue
+                - variant
                 type: object
               poolRef:
                 description: poolRef specifies the required InferencePool workload
@@ -200,58 +194,32 @@ spec:
               conflicts:
                 description: conflicts lists deterministic peer diagnoses when Conflict=True.
                 items:
-                  description: IdentityBoundaryConflictStatus describes one precise
-                    conflict with a peer binding.
+                  description: VariantConflictStatus describes one precise conflict
+                    with a peer binding.
                   properties:
-                    bindingRef:
-                      description: bindingRef identifies the peer binding.
-                      properties:
-                        name:
-                          description: name is the peer binding name.
-                          type: string
-                        namespace:
-                          description: namespace is the peer binding namespace.
-                          type: string
-                      required:
-                      - name
-                      - namespace
-                      type: object
-                    cause:
-                      description: cause identifies the structural exclusivity failure.
-                      enum:
-                      - BoundaryValueReuse
-                      - BoundaryKeyMismatch
-                      - DuplicateSPIFFEID
+                    bindingName:
+                      description: bindingName identifies the same-namespace peer
+                        binding.
                       type: string
-                    labelKey:
-                      description: labelKey is the peer boundary key when it was resolved.
+                    cause:
+                      description: cause identifies the variant exclusivity failure.
+                      enum:
+                      - VariantReuse
+                      - DuplicateSPIFFEID
                       type: string
                     spiffeID:
                       description: spiffeID is the peer's rendered SPIFFE ID.
                       type: string
-                    value:
-                      description: value is the peer boundary value when it was resolved.
+                    variant:
+                      description: variant is the peer's validated workload variant.
                       type: string
                   required:
-                  - bindingRef
+                  - bindingName
                   - cause
                   - spiffeID
+                  - variant
                   type: object
                 type: array
-              identityBoundary:
-                description: identityBoundary records the validated boundary used
-                  for the latest evaluation.
-                properties:
-                  labelKey:
-                    description: labelKey is the validated Kubernetes label key.
-                    type: string
-                  labelValue:
-                    description: labelValue is the validated Kubernetes label value.
-                    type: string
-                required:
-                - labelKey
-                - labelValue
-                type: object
               ownedClusterSPIFFEID:
                 description: |-
                   ownedClusterSPIFFEID records the name and Kubernetes UID of the exact managed

@@ -39,8 +39,7 @@ spec:
     name: pool-a
   serviceAccountName: inference-sa
   identityBoundary:
-    labelKey: identity.kleym.sonda.red/variant
-    labelValue: prefill
+    variant: prefill
 ```
 
 The selected Pods must carry

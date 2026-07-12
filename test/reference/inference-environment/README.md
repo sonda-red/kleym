@@ -59,7 +59,7 @@ added only by tests or demos that explicitly need them.
 
 `boundary-label-ownership.yaml` is a separate, cluster-scoped
 `ValidatingAdmissionPolicy` and binding reference. It is deliberately excluded
-from `kustomization.yaml`: it reserves `identity.kleym.sonda.red/*` for the
+from `kustomization.yaml`: it reserves `identity.kleym.sonda.red/variant` for the
 example platform actor group `kleym.sonda.red/platform-workload-operators` and
 therefore affects Pod admission in every namespace. See
 [Boundary Label Ownership](/reference/boundary-label-ownership/) before

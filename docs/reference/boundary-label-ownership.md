@@ -4,8 +4,8 @@ weight: 35
 description: "Opt-in Kubernetes admission policy reference for platform-controlled Kleym identity boundary labels on Pods."
 ---
 
-`identity.kleym.sonda.red/*` labels select a workload identity boundary. They
-are security-sensitive: an actor that can choose one can select a corresponding
+`identity.kleym.sonda.red/variant` selects a workload identity boundary. It is
+security-sensitive: an actor that can choose it can select a corresponding
 Kleym-managed SPIFFE identity.
 
 Kleym does not enforce this ownership at the Pod API. It never creates or
@@ -37,14 +37,14 @@ namespace. They enforce these rules:
 
 | Request | Result |
 | --- | --- |
-| Create a Pod with no reserved label | Allowed by this policy. |
-| Create a Pod with a reserved label | Allowed only for a member of `kleym.sonda.red/platform-workload-operators`. |
-| Add, change, or remove a reserved label on an existing Pod | Denied for every actor, including the platform group. |
-| Change ordinary Pod metadata without touching a reserved label | Allowed by this policy; Kubernetes RBAC and other admission controls still apply. |
+| Create a Pod with no variant label | Allowed by this policy. |
+| Create a Pod with the variant label | Allowed only for a member of `kleym.sonda.red/platform-workload-operators`. |
+| Add, change, or remove the variant label on an existing Pod | Denied for every actor, including the platform group. |
+| Change ordinary Pod metadata without touching the variant label | Allowed by this policy; Kubernetes RBAC and other admission controls still apply. |
 
-The CEL update validation compares the reserved-label subset of the old and new
-Pod metadata in both directions. This rejects additions, value changes, and
-removals while leaving non-reserved metadata updates outside this policy.
+The CEL update validation compares the variant label in the old and new Pod
+metadata. This rejects additions, value changes, and removals while leaving
+other metadata updates outside this policy.
 
 ## Boundary Changes Use Replacement Pods
 
@@ -52,16 +52,16 @@ To change `identity.kleym.sonda.red/variant=prefill` to `decode`, do not mutate
 the existing Pod. The allowed platform actor deletes or replaces the workload's
 Pod through its normal workload-management path, then creates the replacement
 Pod with `identity.kleym.sonda.red/variant=decode`. The policy authorizes the
-reserved label at creation time and rejects any attempt to change the old Pod's
+variant label at creation time and rejects any attempt to change the old Pod's
 boundary in place.
 
 This is a Pod-level control. A Deployment, Job, or other workload controller
 must create its replacement Pods as an identity that belongs to the configured
-platform group if its templates use the reserved prefix.
+platform group if its templates use the variant label.
 
 ## Responsibility Boundaries
 
-This reference policy owns only admission control for reserved Pod labels. It
+This reference policy owns only admission control for the fixed variant Pod label. It
 does not grant permissions and does not govern any other identity input:
 
 - Kubernetes RBAC and any additional platform admission controls authorize
@@ -74,7 +74,7 @@ does not grant permissions and does not govern any other identity input:
 Use the least privilege appropriate to the platform. In particular, do not
 infer that the example actor group should receive broad binding-write or
 service-account-assignment permission merely because it may create Pods with a
-reserved boundary label.
+variant boundary label.
 
 ## Removal
 

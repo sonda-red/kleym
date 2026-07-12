@@ -41,22 +41,16 @@ type InferencePoolTargetRef struct {
 	Group string `json:"group,omitempty"`
 }
 
-// IdentityBoundary declares the platform-controlled Pod label that separates
-// one workload variant from other identities in the same namespace and service account.
+// IdentityBoundary declares the platform-controlled workload variant that
+// separates identities in the same namespace and service account.
 type IdentityBoundary struct {
-	// labelKey is the reserved Kubernetes label key used as the structural exclusivity boundary.
-	// +required
-	// +kubebuilder:validation:MinLength=26
-	// +kubebuilder:validation:MaxLength=88
-	// +kubebuilder:validation:Pattern=`^identity\.kleym\.sonda\.red/[A-Za-z0-9]([A-Za-z0-9_.-]*[A-Za-z0-9])?$`
-	LabelKey string `json:"labelKey"`
-
-	// labelValue identifies this binding's workload variant.
+	// variant identifies this binding's workload variant and is rendered under
+	// the operator-owned identity.kleym.sonda.red/variant Pod label key.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9]([A-Za-z0-9_.-]*[A-Za-z0-9])?$`
-	LabelValue string `json:"labelValue"`
+	Variant string `json:"variant"`
 }
 
 // -------------------------------------------------------------------------
@@ -154,50 +148,24 @@ type OwnedClusterSPIFFEIDStatus struct {
 	UID types.UID `json:"uid"`
 }
 
-// IdentityBoundaryStatus records the validated boundary used for identity rendering.
-type IdentityBoundaryStatus struct {
-	// labelKey is the validated Kubernetes label key.
+// VariantConflictStatus describes one precise conflict with a peer binding.
+type VariantConflictStatus struct {
+	// bindingName identifies the same-namespace peer binding.
 	// +required
-	LabelKey string `json:"labelKey"`
+	BindingName string `json:"bindingName"`
 
-	// labelValue is the validated Kubernetes label value.
+	// cause identifies the variant exclusivity failure.
 	// +required
-	LabelValue string `json:"labelValue"`
-}
-
-// BindingReference identifies a namespaced peer binding.
-type BindingReference struct {
-	// namespace is the peer binding namespace.
-	// +required
-	Namespace string `json:"namespace"`
-
-	// name is the peer binding name.
-	// +required
-	Name string `json:"name"`
-}
-
-// IdentityBoundaryConflictStatus describes one precise conflict with a peer binding.
-type IdentityBoundaryConflictStatus struct {
-	// bindingRef identifies the peer binding.
-	// +required
-	BindingRef BindingReference `json:"bindingRef"`
-
-	// cause identifies the structural exclusivity failure.
-	// +required
-	// +kubebuilder:validation:Enum=BoundaryValueReuse;BoundaryKeyMismatch;DuplicateSPIFFEID
+	// +kubebuilder:validation:Enum=VariantReuse;DuplicateSPIFFEID
 	Cause string `json:"cause"`
 
 	// spiffeID is the peer's rendered SPIFFE ID.
 	// +required
 	SpiffeID string `json:"spiffeID"`
 
-	// labelKey is the peer boundary key when it was resolved.
-	// +optional
-	LabelKey string `json:"labelKey,omitempty"`
-
-	// value is the peer boundary value when it was resolved.
-	// +optional
-	Value string `json:"value,omitempty"`
+	// variant is the peer's validated workload variant.
+	// +required
+	Variant string `json:"variant"`
 }
 
 // -------------------------------------------------------------------------
@@ -230,13 +198,9 @@ type InferenceIdentityBindingStatus struct {
 	// +optional
 	ClusterSPIFFEIDClassName string `json:"clusterSPIFFEIDClassName,omitempty"`
 
-	// identityBoundary records the validated boundary used for the latest evaluation.
-	// +optional
-	IdentityBoundary *IdentityBoundaryStatus `json:"identityBoundary,omitempty"`
-
 	// conflicts lists deterministic peer diagnoses when Conflict=True.
 	// +optional
-	Conflicts []IdentityBoundaryConflictStatus `json:"conflicts,omitempty"`
+	Conflicts []VariantConflictStatus `json:"conflicts,omitempty"`
 
 	// computedSpiffeIDs lists the SPIFFE IDs produced from the binding references.
 	// +optional
@@ -269,7 +233,7 @@ type InferenceIdentityBindingStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="POOL",type=string,JSONPath=`.spec.poolRef.name`
-// +kubebuilder:printcolumn:name="BOUNDARY",type=string,JSONPath=`.status.identityBoundary.labelValue`
+// +kubebuilder:printcolumn:name="BOUNDARY",type=string,JSONPath=`.spec.identityBoundary.variant`
 // +kubebuilder:printcolumn:name="READY",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
 // +kubebuilder:printcolumn:name="REASON",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`
 // +kubebuilder:printcolumn:name="SPIFFE ID",type=string,JSONPath=`.status.computedSpiffeIDs[0].spiffeID`

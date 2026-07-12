@@ -23,12 +23,12 @@ spec:
           - pods
   validations:
     - expression: >-
-        request.operation != 'CREATE' || !has(object.metadata.labels) || object.metadata.labels.all(key, !key.startsWith('identity.kleym.sonda.red/') || request.userInfo.groups.exists(group, group == 'kleym.sonda.red/platform-workload-operators'))
-      message: Only platform workload operators may create Pods with reserved identity boundary labels.
+        request.operation != 'CREATE' || !has(object.metadata.labels) || object.metadata.labels.all(key, key != 'identity.kleym.sonda.red/variant' || request.userInfo.groups.exists(group, group == 'kleym.sonda.red/platform-workload-operators'))
+      message: Only platform workload operators may create Pods with the identity variant label.
       reason: Forbidden
     - expression: >-
-        request.operation != 'UPDATE' || ((!has(object.metadata.labels) || object.metadata.labels.all(key, !key.startsWith('identity.kleym.sonda.red/') || (has(oldObject.metadata.labels) && key in oldObject.metadata.labels && object.metadata.labels[key] == oldObject.metadata.labels[key]))) && (!has(oldObject.metadata.labels) || oldObject.metadata.labels.all(key, !key.startsWith('identity.kleym.sonda.red/') || (has(object.metadata.labels) && key in object.metadata.labels && oldObject.metadata.labels[key] == object.metadata.labels[key]))))
-      message: Reserved identity boundary labels are immutable for the lifetime of a Pod; create a replacement Pod instead.
+        request.operation != 'UPDATE' || ((!has(object.metadata.labels) || object.metadata.labels.all(key, key != 'identity.kleym.sonda.red/variant' || (has(oldObject.metadata.labels) && key in oldObject.metadata.labels && object.metadata.labels[key] == oldObject.metadata.labels[key]))) && (!has(oldObject.metadata.labels) || oldObject.metadata.labels.all(key, key != 'identity.kleym.sonda.red/variant' || (has(object.metadata.labels) && key in object.metadata.labels && oldObject.metadata.labels[key] == object.metadata.labels[key]))))
+      message: The identity variant label is immutable for the lifetime of a Pod; create a replacement Pod instead.
       reason: Forbidden
 ---
 apiVersion: admissionregistration.k8s.io/v1
