@@ -8,7 +8,8 @@ status:
   identityBoundary:
     labelKey: identity.kleym.sonda.red/variant
     labelValue: reference
-  ownedClusterSPIFFEIDName: kleym-kleym-reference-inference-binding-pool-18b7ab03
+  ownedClusterSPIFFEID:
+    name: kleym-kleym-reference-inference-binding-pool-18b7ab03
   computedSpiffeIDs:
     - spiffeID: spiffe://kleym.sonda.red/ns/kleym-reference-inference/sa/reference-inference/inference/pool/reference-pool/variant/reference
   renderedSelectors:

@@ -196,13 +196,12 @@ func (r *InferenceIdentityBindingReconciler) withdrawConflictOutputs(
 // settled conflict result, so Ready never claims safe output absence early.
 func (r *InferenceIdentityBindingReconciler) reconcileConflictState(
 	ctx context.Context,
-	statusBase *kleymv1alpha1.InferenceIdentityBinding,
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	currentIdentity renderedIdentity,
 ) (bool, ctrl.Result, error) {
 	conflictState, err := r.evaluateBindingConflicts(ctx, binding, currentIdentity)
 	if err != nil {
-		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, binding, err); statusErr != nil {
 			return true, ctrl.Result{}, statusErr
 		}
 		return true, ctrl.Result{}, err
@@ -213,21 +212,21 @@ func (r *InferenceIdentityBindingReconciler) reconcileConflictState(
 
 	outputsAbsent, err := r.withdrawConflictOutputs(ctx, conflictState.members)
 	if err != nil {
-		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, statusBase, binding, err); statusErr != nil {
+		if statusErr := r.patchManagedOutputApplyFailureStatus(ctx, binding, err); statusErr != nil {
 			return true, ctrl.Result{}, statusErr
 		}
 		return true, ctrl.Result{}, err
 	}
 	if !outputsAbsent || conflictState.blocked {
 		applyPendingConflictStatus(&binding.Status, binding.Generation)
-		if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
+		if err := r.patchStatus(ctx, binding); err != nil {
 			return true, ctrl.Result{}, err
 		}
 		return true, ctrl.Result{RequeueAfter: deleteVerificationRequeueAfter}, nil
 	}
 
 	applyConflictStatus(&binding.Status, binding.Generation, conflictState.conflicts)
-	if err := r.patchStatusFromBase(ctx, statusBase, binding); err != nil {
+	if err := r.patchStatus(ctx, binding); err != nil {
 		return true, ctrl.Result{}, err
 	}
 	r.recordTerminalOutcome(binding)

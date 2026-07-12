@@ -107,11 +107,12 @@ func TestReconcileRecordsSuccessfulTerminalOutcomeAfterStatusPatch(t *testing.T)
 	scheme := newControllerTestScheme(t)
 
 	binding := newPoolOnlyBinding("binding-ready-metric", "")
-	k8sClient := fake.NewClientBuilder().
+	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
 		WithObjects(newTestPool(), binding).
 		Build()
+	k8sClient := withFakeClusterSPIFFEIDUIDs(fakeClient)
 	recorder := &persistedBindingOutcomeRecorder{
 		client: k8sClient,
 		key:    types.NamespacedName{Namespace: testNamespace, Name: binding.Name},
@@ -150,11 +151,12 @@ func TestReconcileResolvesStaleConflictCondition(t *testing.T) {
 		Reason:             "Obsolete",
 		Message:            "stale obsolete condition from older controller",
 	}}
-	k8sClient := fake.NewClientBuilder().
+	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
 		WithObjects(newTestPool(), binding).
 		Build()
+	k8sClient := withFakeClusterSPIFFEIDUIDs(fakeClient)
 
 	reconciler := &InferenceIdentityBindingReconciler{
 		Config: testOperatorConfig(),

@@ -160,7 +160,7 @@ func TestConflictCleanupUsesOwnershipRetainedAfterUpdateFailure(t *testing.T) {
 	base := newConflictTestReconciler(t, newTestPool(), testPoolNamed("pool-b"), first)
 	reconcileBinding(t, ctx, base, first.Name)
 	current := fetchBinding(t, ctx, base.Client, first.Name)
-	recordedName := current.Status.OwnedClusterSPIFFEIDName
+	recordedName := confirmedClusterSPIFFEIDName(current)
 	managed := &unstructured.Unstructured{}
 	managed.SetGroupVersionKind(clusterSPIFFEIDGVK)
 	if err := base.Get(ctx, types.NamespacedName{Name: recordedName}, managed); err != nil {
@@ -187,8 +187,8 @@ func TestConflictCleanupUsesOwnershipRetainedAfterUpdateFailure(t *testing.T) {
 		t.Fatalf("failure Reconcile error = %v, want %v", err, updateErr)
 	}
 	failed := fetchBinding(t, ctx, wrapped, first.Name)
-	if failed.Status.OwnedClusterSPIFFEIDName != recordedName {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q after failure, want %q", failed.Status.OwnedClusterSPIFFEIDName, recordedName)
+	if confirmedClusterSPIFFEIDName(failed) != recordedName {
+		t.Fatalf("ownedClusterSPIFFEID.name = %q after failure, want %q", confirmedClusterSPIFFEIDName(failed), recordedName)
 	}
 
 	second := newPoolOnlyBinding("binding-failure-conflict-b", "")
@@ -201,10 +201,52 @@ func TestConflictCleanupUsesOwnershipRetainedAfterUpdateFailure(t *testing.T) {
 	}
 	conflicted := fetchBinding(t, ctx, wrapped, first.Name)
 	assertPrimaryFailureCondition(t, conflicted, conditionTypeConflict, conditionReasonIdentityBoundaryConflict)
-	if conflicted.Status.OwnedClusterSPIFFEIDName != "" {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q after confirmed conflict cleanup, want empty", conflicted.Status.OwnedClusterSPIFFEIDName)
+	if conflicted.Status.OwnedClusterSPIFFEID != nil {
+		t.Fatalf("ownedClusterSPIFFEID = %#v after confirmed conflict cleanup, want nil", conflicted.Status.OwnedClusterSPIFFEID)
 	}
 	assertClusterSPIFFEIDCount(t, ctx, wrapped, 0)
+}
+
+func TestConflictCleanupPreservesUIDMismatchedReplacement(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	first := newPoolOnlyBinding("binding-conflict-foreign-a", "")
+	reconciler := newConflictTestReconciler(t, newTestPool(), testPoolNamed("pool-b"), first)
+	reconcileBinding(t, ctx, reconciler, first.Name)
+	current := fetchBinding(t, ctx, reconciler.Client, first.Name)
+	owned := managedOutputForBinding(t, ctx, reconciler.Client, current)
+	if err := reconciler.Delete(ctx, owned); err != nil {
+		t.Fatalf("delete confirmed output: %v", err)
+	}
+
+	foreign := owned.DeepCopy()
+	foreign.SetResourceVersion("")
+	foreign.SetUID("conflict-foreign-uid")
+	foreign.Object["spec"] = map[string]any{"spiffeIDTemplate": "spiffe://foreign.example/conflict"}
+	if err := reconciler.Create(ctx, foreign); err != nil {
+		t.Fatalf("create same-name foreign replacement: %v", err)
+	}
+	second := newPoolOnlyBinding("binding-conflict-foreign-b", "")
+	second.Spec.PoolRef.Name = "pool-b"
+	if err := reconciler.Create(ctx, second); err != nil {
+		t.Fatalf("create conflicting binding: %v", err)
+	}
+
+	reconcileBinding(t, ctx, reconciler, first.Name)
+	conflicted := fetchBinding(t, ctx, reconciler.Client, first.Name)
+	assertPrimaryFailureCondition(t, conflicted, conditionTypeConflict, conditionReasonIdentityBoundaryConflict)
+	if conflicted.Status.OwnedClusterSPIFFEID != nil {
+		t.Fatalf("stale confirmed ownership = %#v, want cleared", conflicted.Status.OwnedClusterSPIFFEID)
+	}
+	observed := &unstructured.Unstructured{}
+	observed.SetGroupVersionKind(clusterSPIFFEIDGVK)
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: foreign.GetName()}, observed); err != nil {
+		t.Fatalf("get foreign replacement: %v", err)
+	}
+	if observed.GetUID() != foreign.GetUID() {
+		t.Fatalf("foreign replacement UID = %q, want %q", observed.GetUID(), foreign.GetUID())
+	}
 }
 
 func TestReconcileRefusesForeignDeterministicOutputWithManagedLabels(t *testing.T) {
@@ -304,15 +346,16 @@ func TestPoolMutationRequeuesPeerAndConvergesConflict(t *testing.T) {
 func newConflictTestReconciler(t *testing.T, objects ...client.Object) *InferenceIdentityBindingReconciler {
 	t.Helper()
 	scheme := newControllerTestScheme(t)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+		WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexPoolRefName, bindingPoolRefNameIndexValue).
+		WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexManagedClusterSPIFFEIDName, bindingClusterSPIFFEIDNameIndexValues).
+		WithObjects(objects...).
+		Build()
 	return &InferenceIdentityBindingReconciler{
 		Config: testOperatorConfig(),
-		Client: fake.NewClientBuilder().
-			WithScheme(scheme).
-			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
-			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexPoolRefName, bindingPoolRefNameIndexValue).
-			WithIndex(&kleymv1alpha1.InferenceIdentityBinding{}, fieldIndexManagedClusterSPIFFEIDName, bindingClusterSPIFFEIDNameIndexValues).
-			WithObjects(objects...).
-			Build(),
+		Client: withFakeClusterSPIFFEIDUIDs(fakeClient),
 	}
 }
 

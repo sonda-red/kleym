@@ -10,7 +10,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	kleymv1alpha1 "github.com/sonda-red/kleym/api/v1alpha1"
 )
@@ -121,4 +123,40 @@ func assertClusterSPIFFEIDCount(t *testing.T, ctx context.Context, cli client.Cl
 	if len(list.Items) != expected {
 		t.Fatalf("ClusterSPIFFEID count = %d, want %d", len(list.Items), expected)
 	}
+}
+
+func setConfirmedClusterSPIFFEID(
+	binding *kleymv1alpha1.InferenceIdentityBinding,
+	name string,
+	uid types.UID,
+) {
+	binding.Status.PendingClusterSPIFFEID = nil
+	binding.Status.OwnedClusterSPIFFEID = &kleymv1alpha1.OwnedClusterSPIFFEIDStatus{Name: name, UID: uid}
+}
+
+func confirmedClusterSPIFFEIDName(binding *kleymv1alpha1.InferenceIdentityBinding) string {
+	if binding.Status.OwnedClusterSPIFFEID == nil {
+		return ""
+	}
+	return binding.Status.OwnedClusterSPIFFEID.Name
+}
+
+func pendingManagedOutputName(binding *kleymv1alpha1.InferenceIdentityBinding) string {
+	if binding.Status.PendingClusterSPIFFEID == nil {
+		return ""
+	}
+	return binding.Status.PendingClusterSPIFFEID.Name
+}
+
+// withFakeClusterSPIFFEIDUIDs supplies API-server UIDs that controller-runtime's
+// fake client intentionally does not generate.
+func withFakeClusterSPIFFEIDUIDs(cli client.WithWatch) client.WithWatch {
+	return interceptor.NewClient(cli, interceptor.Funcs{
+		Create: func(ctx context.Context, cli client.WithWatch, object client.Object, opts ...client.CreateOption) error {
+			if object.GetObjectKind().GroupVersionKind() == clusterSPIFFEIDGVK && object.GetUID() == "" {
+				object.SetUID(uuid.NewUUID())
+			}
+			return cli.Create(ctx, object, opts...)
+		},
+	})
 }

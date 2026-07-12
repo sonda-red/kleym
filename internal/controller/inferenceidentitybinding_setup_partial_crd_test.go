@@ -147,18 +147,21 @@ func TestSetupWithManagerStartsAndReconcilesWithCurrentPoolCRD(t *testing.T) {
 	}
 
 	ready := waitForBindingReady(t, ctx, mgr.GetClient(), types.NamespacedName{Namespace: testNamespace, Name: bindingName})
-	recordedName := ready.Status.OwnedClusterSPIFFEIDName
+	recordedName := confirmedClusterSPIFFEIDName(ready)
 	if recordedName == "" {
-		t.Fatal("ownedClusterSPIFFEIDName was not recorded")
+		t.Fatal("ownedClusterSPIFFEID name and UID were not recorded")
 	}
 
 	created := fetchClusterSPIFFEID(t, ctx, apiClient, recordedName)
+	if ready.Status.OwnedClusterSPIFFEID.UID != created.GetUID() {
+		t.Fatalf("confirmed UID = %q, want created UID %q", ready.Status.OwnedClusterSPIFFEID.UID, created.GetUID())
+	}
 	if err := apiClient.Delete(ctx, created); err != nil {
 		t.Fatalf("delete recorded ClusterSPIFFEID: %v", err)
 	}
 
 	recreated := waitForClusterSPIFFEIDRecreated(t, ctx, apiClient, recordedName, created.GetUID())
-	waitForBindingReady(t, ctx, apiClient, types.NamespacedName{Namespace: testNamespace, Name: bindingName})
+	waitForBindingOwnedUID(t, ctx, apiClient, types.NamespacedName{Namespace: testNamespace, Name: bindingName}, recreated.GetUID())
 
 	desiredSpec, _, err := unstructured.NestedMap(recreated.Object, "spec")
 	if err != nil {
@@ -500,6 +503,39 @@ func waitForBindingReady(
 		select {
 		case <-ctx.Done():
 			t.Fatalf("context canceled before binding became ready: %v", ctx.Err())
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+}
+
+// waitForBindingOwnedUID waits beyond stale Ready=True until the recreated
+// output's exact API-server UID has been confirmed in binding status.
+func waitForBindingOwnedUID(
+	t *testing.T,
+	ctx context.Context,
+	k8sClient client.Client,
+	key types.NamespacedName,
+	wantUID types.UID,
+) {
+	t.Helper()
+
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		current := &kleymv1alpha1.InferenceIdentityBinding{}
+		if err := k8sClient.Get(ctx, key, current); err == nil {
+			if current.Status.OwnedClusterSPIFFEID != nil && current.Status.OwnedClusterSPIFFEID.UID == wantUID {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("timed out waiting for owned ClusterSPIFFEID UID %q, last ownership=%#v", wantUID, current.Status.OwnedClusterSPIFFEID)
+			}
+		} else if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for binding %s ownership: %v", key, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("context canceled before ownership was confirmed: %v", ctx.Err())
 		case <-time.After(200 * time.Millisecond):
 		}
 	}

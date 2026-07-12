@@ -158,7 +158,11 @@ value: <peer boundary label value>
 
 `status.computedSpiffeIDs`, `status.renderedSelectors`, and `status.renderedClusterSPIFFEID` are populated only when `Ready=True`. They are cleared for selector failures, conflicts, and managed-output API failures.
 
-`status.pendingClusterSPIFFEIDName` records a deterministic output name reserved after a successful NotFound read and before Kleym calls `Create`. Rendered output remains cleared while this claim is pending. If `Create` succeeds but the following status patch fails or the process stops, retry uses the pending claim to converge that output. `status.ownedClusterSPIFFEIDName` records the name only after creation is confirmed. A pending or confirmed name survives transient managed-output API failures and is cleared only after output absence is confirmed.
+`status.pendingClusterSPIFFEID` records a deterministic output `name` and controller-generated unique `claimID` after a successful NotFound read and before Kleym calls `Create`. Kleym writes the same claim ID to the new object's `kleym.sonda.red/ownership-claim-id` annotation. Rendered output remains cleared while the claim is pending. If `Create` succeeds, times out ambiguously, or is followed by a failed status patch or process stop, retry promotes the pending record only when the live same-name object carries the matching claim and Kubernetes has assigned it a UID. A live same-name object with a missing or different claim is foreign.
+
+`status.ownedClusterSPIFFEID` is the confirmed ownership record. It contains the deterministic `name` and Kubernetes `uid` of the exact managed object incarnation. Both values must match the live object before Kleym may update or delete it. A live same-name object with a different UID is foreign and is never updated, deleted, or adopted; the mismatch proves only that the previously recorded incarnation is absent. The claim ID is an incarnation-correlation token for pending-create recovery, not authentication against cluster administrators.
+
+This is a clean `v1alpha1` break from the former name-only `pendingClusterSPIFFEIDName` and `ownedClusterSPIFFEIDName` fields. Kleym does not migrate, trust, or adopt ownership from those fields. A same-name object without a current pending claim or confirmed name-and-UID record is foreign and receives no update or delete authority.
 
 Allowed condition types and reasons:
 
@@ -183,13 +187,22 @@ Exactly one primary failure condition is `True`. `Ready=False` uses the same rea
 
 On successful reconciliation, `status.renderedClusterSPIFFEID` exposes the deterministic managed `ClusterSPIFFEID` name, rendered SPIFFE ID, a `sha256:<hex>` fingerprint of the canonical selector set, and the observed managed-resource generation when Kubernetes reports one.
 
-The persisted pending and confirmed name fields form the durable managed-output ownership protocol. Neither rendered output status nor managed-by and binding labels prove ownership. A pre-existing deterministic-name object absent from both fields is foreign and must not be updated or deleted, even when its labels match the binding exactly.
+The persisted pending and confirmed records form the durable managed-output ownership protocol. Neither rendered output status, deterministic rendering, desired-spec equality, generation, binding references, nor managed-by and binding labels prove ownership. A pre-existing deterministic-name object absent from both records is foreign and must not be updated or deleted, even when every descriptive field matches the binding.
 
-When an identity change produces a different deterministic name, Kleym deletes the recorded pending or confirmed output and confirms its absence before reserving or creating the replacement. While prior-output deletion is pending, the binding retains the recorded name, clears rendered output status, reports `Ready=Unknown` with reason `Initializing`, and requeues.
+Ownership classification is fail closed:
+
+- No record plus an absent desired name permits Kleym to persist a fresh pending claim before `Create`; a live object is foreign.
+- A pending record plus an absent live object retries `Create` with the same claim. A matching live claim is promoted to confirmed name-plus-UID ownership without a second `Create`; a missing or different live claim is foreign.
+- A confirmed record plus a matching live name and UID permits in-sync observation, drift correction, or cleanup. NotFound proves the recorded incarnation absent. A different live UID also proves the recorded incarnation absent but leaves the same-name foreign replacement untouched.
+- A terminating object is still present until a later NotFound read. Delete uses a UID precondition and ownership remains recorded until absence is confirmed.
+
+Transient read, create, update, and delete errors, including API discovery `NoMatch`, are uncertainty: they preserve the pending or confirmed record and binding finalizer. Only a successful live observation or NotFound response changes ownership state.
+
+When an identity change produces a different deterministic name, Kleym deletes only a claim-matched pending object or name-and-UID-matched confirmed object and confirms that exact recorded incarnation is absent before reserving or creating the replacement. A same-name UID-mismatched foreign object is left untouched and does not prevent creation under the new desired name. While deletion of a matching prior object is pending, the binding retains the confirmed record, clears rendered output status, reports `Ready=Unknown` with reason `Initializing`, and requeues.
 
 `status.renderedClusterSPIFFEID.spiffeID` is populated from the same rendered identity used for `status.computedSpiffeIDs`; it is not a second SPIFFE state. `observedGeneration` is omitted when Kubernetes has not reported a persisted generation.
 
-If a managed resource cannot be read, created, updated, or deleted because the API request fails, reconciliation reports `RenderFailure=True` with reason `ManagedOutputApplyFailed`, clears rendered output status, preserves pending and confirmed ownership, and returns the API error for retry. `meta.IsNoMatchError` is retryable API uncertainty, not confirmation that output is absent; it never clears ownership or permits finalizer removal.
+If a managed resource cannot be read, created, updated, or deleted because the API request fails, or a same-name object is classified as foreign, reconciliation reports `RenderFailure=True` with reason `ManagedOutputApplyFailed` and a precise operation or ownership-mismatch message, clears rendered output status, and returns the error for retry. API uncertainty preserves pending and confirmed ownership. `meta.IsNoMatchError` is retryable API uncertainty, not confirmation that output is absent; it never clears ownership or permits finalizer removal.
 
 ## Required Behavior
 
@@ -201,7 +214,7 @@ If a managed resource cannot be read, created, updated, or deleted because the A
 6. Refuse selector failures and conflicts. Both states produce no managed output.
 7. Render the SPIFFE ID and managed `ClusterSPIFFEID` shape deterministically when the binding is exclusive.
 8. After startup succeeds, treat missing managed-output CRDs and infrastructure-not-ready states as transient by retrying reconciliation on a timer.
-9. On deletion, delete managed `ClusterSPIFFEID` children first and keep the binding finalizer until a follow-up list confirms no managed children remain.
+9. On deletion, delete only the exact claim- or UID-matched managed `ClusterSPIFFEID` incarnation and keep the binding finalizer until a follow-up read proves that recorded incarnation absent. A UID-mismatched foreign replacement survives finalization.
 
 ## Boundary Label Ownership
 
@@ -231,8 +244,9 @@ current inspection contract is defined in the [CLI Spec](/spec/cli/).
 4. Full normalized pool selectors are preserved in managed output.
 5. Different managed SPIFFE IDs must satisfy the identity-boundary exclusivity invariant.
 6. Conflicting and duplicate identity claims retain no managed output.
-7. Deletion keeps the finalizer until managed children are gone.
-8. `kleym-operator` does not create or modify inference deployments, pools, routes, gateways, schedulers, or policy resources.
+7. Mutation and cleanup require durable pending-claim or confirmed name-plus-UID authorization for the exact live object incarnation.
+8. Deletion keeps the finalizer through API uncertainty and until the recorded managed incarnation is proven absent.
+9. `kleym-operator` does not create or modify inference deployments, pools, routes, gateways, schedulers, or policy resources.
 
 ## References
 

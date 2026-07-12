@@ -46,7 +46,7 @@ On any failure state:
 - Exactly one of `InvalidRef`, `UnsafeSelector`, `Conflict`, or `RenderFailure` is set to `True` with the same reason and message
 - The other non-triggering conditions are set to `False` with resolution or healthy messages
 - `computedSpiffeIDs`, `renderedSelectors`, and `renderedClusterSPIFFEID` are cleared
-- pending or confirmed ownership remains present until the recorded output is confirmed absent
+- pending or confirmed ownership remains present through API uncertainty and changes only when a claim/UID observation or NotFound proves the recorded incarnation's state
 
 Conflict status is settled only after every managed output in the conflict set
 has been confirmed absent. `status.conflicts` retains the precise peer diagnosis.
@@ -57,4 +57,4 @@ Dependency-unavailable states are classified as follows:
 - Missing SPIRE Controller Manager `ClusterSPIFFEID` CRD during reconcile: `RenderFailure=True`, reason `ClusterSPIFFEIDCRDMissing`
 - Generic managed `ClusterSPIFFEID` list, create, update, or delete API failure: `RenderFailure=True`, reason `ManagedOutputApplyFailed`
 
-`ClusterSPIFFEIDCRDMissing` retries automatically on the controller's infrastructure retry timer. `ManagedOutputApplyFailed` returns the API error so controller-runtime retries the failed reconcile. A NoMatch response from the managed-output API is not absence confirmation and therefore never clears ownership or permits finalizer removal. `InferencePoolCRDMissing` can appear during resolution, but the operator also fails startup if no supported GAIE pool GVK is served during controller setup.
+`ClusterSPIFFEIDCRDMissing` retries automatically on the controller's infrastructure retry timer. `ManagedOutputApplyFailed` returns the API or precise ownership-refusal error so controller-runtime retries the failed reconcile. A NoMatch response from the managed-output API is not absence confirmation and therefore never clears ownership or permits finalizer removal. `InferencePoolCRDMissing` can appear during resolution, but the operator also fails startup if no supported GAIE pool GVK is served during controller setup.

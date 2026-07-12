@@ -34,23 +34,30 @@ Managed `ClusterSPIFFEID` objects are labeled with:
 - `kleym.sonda.red/binding-name=<binding-name>`
 - `kleym.sonda.red/binding-namespace=<binding-namespace>`
 
+Newly created objects also carry the provenance annotation
+`kleym.sonda.red/ownership-claim-id=<claimID>`. The controller preserves this
+annotation rather than rewriting it during drift correction.
+
 The controller also uses the finalizer
 `kleym.sonda.red/inferenceidentitybinding-finalizer` to clean up managed
 `ClusterSPIFFEID` objects on deletion.
 
-The persisted `status.pendingClusterSPIFFEIDName` and
-`status.ownedClusterSPIFFEIDName` fields form the durable ownership protocol for
-managed-output reads, drift correction, and cleanup. The pending name is
-reserved before `Create`; the owned name is set only after creation is
-confirmed. Rendered output status and managed-by or binding labels are
-descriptive and never prove ownership. A deterministic-name object absent from
-both fields is foreign, even when it carries the exact managed labels, and is
-refused without update or deletion. Ownership survives transient managed-output
-API failures and pending cleanup. It is cleared only after output absence is
-confirmed; deletion remains finalizer-protected until that confirmation. If an
-identity change produces a new deterministic name, the controller confirms the
-recorded old output is absent before it reserves, creates, and confirms the
-replacement.
+The persisted `status.pendingClusterSPIFFEID{name,claimID}` and
+`status.ownedClusterSPIFFEID{name,uid}` records form the durable ownership
+protocol for managed-output reads, drift correction, and cleanup. Pending
+creation requires an annotation claim match before promotion. Confirmed update
+or deletion requires both the name and live Kubernetes UID to match. Rendered
+output status, deterministic spec equality, generation, and managed-by or
+binding labels are descriptive and never prove ownership.
+
+A deterministic-name object absent from both records is foreign. A live object
+whose claim differs from a pending record or whose UID differs from confirmed
+ownership is also foreign and is refused without update or deletion. The stale
+record may be cleared because the recorded incarnation is proven absent, but
+the replacement is not adopted. Transient API failures and `NoMatch` preserve
+ownership and finalizer state. If an identity change produces a new
+deterministic name, the controller confirms the exact recorded old incarnation
+is absent before it reserves, creates, and confirms the replacement.
 
 ## Naming
 

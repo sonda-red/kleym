@@ -33,7 +33,7 @@ func TestReconcileDeleteWaitsForManagedClusterSPIFFEIDsToDisappear(t *testing.T)
 
 	managed := newManagedClusterSPIFFEIDForBinding(binding, "binding-delete-child")
 	managed.SetFinalizers([]string{"test.finalizer/hold"})
-	binding.Status.OwnedClusterSPIFFEIDName = managed.GetName()
+	setConfirmedClusterSPIFFEID(binding, managed.GetName(), managed.GetUID())
 
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().
@@ -120,7 +120,7 @@ func TestCleanupDoesNotDeleteForeignOutputWithManagedLabels(t *testing.T) {
 	binding := newPoolOnlyBinding("binding-cleanup-foreign", "")
 	recorded := newManagedClusterSPIFFEIDForBinding(binding, "recorded-managed-output")
 	foreign := newManagedClusterSPIFFEIDForBinding(binding, "spoofed-managed-output")
-	binding.Status.OwnedClusterSPIFFEIDName = recorded.GetName()
+	setConfirmedClusterSPIFFEID(binding, recorded.GetName(), recorded.GetUID())
 	reconciler := &InferenceIdentityBindingReconciler{
 		Config: testOperatorConfig(),
 		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(binding, recorded, foreign).Build(),
@@ -148,7 +148,7 @@ func TestChangedOutputNameWaitsForRecordedOutputAbsence(t *testing.T) {
 	reconciler := newConflictTestReconciler(t, newTestPool(), newPoolOnlyBinding("binding-name-change", ""))
 	reconcileBinding(t, ctx, reconciler, "binding-name-change")
 	binding := fetchBinding(t, ctx, reconciler.Client, "binding-name-change")
-	oldName := binding.Status.OwnedClusterSPIFFEIDName
+	oldName := confirmedClusterSPIFFEIDName(binding)
 	oldOutput := managedOutputForBinding(t, ctx, reconciler.Client, binding)
 	oldOutput.SetFinalizers([]string{"test.finalizer/hold"})
 	if err := reconciler.Update(ctx, oldOutput); err != nil {
@@ -179,8 +179,8 @@ func TestChangedOutputNameWaitsForRecordedOutputAbsence(t *testing.T) {
 		t.Fatalf("name-change requeueAfter = %s, want %s", result.RequeueAfter, deleteVerificationRequeueAfter)
 	}
 	pending := fetchBinding(t, ctx, reconciler.Client, binding.Name)
-	if pending.Status.OwnedClusterSPIFFEIDName != oldName {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q while old output remains, want %q", pending.Status.OwnedClusterSPIFFEIDName, oldName)
+	if confirmedClusterSPIFFEIDName(pending) != oldName {
+		t.Fatalf("ownedClusterSPIFFEID.name = %q while old output remains, want %q", confirmedClusterSPIFFEIDName(pending), oldName)
 	}
 	if pending.Status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v while replacement is pending, want nil", pending.Status.RenderedClusterSPIFFEID)
@@ -210,8 +210,8 @@ func TestChangedOutputNameWaitsForRecordedOutputAbsence(t *testing.T) {
 
 	reconcileBinding(t, ctx, reconciler, binding.Name)
 	replaced := fetchBinding(t, ctx, reconciler.Client, binding.Name)
-	if replaced.Status.OwnedClusterSPIFFEIDName != newName {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q after replacement, want %q", replaced.Status.OwnedClusterSPIFFEIDName, newName)
+	if confirmedClusterSPIFFEIDName(replaced) != newName {
+		t.Fatalf("ownedClusterSPIFFEID.name = %q after replacement, want %q", confirmedClusterSPIFFEIDName(replaced), newName)
 	}
 	assertSuccessConditionSet(t, replaced)
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: newName}, newOutput); err != nil {
@@ -241,7 +241,7 @@ func TestChangedOutputNameDeleteFailureRetainsRecordedOutput(t *testing.T) {
 	base := newConflictTestReconciler(t, newTestPool(), newPoolOnlyBinding("binding-name-change-failure", ""))
 	reconcileBinding(t, ctx, base, "binding-name-change-failure")
 	binding := fetchBinding(t, ctx, base.Client, "binding-name-change-failure")
-	oldName := binding.Status.OwnedClusterSPIFFEIDName
+	oldName := confirmedClusterSPIFFEIDName(binding)
 	binding.Spec.ServiceAccountName = "inference-sa-v2"
 	if err := base.Update(ctx, binding); err != nil {
 		t.Fatalf("change identity: %v", err)
@@ -266,8 +266,8 @@ func TestChangedOutputNameDeleteFailureRetainsRecordedOutput(t *testing.T) {
 		t.Fatalf("Reconcile error = %v, want %v", err, deleteErr)
 	}
 	failed := fetchBinding(t, ctx, wrapped, binding.Name)
-	if failed.Status.OwnedClusterSPIFFEIDName != oldName {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q after delete failure, want %q", failed.Status.OwnedClusterSPIFFEIDName, oldName)
+	if confirmedClusterSPIFFEIDName(failed) != oldName {
+		t.Fatalf("ownedClusterSPIFFEID.name = %q after delete failure, want %q", confirmedClusterSPIFFEIDName(failed), oldName)
 	}
 	assertPrimaryFailureCondition(t, failed, conditionTypeRenderFailure, conditionReasonManagedOutputApplyFailed)
 	newOutput := &unstructured.Unstructured{}
@@ -284,7 +284,7 @@ func TestChangedOutputNameStatusFailureRetainsReplacementClaim(t *testing.T) {
 	base := newConflictTestReconciler(t, newTestPool(), newPoolOnlyBinding("binding-name-change-status-failure", ""))
 	reconcileBinding(t, ctx, base, "binding-name-change-status-failure")
 	binding := fetchBinding(t, ctx, base.Client, "binding-name-change-status-failure")
-	oldName := binding.Status.OwnedClusterSPIFFEIDName
+	oldName := confirmedClusterSPIFFEIDName(binding)
 	binding.Spec.ServiceAccountName = "inference-sa-v2"
 	if err := base.Update(ctx, binding); err != nil {
 		t.Fatalf("change identity: %v", err)
@@ -327,11 +327,11 @@ func TestChangedOutputNameStatusFailureRetainsReplacementClaim(t *testing.T) {
 		t.Fatalf("replacement Reconcile error = %v, want %v", err, statusErr)
 	}
 	pending := fetchBinding(t, ctx, wrapped, binding.Name)
-	if pending.Status.PendingClusterSPIFFEIDName != newName {
-		t.Fatalf("pendingClusterSPIFFEIDName = %q, want replacement %q", pending.Status.PendingClusterSPIFFEIDName, newName)
+	if pendingManagedOutputName(pending) != newName {
+		t.Fatalf("pendingClusterSPIFFEID.name = %q, want replacement %q", pendingManagedOutputName(pending), newName)
 	}
-	if pending.Status.OwnedClusterSPIFFEIDName != "" {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q before replacement confirmation, want empty", pending.Status.OwnedClusterSPIFFEIDName)
+	if pending.Status.OwnedClusterSPIFFEID != nil {
+		t.Fatalf("ownedClusterSPIFFEID = %#v before replacement confirmation, want nil", pending.Status.OwnedClusterSPIFFEID)
 	}
 	if pending.Status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v after replacement status failure, want nil", pending.Status.RenderedClusterSPIFFEID)
@@ -352,8 +352,8 @@ func TestChangedOutputNameStatusFailureRetainsReplacementClaim(t *testing.T) {
 	}
 	confirmed := fetchBinding(t, ctx, wrapped, binding.Name)
 	assertSuccessConditionSet(t, confirmed)
-	if confirmed.Status.PendingClusterSPIFFEIDName != "" || confirmed.Status.OwnedClusterSPIFFEIDName != newName {
-		t.Fatalf("replacement ownership = pending %q owned %q, want empty/%q", confirmed.Status.PendingClusterSPIFFEIDName, confirmed.Status.OwnedClusterSPIFFEIDName, newName)
+	if confirmed.Status.PendingClusterSPIFFEID != nil || confirmedClusterSPIFFEIDName(confirmed) != newName {
+		t.Fatalf("replacement ownership = pending %#v owned %#v, want nil/name %q", confirmed.Status.PendingClusterSPIFFEID, confirmed.Status.OwnedClusterSPIFFEID, newName)
 	}
 }
 
@@ -364,9 +364,9 @@ func TestRecordedOutputUpdateFailureRetainsOwnershipAndRetries(t *testing.T) {
 	base := newConflictTestReconciler(t, newTestPool(), newPoolOnlyBinding("binding-update-retry", ""))
 	reconcileBinding(t, ctx, base, "binding-update-retry")
 	binding := fetchBinding(t, ctx, base.Client, "binding-update-retry")
-	recordedName := binding.Status.OwnedClusterSPIFFEIDName
+	recordedName := confirmedClusterSPIFFEIDName(binding)
 	if recordedName == "" {
-		t.Fatal("ownedClusterSPIFFEIDName was not recorded after create")
+		t.Fatal("ownedClusterSPIFFEID name was not recorded after create")
 	}
 
 	drifted := &unstructured.Unstructured{}
@@ -396,8 +396,8 @@ func TestRecordedOutputUpdateFailureRetainsOwnershipAndRetries(t *testing.T) {
 		t.Fatalf("first Reconcile error = %v, want %v", err, updateErr)
 	}
 	failed := fetchBinding(t, ctx, wrapped, binding.Name)
-	if failed.Status.OwnedClusterSPIFFEIDName != recordedName {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q after failure, want %q", failed.Status.OwnedClusterSPIFFEIDName, recordedName)
+	if confirmedClusterSPIFFEIDName(failed) != recordedName {
+		t.Fatalf("ownedClusterSPIFFEID.name = %q after failure, want %q", confirmedClusterSPIFFEIDName(failed), recordedName)
 	}
 	if failed.Status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v after failure, want cleared", failed.Status.RenderedClusterSPIFFEID)
@@ -408,8 +408,8 @@ func TestRecordedOutputUpdateFailureRetainsOwnershipAndRetries(t *testing.T) {
 	}
 	retried := fetchBinding(t, ctx, wrapped, binding.Name)
 	assertSuccessConditionSet(t, retried)
-	if retried.Status.OwnedClusterSPIFFEIDName != recordedName {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q after retry, want %q", retried.Status.OwnedClusterSPIFFEIDName, recordedName)
+	if confirmedClusterSPIFFEIDName(retried) != recordedName {
+		t.Fatalf("ownedClusterSPIFFEID.name = %q after retry, want %q", confirmedClusterSPIFFEIDName(retried), recordedName)
 	}
 	if retried.Status.RenderedClusterSPIFFEID == nil {
 		t.Fatal("renderedClusterSPIFFEID was not restored after retry")
@@ -455,11 +455,11 @@ func TestCreateStatusPatchFailureRetainsPendingClaimAndRetries(t *testing.T) {
 		t.Fatalf("first Reconcile error = %v, want %v", err, statusErr)
 	}
 	pending := fetchBinding(t, ctx, wrapped, "binding-create-status-retry")
-	if pending.Status.PendingClusterSPIFFEIDName == "" {
-		t.Fatal("pendingClusterSPIFFEIDName was not persisted before Create")
+	if pending.Status.PendingClusterSPIFFEID == nil || pending.Status.PendingClusterSPIFFEID.ClaimID == "" {
+		t.Fatal("pendingClusterSPIFFEID claim was not persisted before Create")
 	}
-	if pending.Status.OwnedClusterSPIFFEIDName != "" {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q before confirmation, want empty", pending.Status.OwnedClusterSPIFFEIDName)
+	if pending.Status.OwnedClusterSPIFFEID != nil {
+		t.Fatalf("ownedClusterSPIFFEID = %#v before confirmation, want nil", pending.Status.OwnedClusterSPIFFEID)
 	}
 	if pending.Status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v after status failure, want nil", pending.Status.RenderedClusterSPIFFEID)
@@ -471,11 +471,11 @@ func TestCreateStatusPatchFailureRetainsPendingClaimAndRetries(t *testing.T) {
 	}
 	confirmed := fetchBinding(t, ctx, wrapped, pending.Name)
 	assertSuccessConditionSet(t, confirmed)
-	if confirmed.Status.PendingClusterSPIFFEIDName != "" {
-		t.Fatalf("pendingClusterSPIFFEIDName = %q after confirmation, want empty", confirmed.Status.PendingClusterSPIFFEIDName)
+	if confirmed.Status.PendingClusterSPIFFEID != nil {
+		t.Fatalf("pendingClusterSPIFFEID = %#v after confirmation, want nil", confirmed.Status.PendingClusterSPIFFEID)
 	}
-	if confirmed.Status.OwnedClusterSPIFFEIDName == "" {
-		t.Fatal("ownedClusterSPIFFEIDName was not confirmed on retry")
+	if confirmed.Status.OwnedClusterSPIFFEID == nil || confirmed.Status.OwnedClusterSPIFFEID.UID == "" {
+		t.Fatal("ownedClusterSPIFFEID name and UID were not confirmed on retry")
 	}
 	if createCalls != 1 {
 		t.Fatalf("ClusterSPIFFEID Create calls = %d, want 1", createCalls)
@@ -518,8 +518,8 @@ func TestReservationStatusPatchFailureDoesNotCreateOrPersistClaim(t *testing.T) 
 		t.Fatalf("Reconcile error = %v, want %v", err, statusErr)
 	}
 	failed := fetchBinding(t, ctx, wrapped, "binding-reservation-status-failure")
-	if failed.Status.PendingClusterSPIFFEIDName != "" || failed.Status.OwnedClusterSPIFFEIDName != "" {
-		t.Fatalf("ownership status = pending %q owned %q, want both empty", failed.Status.PendingClusterSPIFFEIDName, failed.Status.OwnedClusterSPIFFEIDName)
+	if failed.Status.PendingClusterSPIFFEID != nil || failed.Status.OwnedClusterSPIFFEID != nil {
+		t.Fatalf("ownership status = pending %#v owned %#v, want both nil", failed.Status.PendingClusterSPIFFEID, failed.Status.OwnedClusterSPIFFEID)
 	}
 	if failed.Status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v after reservation failure, want nil", failed.Status.RenderedClusterSPIFFEID)
@@ -550,8 +550,8 @@ func TestUnclaimedPreExistingDeterministicNameIsForeign(t *testing.T) {
 		t.Fatal("Reconcile error = nil, want refusal of unclaimed pre-existing output")
 	}
 	failed := fetchBinding(t, ctx, reconciler.Client, binding.Name)
-	if failed.Status.PendingClusterSPIFFEIDName != "" || failed.Status.OwnedClusterSPIFFEIDName != "" {
-		t.Fatalf("ownership status = pending %q owned %q, want both empty", failed.Status.PendingClusterSPIFFEIDName, failed.Status.OwnedClusterSPIFFEIDName)
+	if failed.Status.PendingClusterSPIFFEID != nil || failed.Status.OwnedClusterSPIFFEID != nil {
+		t.Fatalf("ownership status = pending %#v owned %#v, want both nil", failed.Status.PendingClusterSPIFFEID, failed.Status.OwnedClusterSPIFFEID)
 	}
 	if failed.Status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v after foreign-name refusal, want nil", failed.Status.RenderedClusterSPIFFEID)
@@ -573,7 +573,7 @@ func TestFinalizationNoMatchPreservesOwnershipAndFinalizer(t *testing.T) {
 	ctx := context.Background()
 	binding := newPoolOnlyBinding("binding-finalize-no-match", "")
 	controllerutil.AddFinalizer(binding, inferenceIdentityBindingFinalizer)
-	binding.Status.OwnedClusterSPIFFEIDName = "recorded-output"
+	setConfirmedClusterSPIFFEID(binding, "recorded-output", "recorded-output-uid")
 	binding.Status.RenderedClusterSPIFFEID = &kleymv1alpha1.RenderedClusterSPIFFEIDStatus{Name: "recorded-output"}
 	scheme := newControllerTestScheme(t)
 	base := fake.NewClientBuilder().WithScheme(scheme).
@@ -590,8 +590,8 @@ func TestFinalizationNoMatchPreservesOwnershipAndFinalizer(t *testing.T) {
 		t.Fatalf("reconcileDelete error = %v, want NoMatch", err)
 	}
 	retained := fetchBinding(t, ctx, reconciler.Client, binding.Name)
-	if retained.Status.OwnedClusterSPIFFEIDName != "recorded-output" {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q, want retained", retained.Status.OwnedClusterSPIFFEIDName)
+	if confirmedClusterSPIFFEIDName(retained) != "recorded-output" {
+		t.Fatalf("ownedClusterSPIFFEID.name = %q, want retained", confirmedClusterSPIFFEIDName(retained))
 	}
 	if retained.Status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v after NoMatch, want nil", retained.Status.RenderedClusterSPIFFEID)
@@ -607,7 +607,7 @@ func TestValidationCleanupNoMatchPreservesOwnershipAndRetries(t *testing.T) {
 	ctx := context.Background()
 	binding := newPoolOnlyBinding("binding-validation-no-match", "")
 	controllerutil.AddFinalizer(binding, inferenceIdentityBindingFinalizer)
-	binding.Status.OwnedClusterSPIFFEIDName = "recorded-output"
+	setConfirmedClusterSPIFFEID(binding, "recorded-output", "recorded-output-uid")
 	binding.Status.RenderedClusterSPIFFEID = &kleymv1alpha1.RenderedClusterSPIFFEIDStatus{Name: "recorded-output"}
 	binding.Spec.IdentityBoundary.LabelKey = "example.com/not-reserved"
 	scheme := newControllerTestScheme(t)
@@ -624,8 +624,8 @@ func TestValidationCleanupNoMatchPreservesOwnershipAndRetries(t *testing.T) {
 		t.Fatalf("Reconcile error = %v, want NoMatch retry", err)
 	}
 	failed := fetchBinding(t, ctx, reconciler.Client, binding.Name)
-	if failed.Status.OwnedClusterSPIFFEIDName != "recorded-output" {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q, want retained", failed.Status.OwnedClusterSPIFFEIDName)
+	if confirmedClusterSPIFFEIDName(failed) != "recorded-output" {
+		t.Fatalf("ownedClusterSPIFFEID.name = %q, want retained", confirmedClusterSPIFFEIDName(failed))
 	}
 	if failed.Status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v after NoMatch, want nil", failed.Status.RenderedClusterSPIFFEID)
@@ -640,7 +640,7 @@ func TestFinalizerCleanupUsesOwnershipRetainedAfterUpdateFailure(t *testing.T) {
 	base := newConflictTestReconciler(t, newTestPool(), newPoolOnlyBinding("binding-failure-finalize", ""))
 	reconcileBinding(t, ctx, base, "binding-failure-finalize")
 	binding := fetchBinding(t, ctx, base.Client, "binding-failure-finalize")
-	recordedName := binding.Status.OwnedClusterSPIFFEIDName
+	recordedName := confirmedClusterSPIFFEIDName(binding)
 	managed := &unstructured.Unstructured{}
 	managed.SetGroupVersionKind(clusterSPIFFEIDGVK)
 	if err := base.Get(ctx, types.NamespacedName{Name: recordedName}, managed); err != nil {
@@ -667,8 +667,8 @@ func TestFinalizerCleanupUsesOwnershipRetainedAfterUpdateFailure(t *testing.T) {
 		t.Fatalf("failure Reconcile error = %v, want %v", err, updateErr)
 	}
 	failed := fetchBinding(t, ctx, wrapped, binding.Name)
-	if failed.Status.OwnedClusterSPIFFEIDName != recordedName {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q after failure, want %q", failed.Status.OwnedClusterSPIFFEIDName, recordedName)
+	if confirmedClusterSPIFFEIDName(failed) != recordedName {
+		t.Fatalf("ownedClusterSPIFFEID.name = %q after failure, want %q", confirmedClusterSPIFFEIDName(failed), recordedName)
 	}
 	if err := wrapped.Delete(ctx, failed); err != nil {
 		t.Fatalf("delete binding: %v", err)
@@ -695,15 +695,16 @@ func TestReconcileCorrectsClusterSPIFFEIDDriftOnResync(t *testing.T) {
 
 	binding := newPoolOnlyBinding("binding-drift", "")
 
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+		WithObjects(
+			newTestPool(),
+			binding,
+		).
+		Build()
 	reconciler := &InferenceIdentityBindingReconciler{Config: testOperatorConfig(),
-		Client: fake.NewClientBuilder().
-			WithScheme(scheme).
-			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
-			WithObjects(
-				newTestPool(),
-				binding,
-			).
-			Build(),
+		Client: withFakeClusterSPIFFEIDUIDs(fakeClient),
 	}
 
 	request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: testNamespace, Name: binding.Name}}
@@ -777,6 +778,7 @@ func newManagedClusterSPIFFEIDForBinding(
 	managed := &unstructured.Unstructured{}
 	managed.SetGroupVersionKind(clusterSPIFFEIDGVK)
 	managed.SetName(name)
+	managed.SetUID(types.UID("uid-" + name))
 	managed.SetLabels(spirecm.ManagedClusterSPIFFEIDLabels(binding))
 	managed.Object["spec"] = map[string]any{
 		"spiffeIDTemplate": "spiffe://example.test/ns/default/sa/inference-sa/inference/pool/example/variant/prefill",

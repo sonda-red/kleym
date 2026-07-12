@@ -51,8 +51,8 @@ func newClusterSPIFFEIDCRDMissingStateError() *reconcileStateError {
 	)
 }
 
-// newManagedOutputApplyFailedStateError maps transient managed-output API
-// failures to the RenderFailure taxonomy from docs/spec/operator.md.
+// newManagedOutputApplyFailedStateError maps managed-output API failures and
+// ownership refusals to the RenderFailure taxonomy from docs/spec/operator.md.
 func newManagedOutputApplyFailedStateError(err error) *reconcileStateError {
 	return newStateError(
 		conditionTypeRenderFailure,

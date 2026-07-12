@@ -27,13 +27,14 @@ func TestReconcileConditionTaxonomySuccess(t *testing.T) {
 	ctx := context.Background()
 	scheme := newControllerTestScheme(t)
 	binding := newPoolOnlyBinding("binding-taxonomy-success", "")
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
+		WithObjects(newTestPool(), binding).
+		Build()
 	reconciler := &InferenceIdentityBindingReconciler{
 		Config: testOperatorConfig(),
-		Client: fake.NewClientBuilder().
-			WithScheme(scheme).
-			WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).
-			WithObjects(newTestPool(), binding).
-			Build(),
+		Client: withFakeClusterSPIFFEIDUIDs(fakeClient),
 	}
 
 	result, err := reconciler.Reconcile(ctx, reconcile.Request{
@@ -70,8 +71,8 @@ func TestReconcileConditionTaxonomySuccess(t *testing.T) {
 	if current.Status.RenderedClusterSPIFFEID.SelectorFingerprint == "" {
 		t.Fatalf("renderedClusterSPIFFEID.selectorFingerprint was not populated")
 	}
-	if current.Status.OwnedClusterSPIFFEIDName != current.Status.RenderedClusterSPIFFEID.Name {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q, want %q", current.Status.OwnedClusterSPIFFEIDName, current.Status.RenderedClusterSPIFFEID.Name)
+	if current.Status.OwnedClusterSPIFFEID == nil || current.Status.OwnedClusterSPIFFEID.Name != current.Status.RenderedClusterSPIFFEID.Name || current.Status.OwnedClusterSPIFFEID.UID == "" {
+		t.Fatalf("ownedClusterSPIFFEID = %#v, want rendered name %q and a UID", current.Status.OwnedClusterSPIFFEID, current.Status.RenderedClusterSPIFFEID.Name)
 	}
 }
 
@@ -147,11 +148,11 @@ func TestReconcileManagedOutputApplyFailureSetsFailureStatus(t *testing.T) {
 	if current.Status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v, want cleared on managed-output apply failure", current.Status.RenderedClusterSPIFFEID)
 	}
-	if current.Status.OwnedClusterSPIFFEIDName != "" {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q, want empty after failed create", current.Status.OwnedClusterSPIFFEIDName)
+	if current.Status.OwnedClusterSPIFFEID != nil {
+		t.Fatalf("ownedClusterSPIFFEID = %#v, want nil after failed create", current.Status.OwnedClusterSPIFFEID)
 	}
-	if current.Status.PendingClusterSPIFFEIDName == "" {
-		t.Fatal("pendingClusterSPIFFEIDName is empty after ambiguous create failure")
+	if current.Status.PendingClusterSPIFFEID == nil || current.Status.PendingClusterSPIFFEID.ClaimID == "" {
+		t.Fatal("pendingClusterSPIFFEID claim is empty after ambiguous create failure")
 	}
 }
 
@@ -163,7 +164,7 @@ func TestReconcileFailureCleanupApplyFailureSetsManagedOutputFailureStatus(t *te
 	binding := newPoolOnlyBinding("binding-managed-output-cleanup-failure", "")
 	binding.Spec.PoolRef.Name = "missing-pool"
 	binding.Status = kleymv1alpha1.InferenceIdentityBindingStatus{
-		OwnedClusterSPIFFEIDName: "stale",
+		OwnedClusterSPIFFEID: &kleymv1alpha1.OwnedClusterSPIFFEIDStatus{Name: "stale", UID: "stale-uid"},
 		ComputedSpiffeIDs: []kleymv1alpha1.ComputedSpiffeIDStatus{{
 			SpiffeID: "spiffe://stale.example/ns/default/sa/inference-sa/inference/pool/old/variant/prefill",
 		}},
@@ -230,8 +231,8 @@ func TestReconcileFailureCleanupApplyFailureSetsManagedOutputFailureStatus(t *te
 	if current.Status.RenderedClusterSPIFFEID != nil {
 		t.Fatalf("renderedClusterSPIFFEID = %#v, want cleared on cleanup failure", current.Status.RenderedClusterSPIFFEID)
 	}
-	if current.Status.OwnedClusterSPIFFEIDName != "stale" {
-		t.Fatalf("ownedClusterSPIFFEIDName = %q, want retained after cleanup failure", current.Status.OwnedClusterSPIFFEIDName)
+	if confirmedClusterSPIFFEIDName(current) != "stale" || current.Status.OwnedClusterSPIFFEID.UID != "stale-uid" {
+		t.Fatalf("ownedClusterSPIFFEID = %#v, want retained after cleanup failure", current.Status.OwnedClusterSPIFFEID)
 	}
 }
 
