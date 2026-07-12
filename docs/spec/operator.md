@@ -162,8 +162,6 @@ value: <peer boundary label value>
 
 `status.ownedClusterSPIFFEID` is the confirmed ownership record. It contains the deterministic `name` and Kubernetes `uid` of the exact managed object incarnation. Both values must match the live object before Kleym may update or delete it. A live same-name object with a different UID is foreign and is never updated, deleted, or adopted; the mismatch proves only that the previously recorded incarnation is absent. The claim ID is an incarnation-correlation token for pending-create recovery, not authentication against cluster administrators.
 
-This is a clean `v1alpha1` break from the former name-only `pendingClusterSPIFFEIDName` and `ownedClusterSPIFFEIDName` fields. Kleym does not migrate, trust, or adopt ownership from those fields. A same-name object without a current pending claim or confirmed name-and-UID record is foreign and receives no update or delete authority.
-
 Allowed condition types and reasons:
 
 | Condition | Status | Allowed reasons |
