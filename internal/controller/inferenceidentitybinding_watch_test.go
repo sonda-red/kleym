@@ -79,7 +79,6 @@ func TestReverseBindingLookupsReturnMissingIndexErrors(t *testing.T) {
 	scheme := newControllerTestScheme(t)
 	reconciler := &InferenceIdentityBindingReconciler{
 		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(binding).Build(),
-		Scheme: scheme,
 	}
 
 	if _, err := reconciler.listBindingsReferencingPool(ctx, testNamespace, "pool-a"); err == nil {
