@@ -47,8 +47,8 @@ The reconciler treats invalid references, unsafe selectors, conflicts, and
 render failures as controller state, not as crashes. Invalid boundaries report
 `UnsafeSelector=True` with reason `InvalidIdentityBoundary`. Conflict members
 report `Conflict=True` only after their managed output is absent; duplicate
-SPIFFE ID claims use reason `DuplicateIdentityBinding`, while other boundary
-conflicts use `IdentityBoundaryConflict`.
+SPIFFE ID claims use reason `DuplicateSPIFFEID`, while variant reuse conflicts
+use `VariantConflict`.
 
 When old or conflicting output deletion is still converging, rendered output is
 cleared and `Ready=Unknown` with reason `Initializing` records that absence has

@@ -25,7 +25,7 @@ These conditions describe reference resolution, selector safety, identity render
 | `Ready` | The binding reconciled successfully. | `Reconciled` |
 | `InvalidRef` | `poolRef` or the required GAIE pool CRD could not be resolved or validated. | `InvalidPoolRef`, `TargetPoolNotFound`, `InferencePoolCRDMissing` |
 | `UnsafeSelector` | The rendered selector set or declared boundary cannot be rendered safely. | `InvalidPoolSelector`, `UnsafeSelector`, `InvalidIdentityBoundary` |
-| `Conflict` | Structural exclusivity failed or the SPIFFE ID claim is duplicated. | `IdentityBoundaryConflict`, `DuplicateIdentityBinding` |
+| `Conflict` | Structural exclusivity failed or the SPIFFE ID claim is duplicated. | `VariantConflict`, `DuplicateSPIFFEID` |
 | `RenderFailure` | Rendering or managed-output application failed after reference resolution succeeded. | `MissingTrustDomain`, `InvalidServiceAccountName`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing`, `ManagedOutputApplyFailed` |
 
 `Ready=False` uses the same reason and message as the single active failure condition. Failure conditions use `Resolved` when `False`; all conditions may use `Initializing` while a generation has not been evaluated.

@@ -29,10 +29,10 @@ For identity-system background, see [SPIFFE overview](https://spiffe.io/docs/lat
 ## Identity Boundary Admission Policy
 
 Before creating bindings or labeled workloads, install cluster admission policy
-for the reserved `identity.kleym.sonda.red/*` Pod-label prefix. The policy must:
+for the operator-owned `identity.kleym.sonda.red/variant` Pod label. The policy must:
 
-- allow assignment of reserved boundary labels only by platform-controlled actors
-- reject adding, changing, or removing a reserved boundary label on an existing Pod; boundary changes require replacement Pods
+- allow assignment of the variant label only by platform-controlled actors
+- reject adding, changing, or removing the variant label on an existing Pod; boundary changes require replacement Pods
 
 Use a Kubernetes admission controller, policy engine, or webhook appropriate to
 your cluster. Kleym does not install this external policy or mutate Pods. The

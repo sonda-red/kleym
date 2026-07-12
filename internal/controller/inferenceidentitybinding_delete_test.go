@@ -609,7 +609,7 @@ func TestValidationCleanupNoMatchPreservesOwnershipAndRetries(t *testing.T) {
 	controllerutil.AddFinalizer(binding, inferenceIdentityBindingFinalizer)
 	setConfirmedClusterSPIFFEID(binding, "recorded-output", "recorded-output-uid")
 	binding.Status.RenderedClusterSPIFFEID = &kleymv1alpha1.RenderedClusterSPIFFEIDStatus{Name: "recorded-output"}
-	binding.Spec.IdentityBoundary.LabelKey = "example.com/not-reserved"
+	binding.Spec.IdentityBoundary.Variant = "invalid/variant"
 	scheme := newControllerTestScheme(t)
 	base := fake.NewClientBuilder().WithScheme(scheme).
 		WithStatusSubresource(&kleymv1alpha1.InferenceIdentityBinding{}).

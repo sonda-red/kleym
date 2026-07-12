@@ -35,7 +35,7 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 			"trustDomain must be configured before Kleym can render SPIFFE IDs",
 		)
 	}
-	if err := ValidateBoundary(input.Boundary); err != nil {
+	if err := ValidateVariant(input.Variant); err != nil {
 		return Plan{}, err
 	}
 
@@ -43,7 +43,7 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 		Namespace:          input.Namespace,
 		ServiceAccountName: input.ServiceAccountName,
 		IdentityAnchor:     input.Target.IdentityAnchor,
-		Boundary:           input.Boundary,
+		Variant:            input.Variant,
 	}
 
 	renderedSelectors, err := renderSafetySelectors(input.Namespace, input.ServiceAccountName)
@@ -65,11 +65,11 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 	selectors := append(renderedSelectors, input.Target.DerivedSelectors...)
 	selectors = append(selectors, fmt.Sprintf(
 		"k8s:pod-label:%s:%s",
-		input.Boundary.LabelKey,
-		input.Boundary.LabelValue,
+		VariantLabelKey,
+		input.Variant,
 	))
 	selectors = UniqueAndSorted(selectors)
-	if err := validateRenderedSafetySelectors(input.Namespace, input.ServiceAccountName, selectors); err != nil {
+	if err := validateRenderedSafetySelectors(input.Namespace, input.ServiceAccountName, input.Variant, selectors); err != nil {
 		return Plan{}, newStateError(
 			ConditionTypeUnsafeSelector,
 			ReasonUnsafeSelector,
@@ -91,7 +91,7 @@ func PlanIdentity(input PlanInput) (Plan, error) {
 		Selectors:      selectors,
 		PodSelector:    input.Target.PodSelector,
 		IdentityAnchor: input.Target.IdentityAnchor,
-		Boundary:       input.Boundary,
+		Variant:        input.Variant,
 	}, nil
 }
 
@@ -135,14 +135,17 @@ func renderInferenceTargetSPIFFEID(trustDomain string, data renderTemplateData) 
 		data.ServiceAccountName,
 		data.IdentityAnchor.Kind,
 		data.IdentityAnchor.Name,
-		data.Boundary.LabelValue,
+		data.Variant,
 	)
 }
 
 // validateRenderedSafetySelectors verifies that internally-rendered safety selectors are still present.
-func validateRenderedSafetySelectors(namespace, serviceAccountName string, selectors []string) error {
+func validateRenderedSafetySelectors(namespace, serviceAccountName, variant string, selectors []string) error {
 	hasNamespaceSelector := false
 	hasServiceAccountSelector := false
+	variantSelectorCount := 0
+	variantSelectorPrefix := "k8s:pod-label:" + VariantLabelKey + ":"
+	expectedVariantSelector := variantSelectorPrefix + variant
 
 	for _, selector := range selectors {
 		switch {
@@ -161,6 +164,11 @@ func validateRenderedSafetySelectors(namespace, serviceAccountName string, selec
 				return fmt.Errorf("selector %q escapes binding service account %q", selector, serviceAccountName)
 			}
 			hasServiceAccountSelector = true
+		case strings.HasPrefix(selector, variantSelectorPrefix):
+			variantSelectorCount++
+			if selector != expectedVariantSelector {
+				return fmt.Errorf("selector %q conflicts with binding variant %q", selector, variant)
+			}
 		}
 	}
 
@@ -169,6 +177,9 @@ func validateRenderedSafetySelectors(namespace, serviceAccountName string, selec
 	}
 	if !hasServiceAccountSelector {
 		return fmt.Errorf("selectors must include a k8s:sa:<service-account> selector")
+	}
+	if variantSelectorCount != 1 {
+		return fmt.Errorf("selectors must include %s exactly once", expectedVariantSelector)
 	}
 
 	return nil

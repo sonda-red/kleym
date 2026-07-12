@@ -53,8 +53,8 @@ const (
 	conditionReasonInvalidPoolRef            = "InvalidPoolRef"
 	conditionReasonClusterSPIFFEIDCRDMissing = "ClusterSPIFFEIDCRDMissing"
 	conditionReasonManagedOutputApplyFailed  = "ManagedOutputApplyFailed"
-	conditionReasonIdentityBoundaryConflict  = "IdentityBoundaryConflict"
-	conditionReasonDuplicateIdentityBinding  = "DuplicateIdentityBinding"
+	conditionReasonVariantConflict           = "VariantConflict"
+	conditionReasonDuplicateSPIFFEID         = "DuplicateSPIFFEID"
 
 	fieldIndexPoolRefName                = "spec.poolRef.name"
 	fieldIndexManagedClusterSPIFFEIDName = "status.clusterSPIFFEIDName"
@@ -172,12 +172,7 @@ func (r *InferenceIdentityBindingReconciler) Reconcile(
 	initializeConditions(&binding.Status, binding.Generation)
 	applyOperatorConfig(&binding.Status, r.Config)
 
-	boundary, err := bindingIdentityBoundary(binding)
-	if err == nil {
-		applyIdentityBoundaryStatus(&binding.Status, boundary)
-	} else {
-		binding.Status.IdentityBoundary = nil
-	}
+	err := bindingIdentityVariant(binding)
 
 	var desiredState desiredBindingState
 	if err == nil {

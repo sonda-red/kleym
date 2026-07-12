@@ -41,26 +41,14 @@ func (r *InferenceIdentityBindingReconciler) renderIdentity(
 		Namespace:          binding.Namespace,
 		ServiceAccountName: binding.Spec.ServiceAccountName,
 		TrustDomain:        r.Config.TrustDomain,
-		Boundary:           declaredIdentityBoundary(binding),
+		Variant:            binding.Spec.IdentityBoundary.Variant,
 		Target:             target,
 	})
 }
 
-// declaredIdentityBoundary translates the API shape into the identity package input.
-func declaredIdentityBoundary(binding *kleymv1alpha1.InferenceIdentityBinding) identity.Boundary {
-	return identity.Boundary{
-		LabelKey:   binding.Spec.IdentityBoundary.LabelKey,
-		LabelValue: binding.Spec.IdentityBoundary.LabelValue,
-	}
-}
-
-// bindingIdentityBoundary validates persisted input defensively before reconciliation.
-func bindingIdentityBoundary(binding *kleymv1alpha1.InferenceIdentityBinding) (identity.Boundary, error) {
-	boundary := declaredIdentityBoundary(binding)
-	if err := identity.ValidateBoundary(boundary); err != nil {
-		return identity.Boundary{}, err
-	}
-	return boundary, nil
+// bindingIdentityVariant validates persisted input defensively before reconciliation.
+func bindingIdentityVariant(binding *kleymv1alpha1.InferenceIdentityBinding) error {
+	return identity.ValidateVariant(binding.Spec.IdentityBoundary.Variant)
 }
 
 func (r *InferenceIdentityBindingReconciler) renderIdentityForBinding(

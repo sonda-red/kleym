@@ -45,9 +45,9 @@ When `--clusterspiffeid-class-name` is empty, SPIRE Controller Manager must be c
 
 1. `poolRef` references one [`InferencePool`][gaie-inferencepool]. The pool is the required workload anchor and selector provenance source.
 2. `serviceAccountName` is required and admission-validated as a DNS-1123 subdomain with a maximum length of 253 characters. It scopes both the SPIFFE ID path and the mandatory `k8s:sa:<serviceAccountName>` selector.
-3. `identityBoundary.labelKey` and `identityBoundary.labelValue` are required. `labelKey` must be a valid Kubernetes label key and use the reserved `identity.kleym.sonda.red/` prefix. `labelValue` must be a valid, nonempty Kubernetes label value. Bindings declare both values; the referenced pool does not repeat them.
-4. SPIFFE IDs are deterministic under the configured trust domain: `spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/pool/<pool-name>/variant/<labelValue>`.
-5. Status records operator configuration, validated identity-boundary state, rendered output, conflicts, and conditions. The status rules are defined in [Status Contract](#status-contract).
+3. `identityBoundary.variant` is required and must be a valid, nonempty Kubernetes label value. Kleym owns the fixed boundary label key `identity.kleym.sonda.red/variant`; callers cannot select a different key.
+4. SPIFFE IDs are deterministic under the configured trust domain: `spiffe://<trustDomain>/ns/<namespace>/sa/<serviceAccountName>/inference/pool/<pool-name>/variant/<variant>`.
+5. Status records operator configuration, rendered output, conflicts, and conditions. The status rules are defined in [Status Contract](#status-contract).
 6. The CRD exposes printer columns for `POOL`, `BOUNDARY`, `READY`, `REASON`, and `SPIFFE ID` so `kubectl get inferenceidentitybindings.kleym.sonda.red -A` is the primary binding list view.
 
 [API Reference][api-reference] and [Conditions Reference][conditions-reference] document the implemented API and condition surfaces.
@@ -69,7 +69,7 @@ Every rendered identity selector set is assembled from these sources:
 1. Mandatory namespace selector rendered internally from the binding namespace: `k8s:ns:<binding namespace>`.
 2. Mandatory service-account selector rendered internally from `spec.serviceAccountName`: `k8s:sa:<serviceAccountName>`.
 3. Pool-derived selectors rendered from the referenced `InferencePool` `spec.selector.matchLabels`.
-4. Mandatory boundary selector rendered from `spec.identityBoundary`: `k8s:pod-label:<labelKey>:<labelValue>`.
+4. Mandatory boundary selector rendered from `spec.identityBoundary.variant`: `k8s:pod-label:identity.kleym.sonda.red/variant:<variant>`.
 
 The only pool selector compatibility form is an existing flat string map under `spec.selector`; Kleym normalizes it to `matchLabels` before rendering. Pool labels render directly to `k8s:pod-label:<key>:<value>` workload selectors.
 
@@ -85,7 +85,7 @@ Unsupported pool selector input is refused, including:
 
 Rendered selector sets are canonical. Kleym removes duplicate selector strings and sorts the remaining strings lexicographically before writing `status.renderedSelectors`, managed `ClusterSPIFFEID` `spec.workloadSelectorTemplates`, or the rendered selector fingerprint in `status.renderedClusterSPIFFEID.selectorFingerprint`.
 
-The complete normalized pool selector remains the workload match. Kleym adds the declared identity-boundary selector to select one variant within that pool. The boundary label proves exclusivity; it does not replace other pool labels in `ClusterSPIFFEID.spec.podSelector` or `spec.workloadSelectorTemplates`.
+The complete normalized pool selector remains the workload match. Kleym adds the fixed-key identity-boundary selector exactly once to select one variant within that pool. The boundary label proves exclusivity; it does not replace other pool labels in `ClusterSPIFFEID.spec.podSelector` or `spec.workloadSelectorTemplates`.
 
 Malformed or unsupported pool selector input fails reconciliation with `UnsafeSelector=True` reason `InvalidPoolSelector`. A selector set that would omit or escape the mandatory namespace or service-account boundary fails with `UnsafeSelector=True` reason `UnsafeSelector`. Selector failures produce no managed output and clear rendered output status.
 
@@ -96,11 +96,10 @@ The binding declares an identity boundary. The resolved boundary is:
 ```text
 namespace
 service account
-boundary label key
-boundary label value
+variant
 ```
 
-The declared key and value are rendered as a mandatory Pod-label selector. Invalid boundary input is refused with `UnsafeSelector=True` reason `InvalidIdentityBoundary`.
+The declared variant is rendered under the operator-owned `identity.kleym.sonda.red/variant` key as a mandatory Pod-label selector. A missing, empty, malformed, or whitespace-padded variant is refused with `UnsafeSelector=True` reason `InvalidIdentityBoundary`.
 
 For any two bindings with different rendered SPIFFE IDs, exclusivity is proven only when at least one condition is true:
 
@@ -109,10 +108,10 @@ namespace differs
 OR
 service account differs
 OR
-boundary label key is equal and boundary label value differs
+variant differs
 ```
 
-Every other relationship is a conflict. Different values of one Kubernetes label key are structurally disjoint because one workload cannot hold two values for that key. Different boundary label keys do not prove disjointness. Kleym does not use general selector intersection as a fallback.
+Every other relationship is a conflict. Different values of the fixed Kubernetes label key are structurally disjoint because one workload cannot hold two values for that key. Kleym does not use general selector intersection as a fallback.
 
 Two bindings that render the same SPIFFE ID are duplicate identity claims. They are conflicts even when their selectors or boundary declarations are equal.
 
@@ -127,7 +126,7 @@ Ready=False
 Conflict=True
 managed ClusterSPIFFEID absent
 rendered output status cleared
-identity boundary and conflict references populated
+conflict references populated
 ```
 
 Kleym removes every managed `ClusterSPIFFEID` owned by conflict members and confirms absence before settling the conflict state. If output deletion fails, reconciliation reports the API error and retries; it must not report a settled conflict state that implies output absence.
@@ -138,23 +137,18 @@ Kleym removes registration intent. It does not claim immediate invalidation of a
 
 ## Status Contract
 
-On successful validation, `status.identityBoundary` records the boundary label key and value. It remains available for conflict diagnosis.
-
 `status.conflicts` is present only when `Conflict=True`. Each item describes one peer and one precise cause:
 
 ```yaml
-bindingRef:
-  namespace: <peer namespace>
-  name: <peer name>
-cause: BoundaryValueReuse | BoundaryKeyMismatch | DuplicateSPIFFEID
+bindingName: <peer name>
+cause: VariantReuse | DuplicateSPIFFEID
 spiffeID: <peer rendered SPIFFE ID>
-labelKey: <peer boundary label key>
-value: <peer boundary label value>
+variant: <peer variant>
 ```
 
-`bindingRef`, `cause`, and `spiffeID` are required. `labelKey` and `value` are required for boundary causes and omitted for `DuplicateSPIFFEID` when no peer boundary was resolved. Items are sorted by peer namespace, peer name, cause, label key, and value. A binding may have multiple items for multiple peers or causes.
+All four fields are required. Because conflicts are evaluated only against same-namespace peers, `bindingName` is sufficient to identify the peer. Items are sorted by peer binding name, cause, SPIFFE ID, and variant. A binding may have multiple items for multiple peers or causes.
 
-`Conflict=True` uses `DuplicateIdentityBinding` when any item has cause `DuplicateSPIFFEID`; otherwise it uses `IdentityBoundaryConflict`. The condition reason is the coarse conflict class, while each item records the precise cause.
+`Conflict=True` uses `DuplicateSPIFFEID` when any item has that cause; otherwise it uses `VariantConflict`. The condition reason is the coarse conflict class, while each item records the precise cause.
 
 `status.computedSpiffeIDs`, `status.renderedSelectors`, and `status.renderedClusterSPIFFEID` are populated only when `Ready=True`. They are cleared for selector failures, conflicts, and managed-output API failures.
 
@@ -171,7 +165,7 @@ Allowed condition types and reasons:
 | `Ready` | `Unknown` | `Initializing` |
 | `InvalidRef` | `True` | `InvalidPoolRef`, `TargetPoolNotFound`, `InferencePoolCRDMissing` |
 | `UnsafeSelector` | `True` | `InvalidPoolSelector`, `UnsafeSelector`, `InvalidIdentityBoundary` |
-| `Conflict` | `True` | `IdentityBoundaryConflict`, `DuplicateIdentityBinding` |
+| `Conflict` | `True` | `VariantConflict`, `DuplicateSPIFFEID` |
 | `RenderFailure` | `True` | `MissingTrustDomain`, `InvalidServiceAccountName`, `InvalidSPIFFEID`, `ClusterSPIFFEIDCRDMissing`, `ManagedOutputApplyFailed` |
 | `InvalidRef` | `False` | `Resolved` |
 | `UnsafeSelector` | `False` | `Resolved` |
@@ -179,7 +173,7 @@ Allowed condition types and reasons:
 | `RenderFailure` | `False` | `Resolved` |
 | `InvalidRef`, `UnsafeSelector`, `Conflict`, `RenderFailure` | `Unknown` | `Initializing` |
 
-Exactly one primary failure condition is `True`. `Ready=False` uses the same reason and message. Conflict causes are `BoundaryValueReuse`, `BoundaryKeyMismatch`, and `DuplicateSPIFFEID`.
+Exactly one primary failure condition is `True`. `Ready=False` uses the same reason and message. Conflict causes are `VariantReuse` and `DuplicateSPIFFEID`.
 
 ## Rendered Managed Status
 
@@ -207,7 +201,7 @@ If a managed resource cannot be read, created, updated, or deleted because the A
 1. Discover the supported GAIE pool GVK served by the cluster and watch it.
 2. Fail startup when the supported `InferencePool` GVK is not available.
 3. Resolve `poolRef` only to documented supported GAIE groups.
-4. Normalize the referenced pool selector, validate the declared identity boundary, and preserve the complete selector plus mandatory boundary selector for rendering.
+4. Normalize the referenced pool selector, validate the declared variant, and preserve the complete selector plus mandatory fixed-key variant selector for rendering.
 5. Evaluate boundary exclusivity before managed output creation or update.
 6. Refuse selector failures and conflicts. Both states produce no managed output.
 7. Render the SPIFFE ID and managed `ClusterSPIFFEID` shape deterministically when the binding is exclusive.
@@ -218,7 +212,7 @@ If a managed resource cannot be read, created, updated, or deleted because the A
 
 An identity boundary label is security-sensitive metadata. Permission to assign the boundary label or selected service account is therefore identity registration authority.
 
-`identity.kleym.sonda.red/*` is reserved for platform-controlled boundary labels. Cluster admission policy must restrict assignment and mutation of reserved labels to platform-controlled actors. Boundary labels are immutable for the lifetime of a Pod; boundary changes use replacement Pods.
+`identity.kleym.sonda.red/variant` is the operator-owned boundary label key. Cluster admission policy must restrict assignment and mutation of this label to platform-controlled actors. The label is immutable for the lifetime of a Pod; variant changes use replacement Pods.
 
 Deployments must enforce this ownership with Kubernetes admission control. See
 [Boundary Label Ownership][boundary-label-ownership] for an opt-in native

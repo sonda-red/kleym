@@ -279,7 +279,7 @@ func TestReconcileConditionTaxonomyFailures(t *testing.T) {
 		"invalid-identity-boundary": {
 			binding: func() *kleymv1alpha1.InferenceIdentityBinding {
 				binding := newPoolOnlyBinding("binding-invalid-boundary-taxonomy", "")
-				binding.Spec.IdentityBoundary.LabelKey = "example.com/variant"
+				binding.Spec.IdentityBoundary.Variant = "invalid/variant"
 				return binding
 			}(),
 			objects:       []client.Object{newTestPool()},
@@ -391,6 +391,8 @@ func TestConditionTaxonomyAllowedReasonStrings(t *testing.T) {
 		"missing-trust-domain":         {got: identity.ReasonMissingTrustDomain, want: "MissingTrustDomain"},
 		"invalid-service-account-name": {got: identity.ReasonInvalidServiceAccountName, want: "InvalidServiceAccountName"},
 		"invalid-spiffe-id":            {got: identity.ReasonInvalidSPIFFEID, want: "InvalidSPIFFEID"},
+		"variant-conflict":             {got: conditionReasonVariantConflict, want: "VariantConflict"},
+		"duplicate-spiffe-id":          {got: conditionReasonDuplicateSPIFFEID, want: "DuplicateSPIFFEID"},
 		"clusterspiffeid-crd-missing":  {got: conditionReasonClusterSPIFFEIDCRDMissing, want: "ClusterSPIFFEIDCRDMissing"},
 		"managed-output-apply-failed":  {got: conditionReasonManagedOutputApplyFailed, want: "ManagedOutputApplyFailed"},
 	}

@@ -27,7 +27,7 @@ import (
 )
 
 type bindingConflictState struct {
-	conflicts []identity.BoundaryConflict
+	conflicts []identity.VariantConflict
 	members   []*kleymv1alpha1.InferenceIdentityBinding
 	blocked   bool
 }
@@ -44,7 +44,7 @@ func (r *InferenceIdentityBindingReconciler) evaluateBindingConflicts(
 		return bindingConflictState{}, err
 	}
 
-	records := make([]identity.BoundaryRecord, 0, len(bindings.Items))
+	records := make([]identity.VariantRecord, 0, len(bindings.Items))
 	bindingsByRef := make(map[types.NamespacedName]*kleymv1alpha1.InferenceIdentityBinding, len(bindings.Items))
 	blockedMembers := make([]*kleymv1alpha1.InferenceIdentityBinding, 0)
 	for index := range bindings.Items {
@@ -62,7 +62,7 @@ func (r *InferenceIdentityBindingReconciler) evaluateBindingConflicts(
 		}
 		ref := types.NamespacedName{Namespace: peer.Namespace, Name: peer.Name}
 		bindingsByRef[ref] = peer
-		records = append(records, boundaryRecord(peer, plan))
+		records = append(records, variantRecord(peer, plan))
 	}
 
 	state := currentBindingConflictState(binding, records, bindingsByRef)
@@ -111,16 +111,15 @@ func (r *InferenceIdentityBindingReconciler) identityForConflictEvaluation(
 	return renderedIdentity{}, false, false, err
 }
 
-// boundaryRecord projects validated render state into the pure evaluator input.
-func boundaryRecord(
+// variantRecord projects validated render state into the pure evaluator input.
+func variantRecord(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
 	plan renderedIdentity,
-) identity.BoundaryRecord {
-	return identity.BoundaryRecord{
+) identity.VariantRecord {
+	return identity.VariantRecord{
 		BindingRef:         types.NamespacedName{Namespace: binding.Namespace, Name: binding.Name},
 		ServiceAccountName: binding.Spec.ServiceAccountName,
-		LabelKey:           plan.Boundary.LabelKey,
-		LabelValue:         plan.Boundary.LabelValue,
+		Variant:            plan.Variant,
 		SpiffeID:           plan.SpiffeID,
 	}
 }
@@ -129,12 +128,12 @@ func boundaryRecord(
 // diagnoses and deterministic managed-output withdrawal set.
 func currentBindingConflictState(
 	binding *kleymv1alpha1.InferenceIdentityBinding,
-	records []identity.BoundaryRecord,
+	records []identity.VariantRecord,
 	bindingsByRef map[types.NamespacedName]*kleymv1alpha1.InferenceIdentityBinding,
 ) bindingConflictState {
 	currentRef := types.NamespacedName{Namespace: binding.Namespace, Name: binding.Name}
 	state := bindingConflictState{}
-	for _, conflict := range identity.EvaluateBoundaryConflicts(records) {
+	for _, conflict := range identity.EvaluateVariantConflicts(records) {
 		if conflict.BindingRef != currentRef {
 			continue
 		}

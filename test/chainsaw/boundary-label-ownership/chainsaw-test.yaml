@@ -4,7 +4,7 @@ kind: Test
 metadata:
   name: boundary-label-ownership
 spec:
-  description: Verifies reserved identity boundary label admission on a real API server, including immutable Pod boundaries and platform-controlled replacement.
+  description: Verifies fixed identity variant label admission on a real API server, including immutable Pod boundaries and platform-controlled replacement.
   timeouts:
     apply: 30s
     assert: 30s
@@ -43,7 +43,7 @@ spec:
                 kubectl --as=untrusted-workload-writer -n "${namespace}" create --dry-run=server -f test/chainsaw/boundary-label-ownership/untrusted-boundary-pod.yaml >"${output}" 2>&1
                 status="$?"
                 set -e
-                if [ "${status}" -ne 0 ] && grep -Fq "Only platform workload operators may create Pods with reserved identity boundary labels." "${output}"; then
+                if [ "${status}" -ne 0 ] && grep -Fq "Only platform workload operators may create Pods with the identity variant label." "${output}"; then
                   policy_ready=true
                   break
                 fi
@@ -79,7 +79,7 @@ spec:
                 cat "${output}" >&2
                 exit 1
               fi
-              grep -F "Only platform workload operators may create Pods with reserved identity boundary labels." "${output}"
+              grep -F "Only platform workload operators may create Pods with the identity variant label." "${output}"
 
               kubectl --as=platform-workload-writer --as-group="${platform_group}" -n "${namespace}" create -f - <<'EOF'
               apiVersion: v1
@@ -101,7 +101,7 @@ spec:
                   cat "${output}" >&2
                   exit 1
                 fi
-                grep -F "Reserved identity boundary labels are immutable for the lifetime of a Pod; create a replacement Pod instead." "${output}"
+                grep -F "The identity variant label is immutable for the lifetime of a Pod; create a replacement Pod instead." "${output}"
               }
 
               expect_immutable_denial kubectl --as=platform-workload-writer --as-group="${platform_group}" -n "${namespace}" label pod ordinary-metadata identity.kleym.sonda.red/variant=prefill

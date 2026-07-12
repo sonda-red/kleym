@@ -246,7 +246,7 @@ func TestAmbiguousOwnershipClearDoesNotResurrectOwnedUID(t *testing.T) {
 	base := newConflictTestReconciler(t, newTestPool(), newPoolOnlyBinding("binding-ambiguous-clear", ""))
 	reconcileBinding(t, ctx, base, "binding-ambiguous-clear")
 	binding := fetchBinding(t, ctx, base.Client, "binding-ambiguous-clear")
-	binding.Spec.IdentityBoundary.LabelKey = "example.com/not-reserved"
+	binding.Spec.IdentityBoundary.Variant = "invalid/variant"
 	if err := base.Update(ctx, binding); err != nil {
 		t.Fatalf("make binding invalid: %v", err)
 	}
@@ -450,7 +450,7 @@ func TestValidationCleanupAndFinalizerPreserveUIDMismatchedReplacement(t *testin
 		_, foreign := desiredOwnershipFixture(t, ctx, binding)
 		foreign.SetUID("validation-foreign-uid")
 		setConfirmedClusterSPIFFEID(binding, foreign.GetName(), "deleted-owned-uid")
-		binding.Spec.IdentityBoundary.LabelKey = "example.com/not-reserved"
+		binding.Spec.IdentityBoundary.Variant = "invalid/variant"
 		reconciler := newConflictTestReconciler(t, binding, foreign)
 
 		reconcileBinding(t, ctx, reconciler, binding.Name)

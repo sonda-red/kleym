@@ -124,6 +124,16 @@ func TestInspectBindingUsesStatusOperatorConfig(t *testing.T) {
 	if report.RenderedIdentity.SPIFFEID != "spiffe://example.org/ns/tenant-a/sa/model-sa/inference/pool/pool-a/variant/prefill" {
 		t.Fatalf("rendered spiffeID = %q, want configured trust domain", report.RenderedIdentity.SPIFFEID)
 	}
+	variantSelector := "k8s:pod-label:identity.kleym.sonda.red/variant:prefill"
+	variantSelectorCount := 0
+	for _, selector := range report.RenderedIdentity.WorkloadSelectors {
+		if selector == variantSelector {
+			variantSelectorCount++
+		}
+	}
+	if variantSelectorCount != 1 {
+		t.Fatalf("variant selector count = %d, want exactly one in %v", variantSelectorCount, report.RenderedIdentity.WorkloadSelectors)
+	}
 	if report.RenderedClusterSPIFFEID.ClassName != "kleym" {
 		t.Fatalf("rendered className = %q, want kleym", report.RenderedClusterSPIFFEID.ClassName)
 	}
@@ -504,8 +514,7 @@ func testInspectionBinding() *kleymv1alpha1.InferenceIdentityBinding {
 			},
 			ServiceAccountName: "model-sa",
 			IdentityBoundary: kleymv1alpha1.IdentityBoundary{
-				LabelKey:   "identity.kleym.sonda.red/variant",
-				LabelValue: "prefill",
+				Variant: "prefill",
 			},
 		},
 		Status: kleymv1alpha1.InferenceIdentityBindingStatus{
@@ -639,11 +648,8 @@ func inspectionPlanWithTrustDomain(
 		Namespace:          binding.Namespace,
 		ServiceAccountName: binding.Spec.ServiceAccountName,
 		TrustDomain:        trustDomain,
-		Boundary: identity.Boundary{
-			LabelKey:   binding.Spec.IdentityBoundary.LabelKey,
-			LabelValue: binding.Spec.IdentityBoundary.LabelValue,
-		},
-		Target: target,
+		Variant:            binding.Spec.IdentityBoundary.Variant,
+		Target:             target,
 	})
 }
 

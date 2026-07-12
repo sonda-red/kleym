@@ -23,16 +23,15 @@ The current implementation requires:
 - a service account selector: `k8s:sa:<service-account>`
 - selectors derived from the referenced pool
 - one boundary selector rendered from required `spec.identityBoundary`:
-  `k8s:pod-label:<label-key>:<label-value>`
+  `k8s:pod-label:identity.kleym.sonda.red/variant:<variant>`
 
 If the namespace selector does not match the binding namespace, reconciliation fails.
 
 If no service account selector is present, reconciliation fails.
 
-An invalid, missing, or non-reserved boundary fails with
-`UnsafeSelector=True` reason `InvalidIdentityBoundary`. Different SPIFFE IDs in
-the same namespace and service account are exclusive only when their boundary
-keys match and their values differ. Other relationships conflict; the exact
+An invalid or missing variant fails with `UnsafeSelector=True` reason
+`InvalidIdentityBoundary`. Different SPIFFE IDs in the same namespace and
+service account are exclusive only when their variants differ. Other relationships conflict; the exact
 pairwise rules remain authoritative in the
 [Operator Spec](/spec/operator/#identity-boundary-and-exclusivity).
 

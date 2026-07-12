@@ -121,6 +121,28 @@ func TestPlanIdentityCanonicalizesRenderedSelectors(t *testing.T) {
 	if !slices.Equal(identity.Selectors, wantSelectors) {
 		t.Fatalf("selectors = %v, want %v", identity.Selectors, wantSelectors)
 	}
+	if got := countString(identity.Selectors, "k8s:pod-label:identity.kleym.sonda.red/variant:prefill"); got != 1 {
+		t.Fatalf("variant selector count = %d, want 1", got)
+	}
+}
+
+func TestPlanIdentityRejectsConflictingPoolVariantSelector(t *testing.T) {
+	t.Parallel()
+
+	input := testPlanInput(testBinding(), "pool-a")
+	input.Target.DerivedSelectors = append(
+		input.Target.DerivedSelectors,
+		"k8s:pod-label:identity.kleym.sonda.red/variant:decode",
+	)
+
+	_, err := PlanIdentity(input)
+	var stateErr *StateError
+	if !errors.As(err, &stateErr) {
+		t.Fatalf("PlanIdentity error = %v, want StateError", err)
+	}
+	if stateErr.ConditionType != ConditionTypeUnsafeSelector || stateErr.Reason != ReasonUnsafeSelector {
+		t.Fatalf("condition/reason = %q/%q, want %q/%q", stateErr.ConditionType, stateErr.Reason, ConditionTypeUnsafeSelector, ReasonUnsafeSelector)
+	}
 }
 
 func TestSelectorFingerprintUsesCanonicalSelectorSet(t *testing.T) {
@@ -268,8 +290,7 @@ func testBinding() *kleymv1alpha1.InferenceIdentityBinding {
 			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-a"},
 			ServiceAccountName: "inference-sa",
 			IdentityBoundary: kleymv1alpha1.IdentityBoundary{
-				LabelKey:   "identity.kleym.sonda.red/variant",
-				LabelValue: "prefill",
+				Variant: "prefill",
 			},
 		},
 	}
@@ -283,10 +304,7 @@ func testPlanInput(
 		Namespace:          binding.Namespace,
 		ServiceAccountName: binding.Spec.ServiceAccountName,
 		TrustDomain:        "example.org",
-		Boundary: Boundary{
-			LabelKey:   binding.Spec.IdentityBoundary.LabelKey,
-			LabelValue: binding.Spec.IdentityBoundary.LabelValue,
-		},
+		Variant:            binding.Spec.IdentityBoundary.Variant,
 		Target: ResolvedInferenceTarget{
 			IdentityAnchor: IdentityAnchor{Kind: "pool", Name: poolName},
 			PodSelector:    map[string]any{"matchLabels": map[string]any{"app": "model-server"}},
@@ -304,4 +322,14 @@ func containsString(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func countString(values []string, want string) int {
+	count := 0
+	for _, value := range values {
+		if value == want {
+			count++
+		}
+	}
+	return count
 }

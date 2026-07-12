@@ -5,9 +5,6 @@ metadata:
   namespace: kleym-reference-inference
 status:
   trustDomain: kleym.sonda.red
-  identityBoundary:
-    labelKey: identity.kleym.sonda.red/variant
-    labelValue: reference
   ownedClusterSPIFFEID:
     name: kleym-kleym-reference-inference-pool-binding-pool-18b7ab03
   computedSpiffeIDs:

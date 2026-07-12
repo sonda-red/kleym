@@ -35,11 +35,11 @@ func TestReconcileConflictWithdrawsOutputsAndPeersConverge(t *testing.T) {
 	reconcileBinding(t, ctx, reconciler, peer.Name)
 	reconcileBinding(t, ctx, reconciler, "binding-a")
 	assertClusterSPIFFEIDCount(t, ctx, reconciler.Client, 0)
-	assertBindingConflict(t, ctx, reconciler.Client, "binding-a", "binding-b", identity.CauseBoundaryValueReuse)
-	assertBindingConflict(t, ctx, reconciler.Client, "binding-b", "binding-a", identity.CauseBoundaryValueReuse)
+	assertBindingConflict(t, ctx, reconciler.Client, "binding-a", "binding-b", identity.CauseVariantReuse)
+	assertBindingConflict(t, ctx, reconciler.Client, "binding-b", "binding-a", identity.CauseVariantReuse)
 
 	currentPeer := fetchBinding(t, ctx, reconciler.Client, peer.Name)
-	currentPeer.Spec.IdentityBoundary.LabelValue = "decode"
+	currentPeer.Spec.IdentityBoundary.Variant = "decode"
 	if err := reconciler.Update(ctx, currentPeer); err != nil {
 		t.Fatalf("make peer exclusive: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestReconcileRestartConvergesDuplicateIdentityClaims(t *testing.T) {
 
 	reconcileBinding(t, ctx, reconciler, first.Name)
 	current := fetchBinding(t, ctx, reconciler.Client, first.Name)
-	assertPrimaryFailureCondition(t, current, conditionTypeConflict, conditionReasonDuplicateIdentityBinding)
+	assertPrimaryFailureCondition(t, current, conditionTypeConflict, conditionReasonDuplicateSPIFFEID)
 	if len(current.Status.Conflicts) != 1 || current.Status.Conflicts[0].Cause != string(identity.CauseDuplicateSPIFFEID) {
 		t.Fatalf("conflicts = %#v, want DuplicateSPIFFEID", current.Status.Conflicts)
 	}
@@ -72,13 +72,13 @@ func TestDeletingConflictPeerBlocksRecoveryUntilOutputAbsence(t *testing.T) {
 	first := newPoolOnlyBinding("binding-delete-block-a", "")
 	second := newPoolOnlyBinding("binding-delete-block-b", "")
 	second.Spec.PoolRef.Name = "pool-b"
-	second.Spec.IdentityBoundary.LabelValue = "decode"
+	second.Spec.IdentityBoundary.Variant = "decode"
 	reconciler := newConflictTestReconciler(t, newTestPool(), testPoolNamed("pool-b"), first, second)
 	reconcileBinding(t, ctx, reconciler, first.Name)
 	reconcileBinding(t, ctx, reconciler, second.Name)
 
 	currentSecond := fetchBinding(t, ctx, reconciler.Client, second.Name)
-	currentSecond.Spec.IdentityBoundary.LabelValue = "prefill"
+	currentSecond.Spec.IdentityBoundary.Variant = "prefill"
 	if err := reconciler.Update(ctx, currentSecond); err != nil {
 		t.Fatalf("make peer conflicting: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestConflictCleanupUsesOwnershipRetainedAfterUpdateFailure(t *testing.T) {
 		t.Fatalf("conflict Reconcile returned error: %v", err)
 	}
 	conflicted := fetchBinding(t, ctx, wrapped, first.Name)
-	assertPrimaryFailureCondition(t, conflicted, conditionTypeConflict, conditionReasonIdentityBoundaryConflict)
+	assertPrimaryFailureCondition(t, conflicted, conditionTypeConflict, conditionReasonVariantConflict)
 	if conflicted.Status.OwnedClusterSPIFFEID != nil {
 		t.Fatalf("ownedClusterSPIFFEID = %#v after confirmed conflict cleanup, want nil", conflicted.Status.OwnedClusterSPIFFEID)
 	}
@@ -235,7 +235,7 @@ func TestConflictCleanupPreservesUIDMismatchedReplacement(t *testing.T) {
 
 	reconcileBinding(t, ctx, reconciler, first.Name)
 	conflicted := fetchBinding(t, ctx, reconciler.Client, first.Name)
-	assertPrimaryFailureCondition(t, conflicted, conditionTypeConflict, conditionReasonIdentityBoundaryConflict)
+	assertPrimaryFailureCondition(t, conflicted, conditionTypeConflict, conditionReasonVariantConflict)
 	if conflicted.Status.OwnedClusterSPIFFEID != nil {
 		t.Fatalf("stale confirmed ownership = %#v, want cleared", conflicted.Status.OwnedClusterSPIFFEID)
 	}
@@ -306,7 +306,7 @@ func TestPoolMutationRequeuesPeerAndConvergesConflict(t *testing.T) {
 	first := newPoolOnlyBinding("binding-pool-mutation-a", "")
 	second := newPoolOnlyBinding("binding-pool-mutation-b", "")
 	second.Spec.PoolRef.Name = "pool-b"
-	second.Spec.IdentityBoundary.LabelValue = "decode"
+	second.Spec.IdentityBoundary.Variant = "decode"
 	poolB := testPoolNamed("pool-b")
 	reconciler := newConflictTestReconciler(t, newTestPool(), poolB, first, second)
 	reconcileBinding(t, ctx, reconciler, first.Name)
@@ -393,15 +393,12 @@ func assertBindingConflict(
 ) {
 	t.Helper()
 	binding := fetchBinding(t, ctx, cli, name)
-	assertPrimaryFailureCondition(t, binding, conditionTypeConflict, conditionReasonIdentityBoundaryConflict)
-	if binding.Status.IdentityBoundary == nil || binding.Status.IdentityBoundary.LabelValue != "prefill" {
-		t.Fatalf("identityBoundary = %#v, want retained prefill boundary", binding.Status.IdentityBoundary)
-	}
+	assertPrimaryFailureCondition(t, binding, conditionTypeConflict, conditionReasonVariantConflict)
 	if len(binding.Status.Conflicts) != 1 {
 		t.Fatalf("conflicts = %#v, want one peer", binding.Status.Conflicts)
 	}
 	conflict := binding.Status.Conflicts[0]
-	if conflict.BindingRef.Name != peerName || conflict.Cause != string(cause) || conflict.SpiffeID == "" {
+	if conflict.BindingName != peerName || conflict.Cause != string(cause) || conflict.SpiffeID == "" || conflict.Variant != "prefill" {
 		t.Fatalf("conflict = %#v, want peer=%s cause=%s", conflict, peerName, cause)
 	}
 	if len(binding.Status.ComputedSpiffeIDs) != 0 || len(binding.Status.RenderedSelectors) != 0 || binding.Status.RenderedClusterSPIFFEID != nil {

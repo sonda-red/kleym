@@ -40,7 +40,7 @@ func initializeConditions(
 		{conditionTypeReady, "Readiness has not been evaluated yet"},
 		{conditionTypeInvalidRef, "Reference validity has not been evaluated yet"},
 		{conditionTypeUnsafeSelector, "Selector safety has not been evaluated yet"},
-		{conditionTypeConflict, "Identity boundary conflicts have not been evaluated yet"},
+		{conditionTypeConflict, "Variant conflicts have not been evaluated yet"},
 		{conditionTypeRenderFailure, "Render health has not been evaluated yet"},
 	}
 
@@ -61,17 +61,6 @@ func initializeConditions(
 		}
 
 		setCondition(status, generation, entry.conditionType, conditionStatus, reason, message)
-	}
-}
-
-// applyIdentityBoundaryStatus retains validated boundary data for diagnosis.
-func applyIdentityBoundaryStatus(
-	status *kleymv1alpha1.InferenceIdentityBindingStatus,
-	boundary identity.Boundary,
-) {
-	status.IdentityBoundary = &kleymv1alpha1.IdentityBoundaryStatus{
-		LabelKey:   boundary.LabelKey,
-		LabelValue: boundary.LabelValue,
 	}
 }
 
@@ -112,7 +101,7 @@ func applySuccessStatus(
 	setCondition(status, generation, conditionTypeReady, metav1.ConditionTrue, conditionReasonReconciled, "Binding reconciled")
 	setCondition(status, generation, conditionTypeInvalidRef, metav1.ConditionFalse, conditionReasonResolved, "References are valid")
 	setCondition(status, generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, conditionReasonResolved, "Selectors are safe")
-	setCondition(status, generation, conditionTypeConflict, metav1.ConditionFalse, conditionReasonResolved, "Identity boundary is exclusive")
+	setCondition(status, generation, conditionTypeConflict, metav1.ConditionFalse, conditionReasonResolved, "Variant is exclusive")
 	setCondition(status, generation, conditionTypeRenderFailure, metav1.ConditionFalse, conditionReasonResolved, "Rendering is healthy")
 }
 
@@ -121,29 +110,25 @@ func applySuccessStatus(
 func applyConflictStatus(
 	status *kleymv1alpha1.InferenceIdentityBindingStatus,
 	generation int64,
-	conflicts []identity.BoundaryConflict,
+	conflicts []identity.VariantConflict,
 ) {
 	status.ComputedSpiffeIDs = nil
 	status.RenderedSelectors = nil
 	status.RenderedClusterSPIFFEID = nil
-	status.Conflicts = make([]kleymv1alpha1.IdentityBoundaryConflictStatus, 0, len(conflicts))
-	reason := conditionReasonIdentityBoundaryConflict
+	status.Conflicts = make([]kleymv1alpha1.VariantConflictStatus, 0, len(conflicts))
+	reason := conditionReasonVariantConflict
 	for _, conflict := range conflicts {
 		if conflict.Cause == identity.CauseDuplicateSPIFFEID {
-			reason = conditionReasonDuplicateIdentityBinding
+			reason = conditionReasonDuplicateSPIFFEID
 		}
-		status.Conflicts = append(status.Conflicts, kleymv1alpha1.IdentityBoundaryConflictStatus{
-			BindingRef: kleymv1alpha1.BindingReference{
-				Namespace: conflict.PeerBindingRef.Namespace,
-				Name:      conflict.PeerBindingRef.Name,
-			},
-			Cause:    string(conflict.Cause),
-			SpiffeID: conflict.PeerSpiffeID,
-			LabelKey: conflict.PeerLabelKey,
-			Value:    conflict.PeerLabelValue,
+		status.Conflicts = append(status.Conflicts, kleymv1alpha1.VariantConflictStatus{
+			BindingName: conflict.PeerBindingRef.Name,
+			Cause:       string(conflict.Cause),
+			SpiffeID:    conflict.PeerSpiffeID,
+			Variant:     conflict.PeerVariant,
 		})
 	}
-	message := "Identity boundary conflicts with one or more peer bindings"
+	message := "Variant conflicts with one or more peer bindings"
 	setCondition(status, generation, conditionTypeReady, metav1.ConditionFalse, reason, message)
 	setCondition(status, generation, conditionTypeInvalidRef, metav1.ConditionFalse, conditionReasonResolved, "References are valid")
 	setCondition(status, generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, conditionReasonResolved, "Selectors are safe")
@@ -165,7 +150,7 @@ func applyPendingManagedOutputStatus(
 	setCondition(status, generation, conditionTypeReady, metav1.ConditionUnknown, conditionReasonInitializing, message)
 	setCondition(status, generation, conditionTypeInvalidRef, metav1.ConditionFalse, conditionReasonResolved, "References are valid")
 	setCondition(status, generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, conditionReasonResolved, "Selectors are safe")
-	setCondition(status, generation, conditionTypeConflict, metav1.ConditionFalse, conditionReasonResolved, "Identity boundary is exclusive")
+	setCondition(status, generation, conditionTypeConflict, metav1.ConditionFalse, conditionReasonResolved, "Variant is exclusive")
 	setCondition(status, generation, conditionTypeRenderFailure, metav1.ConditionFalse, conditionReasonResolved, "Rendering is healthy")
 }
 
@@ -200,7 +185,7 @@ func applyPendingManagedOutputReplacementStatus(
 	setCondition(status, generation, conditionTypeReady, metav1.ConditionUnknown, conditionReasonInitializing, message)
 	setCondition(status, generation, conditionTypeInvalidRef, metav1.ConditionFalse, conditionReasonResolved, "References are valid")
 	setCondition(status, generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, conditionReasonResolved, "Selectors are safe")
-	setCondition(status, generation, conditionTypeConflict, metav1.ConditionFalse, conditionReasonResolved, "Identity boundary is exclusive")
+	setCondition(status, generation, conditionTypeConflict, metav1.ConditionFalse, conditionReasonResolved, "Variant is exclusive")
 	setCondition(status, generation, conditionTypeRenderFailure, metav1.ConditionFalse, conditionReasonResolved, "Rendering is healthy")
 }
 
@@ -224,7 +209,7 @@ func applyFailureStatus(
 		setCondition(status, generation, conditionTypeUnsafeSelector, metav1.ConditionFalse, conditionReasonResolved, "Selectors are safe")
 	}
 	if stateErr.conditionType != conditionTypeConflict {
-		setCondition(status, generation, conditionTypeConflict, metav1.ConditionFalse, conditionReasonResolved, "Identity boundary is exclusive")
+		setCondition(status, generation, conditionTypeConflict, metav1.ConditionFalse, conditionReasonResolved, "Variant is exclusive")
 	}
 	if stateErr.conditionType != conditionTypeRenderFailure {
 		setCondition(status, generation, conditionTypeRenderFailure, metav1.ConditionFalse, conditionReasonResolved, "Rendering is healthy")

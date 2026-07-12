@@ -20,8 +20,7 @@ import (
 const testNamespace = "default"
 
 var testIdentityBoundary = kleymv1alpha1.IdentityBoundary{
-	LabelKey:   "identity.kleym.sonda.red/variant",
-	LabelValue: "prefill",
+	Variant: "prefill",
 }
 
 func newControllerTestScheme(t *testing.T) *runtime.Scheme {

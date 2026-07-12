@@ -63,7 +63,7 @@ Prerequisites:
 - `kubectl`
 - Access to a Kubernetes cluster with the Gateway API Inference Extension [`InferencePool`](https://gateway-api-inference-extension.sigs.k8s.io/api-types/inferencepool/) CRD
 - SPIRE Controller Manager with the `ClusterSPIFFEID` CRD
-- Cluster admission policy that controls assignment of `identity.kleym.sonda.red/*` Pod labels and prevents changing them during a Pod's lifetime; see [`docs/install.md`](docs/install.md#identity-boundary-admission-policy)
+- Cluster admission policy that controls assignment of the `identity.kleym.sonda.red/variant` Pod label and prevents changing it during a Pod's lifetime; see [`docs/install.md`](docs/install.md#identity-boundary-admission-policy)
 - Docker for Kind-backed e2e; the e2e targets bootstrap `kind` and Chainsaw under `bin/`
 
 Run the controller locally:

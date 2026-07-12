@@ -444,7 +444,7 @@ func assertServiceAccountNameValidationAtCRDAdmission(
 	}
 }
 
-// assertIdentityBoundaryValidationAtCRDAdmission verifies required boundary fields and formats.
+// assertIdentityBoundaryValidationAtCRDAdmission verifies required variant admission.
 func assertIdentityBoundaryValidationAtCRDAdmission(
 	t *testing.T,
 	ctx context.Context,
@@ -452,15 +452,47 @@ func assertIdentityBoundaryValidationAtCRDAdmission(
 ) {
 	t.Helper()
 
-	cases := map[string]kleymv1alpha1.IdentityBoundary{
-		"missing":        {},
-		"unreserved-key": {LabelKey: "example.com/variant", LabelValue: "prefill"},
-		"malformed-key":  {LabelKey: "identity.kleym.sonda.red/bad key", LabelValue: "prefill"},
-		"empty-value":    {LabelKey: "identity.kleym.sonda.red/variant"},
-		"malformed-value": {
-			LabelKey:   "identity.kleym.sonda.red/variant",
-			LabelValue: "bad/value",
+	missing := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": kleymv1alpha1.GroupVersion.String(),
+		"kind":       "InferenceIdentityBinding",
+		"metadata": map[string]any{
+			"namespace": testNamespace,
+			"name":      "variant-missing",
 		},
+		"spec": map[string]any{
+			"poolRef":            map[string]any{"name": "pool-current"},
+			"serviceAccountName": "inference-sa",
+			"identityBoundary":   map[string]any{},
+		},
+	}}
+	if err := k8sClient.Create(ctx, missing); !apierrors.IsInvalid(err) {
+		t.Fatalf("create binding with missing variant error = %v, want Invalid", err)
+	}
+
+	legacy := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": kleymv1alpha1.GroupVersion.String(),
+		"kind":       "InferenceIdentityBinding",
+		"metadata": map[string]any{
+			"namespace": testNamespace,
+			"name":      "legacy-boundary-fields",
+		},
+		"spec": map[string]any{
+			"poolRef":            map[string]any{"name": "pool-current"},
+			"serviceAccountName": "inference-sa",
+			"identityBoundary": map[string]any{
+				"labelKey":   "identity.kleym.sonda.red/variant",
+				"labelValue": "prefill",
+			},
+		},
+	}}
+	if err := k8sClient.Create(ctx, legacy); !apierrors.IsInvalid(err) {
+		t.Fatalf("create binding with removed boundary fields error = %v, want Invalid", err)
+	}
+
+	cases := map[string]kleymv1alpha1.IdentityBoundary{
+		"empty":     {},
+		"malformed": {Variant: "bad/value"},
+		"too-long":  {Variant: strings.Repeat("a", 64)},
 	}
 	for name, boundary := range cases {
 		binding := &kleymv1alpha1.InferenceIdentityBinding{
@@ -474,6 +506,21 @@ func assertIdentityBoundaryValidationAtCRDAdmission(
 		if err := k8sClient.Create(ctx, binding); !apierrors.IsInvalid(err) {
 			t.Fatalf("create binding with %s boundary error = %v, want Invalid", name, err)
 		}
+	}
+
+	valid := &kleymv1alpha1.InferenceIdentityBinding{
+		ObjectMeta: metav1.ObjectMeta{Namespace: testNamespace, Name: "variant-valid"},
+		Spec: kleymv1alpha1.InferenceIdentityBindingSpec{
+			PoolRef:            kleymv1alpha1.InferencePoolTargetRef{Name: "pool-current"},
+			ServiceAccountName: "inference-sa",
+			IdentityBoundary:   kleymv1alpha1.IdentityBoundary{Variant: "decode.v1"},
+		},
+	}
+	if err := k8sClient.Create(ctx, valid); err != nil {
+		t.Fatalf("create binding with valid variant: %v", err)
+	}
+	if err := k8sClient.Delete(ctx, valid); err != nil {
+		t.Fatalf("delete binding with valid variant: %v", err)
 	}
 }
 
